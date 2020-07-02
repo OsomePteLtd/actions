@@ -1,0 +1,8 @@
+{
+  "name": "actions",
+  "private": true,
+  "devDependencies": {
+    "husky": "^4.2.5",
+    "lerna": "^3.22.1"
+  }
+}

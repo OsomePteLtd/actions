@@ -1,0 +1,28 @@
+name: Bump version
+
+on:
+  push:
+    branches:
+      - 'master'
+    paths-ignore:
+      - 'package.json'
+    tags-ignore:
+      - 'v*.*.*'
+
+env:
+  NODE_AUTH_TOKEN: ${{ secrets.OSOME_BOT_TOKEN }}
+
+jobs:
+  minor:
+    name: 'Bump minor version'
+    runs-on: ubuntu-latest
+    if: "github.actor != 'osome-bot' && !contains(github.event.head_commit.message, 'skip ci')"
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        token: ${{ secrets.OSOME_BOT_TOKEN }}
+
+    - uses: osomepteltd/actions/packages/bump-version@master
+      with:
+        token: ${{ secrets.OSOME_BOT_TOKEN }}

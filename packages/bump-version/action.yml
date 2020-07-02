@@ -1,0 +1,9 @@
+name: 'Bump version'
+description: 'Bump application version'
+inputs:
+  token:
+    description: 'Personal access token'
+    required: true
+runs:
+  using: 'node12'
+  main: './dist/index.js'

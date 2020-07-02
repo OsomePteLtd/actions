@@ -1,0 +1,26 @@
+{
+  "name": "@osome/bump-version",
+  "version": "1.0.0",
+  "description": "Bump application version",
+  "author": "Egor Zaitsev <heuels@osome.com>",
+  "homepage": "https://github.com/OsomePteLtd/actions#readme",
+  "license": "UNLICENSED",
+  "main": "index.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OsomePteLtd/actions.git"
+  },
+  "scripts": {
+    "precommit": "ncc build index.ts -o dist && git add dist",
+    "test": "echo \"Error: run tests from root\" && exit 1"
+  },
+  "dependencies": {
+    "@actions/core": "^1.2.4",
+    "@actions/exec": "^1.0.4",
+    "@actions/github": "^4.0.0"
+  },
+  "devDependencies": {
+    "@zeit/ncc": "^0.22.3",
+    "typescript": "^3.9.6"
+  }
+}
