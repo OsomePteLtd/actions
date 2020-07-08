@@ -1,0 +1,8 @@
+name: 'Get deployment stages'
+description: 'Get deployment stages'
+outputs:
+  stages:
+    description: 'Deployment stages'
+runs:
+  using: 'node12'
+  main: './dist/index.js'
