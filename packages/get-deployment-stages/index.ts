@@ -18,39 +18,54 @@ const STAGE_LABELS: Record<string, string> = {
 
 async function run() {
   try {
+    const { eventName, ref, repo } = github.context;
     const event: Webhooks.WebhookPayloadPullRequest = await fs
       .readFile(process.env.GITHUB_EVENT_PATH!)
       .then((buffer) => JSON.parse(buffer.toString()));
 
-    const { eventName, ref } = github.context;
-
-    // Workflows run on master branch should only deploy to stage.
-    if (eventName === "tag" && ref === "refs/heads/master") {
-      core.setOutput("stages", JSON.stringify(['stage']));
-      return;
-    }
-
-    // Workflows run on pull request can deploy anywhere else.
-    if (eventName === "pull_request") {
-      const {
-        head: { ref: branchName },
-        labels,
-      } = event.pull_request;
-
-      const stages = labels
-        .map(({ name: labelName }) => STAGE_LABELS[labelName])
-        .filter(Boolean);
-
-      // If stage-specific labels are found, use them.
-      if (stages.length) {
-        core.setOutput("stages", JSON.stringify(stages));
+    if (eventName === "tag") {
+      if (ref !== "refs/heads/master") {
+        core.setFailed("Only tags on master branch are supported");
         return;
       }
 
-      // If no stage-specific labels are found, use task name or branch name.
-      if (!stages.length) {
-        const output = [branchName.replace(/.*\/(.*)/, "$1").toLowerCase()];
-        core.setOutput("stages", JSON.stringify(output));
+      const stages = [{ name: "stage", transient_environment: false }];
+      core.setOutput("matrix", JSON.stringify({ stages }));
+      return;
+    }
+
+    if (eventName === "pull_request") {
+      const token = core.getInput("token");
+      const octokit = github.getOctokit(token);
+
+      const {
+        head: { ref: branchName },
+        number: pull_number,
+      } = event.pull_request;
+
+      const {
+        data: { labels },
+      } = await octokit.pulls.get({ pull_number, ...repo });
+
+      const stages = labels
+        .map(({ name }) =>
+          STAGE_LABELS[name]
+            ? { name: "stage", transient_environment: false }
+            : null
+        )
+        .filter(Boolean);
+
+      if (stages.length) {
+        core.setOutput("stages", JSON.stringify({ stages }));
+        return;
+      } else {
+        const stages = [
+          {
+            name: branchName.replace(/.*\/(.*)/, "$1").toLowerCase(),
+            transient_environment: true,
+          },
+        ];
+        core.setOutput("stages", JSON.stringify({ stages }));
         return;
       }
     }
