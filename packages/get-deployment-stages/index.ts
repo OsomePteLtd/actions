@@ -25,7 +25,7 @@ async function run() {
     const { eventName, ref } = github.context;
 
     // Workflows run on master branch should only deploy to stage.
-    if (eventName === "tag" && ref === "refs/heads/master") {
+    if (ref === "refs/heads/master") {
       core.setOutput("stages", JSON.stringify(['stage']));
       return;
     }
