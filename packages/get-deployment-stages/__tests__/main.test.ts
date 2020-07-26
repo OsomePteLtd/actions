@@ -43,7 +43,7 @@ describe('get-deployment-stages', () => {
 
     jest.spyOn(core, 'setOutput').mockImplementation((key: string, value: string) => {
       expect(key).toEqual('stages');
-      expect(value).toEqual("[\"branch-name\"]");
+      expect(value).toEqual("[\"feature-branch-name\"]");
     });
 
     await expect(run()).resolves.not.toThrow();
