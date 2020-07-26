@@ -12,7 +12,7 @@
   },
   "scripts": {
     "precommit": "ncc build index.ts -o dist && git add dist",
-    "test": "echo \"Error: run tests from root\" && exit 1"
+    "test": "jest"
   },
   "dependencies": {
     "@actions/core": "^1.2.4",
@@ -21,7 +21,10 @@
   },
   "devDependencies": {
     "@octokit/webhooks": "^7.6.4",
+    "@types/jest": "^26.0.7",
     "@zeit/ncc": "^0.22.3",
+    "jest": "^26.1.0",
+    "ts-jest": "^26.1.3",
     "typescript": "^3.9.6"
   }
 }
