@@ -4,8 +4,6 @@ import { promises as fs } from 'fs';
 
 import run from '../';
 
-const refMaster = 'refs/heads/master';
-
 jest.mock('@actions/core');
 jest.mock('@actions/github');
 jest.mock('fs', () => ({ promises: { readFile: jest.fn() } }));
@@ -16,50 +14,46 @@ describe('get-deployment-stages', () => {
     jest.resetAllMocks();
   });
 
-  it('should return the stage for the master branch', async () => {
-    process.env['GITHUB_EVENT_PATH'] = 'test';
-    mockReadFile.mockResolvedValue(JSON.stringify({ test: 'data' }));
+  describe('push', () => {
+    it('sets output to stage when ref is master', async () => {
+      const event = {};
+      mockReadFile.mockResolvedValue(JSON.stringify(event));
+      github.context.eventName = 'push';
+      github.context.ref = 'refs/heads/master';
 
-    github.context.ref = refMaster;
+      await expect(run()).resolves.not.toThrow();
 
-    jest.spyOn(core, 'setOutput').mockImplementation((key: string, value: string) => {
-      expect(key).toEqual('stages');
-      expect(value).toEqual('["stage"]');
+      const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(setFailed).toHaveBeenCalledTimes(0);
+      expect(setOutput).toHaveBeenCalledTimes(1);
+      expect(setOutput.mock.calls[0][0]).toBe(`stages`);
+      expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(
+        `"[{\\"name\\":\\"stage\\",\\"transient_environment\\":true,\\"production_environment\\":false}]"`,
+      );
     });
-
-    await expect(run()).resolves.not.toThrow();
-
-    expect(fs.readFile).toBeCalledTimes(1);
-    expect(core.setFailed).toBeCalledTimes(0);
-  });
-
-  it('should return a branch name as default way', async () => {
-    process.env['GITHUB_EVENT_PATH'] = 'test';
-    const event = {
-      pull_request: {
-        head: {
-          ref: 'feature/branch-name',
-        },
-        labels: [],
-      },
-    };
-    mockReadFile.mockResolvedValue(JSON.stringify(event));
-
-    github.context.ref = 'test';
-    github.context.eventName = 'pull_request';
-
-    jest.spyOn(core, 'setOutput').mockImplementation((key: string, value: string) => {
-      expect(key).toEqual('stages');
-      expect(value).toEqual('["feature-branch-name"]');
-    });
-
-    await expect(run()).resolves.not.toThrow();
-
-    expect(fs.readFile).toBeCalledTimes(1);
-    expect(core.setFailed).toBeCalledTimes(0);
   });
 
   describe('pull_request', () => {
+    it('sets output to branch name when env is not provided', async () => {
+      const event = {
+        pull_request: { head: { ref: 'feature/test' }, labels: [] },
+      };
+
+      mockReadFile.mockResolvedValue(JSON.stringify(event));
+      github.context.eventName = 'pull_request';
+      github.context.ref = 'refs/heads/feature/test';
+
+      await expect(run()).resolves.not.toThrow();
+
+      const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(setFailed).toHaveBeenCalledTimes(0);
+      expect(setOutput).toHaveBeenCalledTimes(1);
+      expect(setOutput.mock.calls[0][0]).toBe(`stages`);
+      expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(
+        `"[{\\"name\\":\\"feature-test\\",\\"transient_environment\\":false,\\"production_environment\\":false}]"`,
+      );
+    });
+
     it('sets output to branch name when env is production', async () => {
       const event = {
         pull_request: { head: { ref: 'feature/test' }, labels: [{ name: '' }] },
@@ -75,7 +69,32 @@ describe('get-deployment-stages', () => {
       expect(setFailed).toHaveBeenCalledTimes(0);
       expect(setOutput).toHaveBeenCalledTimes(1);
       expect(setOutput.mock.calls[0][0]).toBe(`stages`);
-      expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(`"[\\"feature-test\\"]"`);
+      expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(
+        `"[{\\"name\\":\\"feature-test\\",\\"transient_environment\\":false,\\"production_environment\\":false}]"`,
+      );
+    });
+
+    it('sets output when multiple envs are provided', async () => {
+      const event = {
+        pull_request: {
+          head: { ref: 'feature/test' },
+          labels: [{ name: 'deployed to test-1' }, { name: 'deployed to test-2' }],
+        },
+      };
+
+      mockReadFile.mockResolvedValue(JSON.stringify(event));
+      github.context.eventName = 'pull_request';
+      github.context.ref = 'refs/heads/feature/test';
+
+      await expect(run()).resolves.not.toThrow();
+
+      const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(setFailed).toHaveBeenCalledTimes(0);
+      expect(setOutput).toHaveBeenCalledTimes(1);
+      expect(setOutput.mock.calls[0][0]).toBe(`stages`);
+      expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(
+        `"[{\\"name\\":\\"test-1\\",\\"transient_environment\\":true,\\"production_environment\\":false},{\\"name\\":\\"test-2\\",\\"transient_environment\\":true,\\"production_environment\\":false}]"`,
+      );
     });
   });
 
@@ -106,7 +125,9 @@ describe('get-deployment-stages', () => {
       expect(setFailed).toHaveBeenCalledTimes(0);
       expect(setOutput).toHaveBeenCalledTimes(1);
       expect(setOutput.mock.calls[0][0]).toBe(`stages`);
-      expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(`"[\\"production\\"]"`);
+      expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(
+        `"[{\\"name\\":\\"production\\",\\"transient_environment\\":true,\\"production_environment\\":true}]"`,
+      );
     });
 
     it('sets output when env is stage and ref is not master', async () => {
@@ -121,7 +142,9 @@ describe('get-deployment-stages', () => {
       expect(setFailed).toHaveBeenCalledTimes(0);
       expect(setOutput).toHaveBeenCalledTimes(1);
       expect(setOutput.mock.calls[0][0]).toBe(`stages`);
-      expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(`"[\\"stage\\"]"`);
+      expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(
+        `"[{\\"name\\":\\"stage\\",\\"transient_environment\\":true,\\"production_environment\\":false}]"`,
+      );
     });
   });
 });

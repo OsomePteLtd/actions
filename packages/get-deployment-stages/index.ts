@@ -3,6 +3,12 @@ import * as github from '@actions/github';
 import { Webhooks } from '@octokit/webhooks';
 import { promises as fs } from 'fs';
 
+interface Stage {
+  name: string;
+  transient_environment: boolean;
+  production_environment: boolean;
+}
+
 const STAGE_LABELS: Record<string, string> = {
   '': 'production',
   'deployed to stage': 'stage',
@@ -18,7 +24,23 @@ const STAGE_LABELS: Record<string, string> = {
 };
 
 const isMaster = (ref: string) => ref === 'refs/heads/master';
-const isProduction = (env: string) => env === 'production';
+const isProductionEnv = (env: string) => env === 'production';
+const isTransientEnv = (env: string) => Object.values(STAGE_LABELS).includes(env);
+
+const toStages = (envs: string[]) =>
+  JSON.stringify(
+    envs.reduce(
+      (envs, env) => [
+        ...envs,
+        {
+          name: env,
+          transient_environment: isTransientEnv(env),
+          production_environment: isProductionEnv(env),
+        },
+      ],
+      [] as Stage[],
+    ),
+  );
 
 async function run() {
   try {
@@ -34,12 +56,12 @@ async function run() {
       const environment = (event as any).inputs.environment;
       const stages = Object.values(STAGE_LABELS).filter((label) => label === environment);
 
-      if (!isMaster(ref) && isProduction(environment)) {
+      if (!isMaster(ref) && isProductionEnv(environment)) {
         throw new Error('Can deploy to production from master branch only');
       }
 
       if (stages.length) {
-        core.setOutput('stages', JSON.stringify(stages));
+        core.setOutput('stages', toStages(stages));
       }
 
       return;
@@ -47,7 +69,7 @@ async function run() {
 
     // Workflows run on master branch should only deploy to stage.
     if (isMaster(ref)) {
-      core.setOutput('stages', JSON.stringify(['stage']));
+      core.setOutput('stages', toStages(['stage']));
       return;
     }
 
@@ -60,18 +82,18 @@ async function run() {
 
       const stages = labels
         .map(({ name: labelName }) => STAGE_LABELS[labelName])
-        .filter((stage) => !!stage && !isProduction(stage));
+        .filter((stage) => !!stage && !isProductionEnv(stage));
 
       // If stage-specific labels are found, use them.
       if (stages.length) {
-        core.setOutput('stages', JSON.stringify(stages));
+        core.setOutput('stages', toStages(stages));
         return;
       }
 
       // If no stage-specific labels are found, use task name or branch name.
       if (!stages.length) {
         const output = [branchName.replace(/[\/|=]/, '-').toLowerCase()];
-        core.setOutput('stages', JSON.stringify(output));
+        core.setOutput('stages', toStages(output));
         return;
       }
     }
