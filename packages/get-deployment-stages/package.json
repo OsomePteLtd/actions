@@ -11,7 +11,7 @@
     "url": "git+https://github.com/OsomePteLtd/actions.git"
   },
   "scripts": {
-    "precommit": "ncc build index.ts -o dist && git add dist",
+    "precommit": "ncc build index.ts -o dist -m && git add dist",
     "test": "jest"
   },
   "dependencies": {
@@ -24,6 +24,7 @@
     "@types/jest": "^26.0.7",
     "@zeit/ncc": "^0.22.3",
     "jest": "^26.1.0",
+    "prettier": "^2.0.5",
     "ts-jest": "^26.1.3",
     "typescript": "^3.9.6"
   }
