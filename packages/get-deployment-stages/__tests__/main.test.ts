@@ -24,4 +24,31 @@ describe('get-deployment-stages', () => {
     expect(fs.readFile).toBeCalledTimes(1);
     expect(setFailedMock).toBeCalledTimes(0);
   });
+
+  it('should return a branch name as default way', async () => {
+    process.env['GITHUB_EVENT_PATH'] = 'test';
+    const event = {
+      pull_request: {
+        head: {
+          ref: 'feature/branch-name',
+        },
+        labels: [],
+      },
+    };
+    fs.readFile = jest.fn().mockResolvedValue(JSON.stringify(event));
+    const setFailedMock = jest.spyOn(core, 'setFailed');
+
+    github.context.ref = 'test';
+    github.context.eventName = 'pull_request';
+
+    jest.spyOn(core, 'setOutput').mockImplementation((key: string, value: string) => {
+      expect(key).toEqual('stages');
+      expect(value).toEqual("[\"feature-branch-name\"]");
+    });
+
+    await expect(run()).resolves.not.toThrow();
+
+    expect(fs.readFile).toBeCalledTimes(1);
+    expect(setFailedMock).toBeCalledTimes(0);
+  });
 });

@@ -49,7 +49,7 @@ async function run() {
 
       // If no stage-specific labels are found, use task name or branch name.
       if (!stages.length) {
-        const output = [branchName.replace(/.*\/(.*)/, "$1").toLowerCase()];
+        const output = [branchName.replace(/[\/|=]/, '-').toLowerCase()];
         core.setOutput("stages", JSON.stringify(output));
         return;
       }
