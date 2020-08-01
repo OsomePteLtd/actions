@@ -13,7 +13,6 @@ async function run() {
       ref,
       repo: { owner, repo },
     } = github.context;
-
     // Configure git
     const origin = `https://${DEFAULT_USER_ID}:${token}@github.com/${owner}/${repo}.git`;
     await exec("git", ["remote", "set-url", "origin", origin]);
