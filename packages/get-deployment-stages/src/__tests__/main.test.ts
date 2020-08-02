@@ -1,12 +1,13 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
 import { promises as fs } from 'fs';
+import * as nock from 'nock';
 
-import run from '../';
+import run from '..';
 
 jest.mock('@actions/core');
-jest.mock('@actions/github');
 jest.mock('fs', () => ({ promises: { readFile: jest.fn() } }));
+const mockCoreGetInput = core.getInput as jest.Mock;
 const mockReadFile = fs.readFile as jest.Mock;
 
 describe('get-deployment-stages', () => {
@@ -31,9 +32,92 @@ describe('get-deployment-stages', () => {
         `"[{\\"name\\":\\"stage\\",\\"transient_environment\\":true,\\"production_environment\\":false}]"`,
       );
     });
+
+    it('sets output to empty array when ref is not master', async () => {
+      const event = {};
+      mockReadFile.mockResolvedValue(JSON.stringify(event));
+      github.context.eventName = 'push';
+      github.context.ref = 'refs/heads/develop';
+
+      await expect(run()).resolves.not.toThrow();
+
+      const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(setFailed).toHaveBeenCalledTimes(0);
+      expect(setOutput).toHaveBeenCalledTimes(1);
+      expect(setOutput.mock.calls[0][0]).toBe(`stages`);
+      expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(`"[]"`);
+    });
   });
 
   describe('pull_request', () => {
+    describe('closed', () => {
+      it('sets output to all active transient environments', async () => {
+        const event = {
+          action: 'closed',
+          pull_request: { head: { ref: 'feature/test' }, labels: [] },
+        };
+
+        process.env.GITHUB_REPOSITORY = 'owner/repo';
+        mockCoreGetInput.mockReturnValueOnce('token');
+        mockReadFile.mockResolvedValue(JSON.stringify(event));
+        github.context.eventName = 'pull_request';
+        github.context.ref = 'refs/heads/feature/test';
+
+        nock(/api\.github\.com/)
+          .get('/repos/owner/repo/deployments?ref=feature%2Ftest')
+          .reply(200, [
+            { id: 123, environment: 'feature-test', transient_environment: true },
+            { id: 234, environment: 'test-1', transient_environment: false },
+          ]);
+
+        nock(/api\.github\.com/)
+          .get('/repos/owner/repo/deployments/123/statuses?ref=feature%2Ftest')
+          .reply(200, [
+            { id: 345, state: 'success' },
+            { id: 456, state: 'inactive' },
+          ]);
+
+        await expect(run()).resolves.not.toThrow();
+
+        const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+        expect(setFailed).toHaveBeenCalledTimes(0);
+        expect(setOutput).toHaveBeenCalledTimes(1);
+        expect(setOutput.mock.calls[0][0]).toBe(`stages`);
+        expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(
+          `"[{\\"name\\":\\"feature-test\\",\\"transient_environment\\":false,\\"production_environment\\":false}]"`,
+        );
+      });
+
+      it('sets output to empty array when no active transient environments exist', async () => {
+        const event = {
+          action: 'closed',
+          pull_request: { head: { ref: 'feature/test' }, labels: [] },
+        };
+
+        process.env.GITHUB_REPOSITORY = 'owner/repo';
+        mockCoreGetInput.mockReturnValueOnce('token');
+        mockReadFile.mockResolvedValue(JSON.stringify(event));
+        github.context.eventName = 'pull_request';
+        github.context.ref = 'refs/heads/feature/test';
+
+        nock(/api\.github\.com/)
+          .get('/repos/owner/repo/deployments?ref=feature%2Ftest')
+          .reply(200, [{ id: 123, environment: 'feature-test', transient_environment: true }]);
+
+        nock(/api\.github\.com/)
+          .get('/repos/owner/repo/deployments/123/statuses?ref=feature%2Ftest')
+          .reply(200, [{ id: 456, state: 'inactive' }]);
+
+        await expect(run()).resolves.not.toThrow();
+
+        const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+        expect(setFailed).toHaveBeenCalledTimes(0);
+        expect(setOutput).toHaveBeenCalledTimes(1);
+        expect(setOutput.mock.calls[0][0]).toBe(`stages`);
+        expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(`"[]"`);
+      });
+    });
+
     it('sets output to branch name when env is not provided', async () => {
       const event = {
         pull_request: { head: { ref: 'feature/test' }, labels: [] },
@@ -98,7 +182,7 @@ describe('get-deployment-stages', () => {
     });
   });
 
-  describe('workflow_event', () => {
+  describe('workflow_dispatch', () => {
     it('sets failed when env is production and ref is not master', async () => {
       const event = { inputs: { environment: 'production' } };
       mockReadFile.mockResolvedValue(JSON.stringify(event));
@@ -146,5 +230,33 @@ describe('get-deployment-stages', () => {
         `"[{\\"name\\":\\"stage\\",\\"transient_environment\\":true,\\"production_environment\\":false}]"`,
       );
     });
+
+    it('sets output to empty array when no valid stages are supplied', async () => {
+      const event = { inputs: { environment: 'invalid' } };
+      mockReadFile.mockResolvedValue(JSON.stringify(event));
+      github.context.eventName = 'workflow_dispatch';
+      github.context.ref = 'refs/heads/feature/test';
+
+      await expect(run()).resolves.not.toThrow();
+
+      const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(setFailed).toHaveBeenCalledTimes(0);
+      expect(setOutput).toHaveBeenCalledTimes(1);
+      expect(setOutput.mock.calls[0][0]).toBe(`stages`);
+      expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(`"[]"`);
+    });
+  });
+
+  it('sets failed when eventName is unknown', async () => {
+    const event = {};
+    mockReadFile.mockResolvedValue(JSON.stringify(event));
+    github.context.eventName = 'unknown';
+
+    await expect(run()).resolves.not.toThrow();
+
+    const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+    expect(setFailed).toHaveBeenCalledTimes(1);
+    expect(setOutput).toHaveBeenCalledTimes(0);
+    expect(setFailed.mock.calls[0][0]).toMatchInlineSnapshot(`"Unsupported event type"`);
   });
 });
