@@ -13,6 +13,7 @@ async function run() {
       ref,
       repo: { owner, repo },
     } = github.context;
+    await exec("curl", ["-f", "-u", "ooo:some!", "https://docs.osome.club/api/stage/agent/openapi.json", ">", "spec/core.json"]);
     // Configure git
     const origin = `https://${DEFAULT_USER_ID}:${token}@github.com/${owner}/${repo}.git`;
     await exec("git", ["remote", "set-url", "origin", origin]);
@@ -23,7 +24,7 @@ async function run() {
     await exec("npm", ["ci"]);
 
     // Update spec
-    await exec("curl", ["-f", "-u ooo:some!", "https://docs.osome.club/api/stage/agent/openapi.json > spec/core.json"]);
+    await exec("curl", ["-f", "-u", "ooo:some!", "https://docs.osome.club/api/stage/agent/openapi.json", ">", "spec/core.json"]);
     await exec("curl", ["-f", "-u ooo:some!", "https://docs.osome.club/api/stage/seed/openapi.json > spec/seed.json"]);
     await exec("curl", ["-f", "-u ooo:some!", "https://docs.osome.club/api/stage/pablo/openapi.json > spec/pablo.json"]);
     await exec("curl", ["-f", "-u ooo:some!", "https://docs.osome.club/api/stage/hero/openapi.json > spec/hero.json"]);
