@@ -1,8 +1,11 @@
 name: 'Update spec'
-description: 'Update spec'
+description: 'Updates specs, commits and pushes updated types'
 inputs:
   token:
-    description: 'Token'
+    description: 'Github Token'
+    required: true
+  npm:
+    description: 'NPM Token'
     required: true
 runs:
   using: 'node12'
