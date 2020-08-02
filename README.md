@@ -14,3 +14,15 @@ Bumps application version, commits, creates a tag and pushes the changes back to
   with:
     token: ${{ secrets.OSOME_BOT_TOKEN }}
 ```
+
+### :robot: [`update-spec`](packages/update-spec)
+
+Updates specs, commits and pushes updated types
+
+```yaml
+- name: Update spec
+  uses: 'OsomePteLtd/actions/packages/pdate-spec@master'
+  with:
+    token: ${{ secrets.OSOME_BOT_TOKEN }}
+    npm: ${{ secrets.NPM_KEY_PUBLISHING }}
+```
