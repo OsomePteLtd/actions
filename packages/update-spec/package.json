@@ -1,7 +1,7 @@
 {
-  "name": "@osome/bump-version",
+  "name": "@osomepteltd/update-spec",
   "version": "1.0.0",
-  "description": "Bump application version",
+  "description": "Update SDK specs",
   "author": "Vlad Ponomarev <v.ponomarev@osome.com>",
   "homepage": "https://github.com/OsomePteLtd/actions#readme",
   "license": "UNLICENSED",
