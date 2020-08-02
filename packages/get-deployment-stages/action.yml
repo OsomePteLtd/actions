@@ -1,8 +1,12 @@
 name: 'Get deployment stages'
 description: 'Get deployment stages'
+inputs:
+  token:
+    description: 'Personal access token'
+    required: false
 outputs:
   stages:
-    description: 'Deployment stages'
+    description: 'List of environments'
 runs:
   using: 'node12'
   main: './dist/index.js'

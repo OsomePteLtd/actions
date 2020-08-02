@@ -1,0 +1,28 @@
+import * as core from '@actions/core';
+import { Context } from '@actions/github/lib/context';
+import { Webhooks } from '@octokit/webhooks';
+
+import { STAGE_LABELS } from '../constants';
+import { isOsomeBot, isMaster, isProductionEnv, toEnvironments } from '../utils';
+
+export const on = async (event: Webhooks.WebhookPayloadWorkflowDispatch, context: Context) => {
+  const { actor, ref } = context;
+  const { environment } = (event.inputs as any) as { environment: string };
+  const stages = Object.values(STAGE_LABELS).filter((label) => label === environment);
+
+  if (!isOsomeBot(actor) && isProductionEnv(environment)) {
+    return core.setFailed('Only osome-bot can deploy to production');
+  }
+
+  if (!isMaster(ref) && isProductionEnv(environment)) {
+    return core.setFailed('Can deploy to production from master branch only');
+  }
+
+  if (stages.length) {
+    return core.setOutput('stages', toEnvironments(stages));
+  }
+
+  // Using `workflow_dispatch` for deploying feature
+  // branches to transient environments is not supported.
+  return core.setOutput('stages', toEnvironments([]));
+};
