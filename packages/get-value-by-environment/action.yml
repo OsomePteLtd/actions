@@ -1,0 +1,24 @@
+name: 'Get value by environment'
+description: 'Returns value that matches the environment'
+inputs:
+  name:
+    description: 'Environment variable name'
+    required: true
+  environment:
+    description: 'Environment name'
+    required: true
+  dev:
+    description: 'Value to return if environment is development'
+    required: false
+  staging:
+    description: 'Value to return if environment is staging'
+    required: true
+  production:
+    description: 'Value to return if environment is production'
+    required: true
+outputs:
+  value:
+    description: 'Value that matches the environment'
+runs:
+  using: 'node12'
+  main: './dist/index.js'
