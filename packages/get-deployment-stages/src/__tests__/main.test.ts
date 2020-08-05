@@ -5,10 +5,14 @@ import * as nock from 'nock';
 
 import run from '..';
 
-jest.mock('@actions/core');
-jest.mock('fs', () => ({ promises: { readFile: jest.fn() } }));
 const mockCoreGetInput = core.getInput as jest.Mock;
 const mockReadFile = fs.readFile as jest.Mock;
+
+jest.mock('@actions/core');
+jest.mock('fs', () => ({
+  ...jest.requireActual('fs') as typeof fs,
+  promises: { ...jest.requireActual('fs').promises, readFile: jest.fn(), },
+}));
 
 describe('get-deployment-stages', () => {
   beforeEach(() => {
