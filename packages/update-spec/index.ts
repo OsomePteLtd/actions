@@ -9,7 +9,6 @@ const DEFAULT_USER_EMAIL = "67785357+osome-bot@users.noreply.github.com";
 async function run() {
   try {
     const githubToken = core.getInput("token");
-    const npmToken = core.getInput("npm");
     const {
       ref,
       repo: { owner, repo },
@@ -20,7 +19,6 @@ async function run() {
     await exec("git", ["config", "user.name", `"${DEFAULT_USER_NAME}"`]);
     await exec("git", ["config", "user.email", `"${DEFAULT_USER_EMAIL}"`]);
 
-    await exec(`echo ::set-env name=NPM_TOKEN::${npmToken}`);
     await exec("npm", ["ci"]);
 
     // Update spec
