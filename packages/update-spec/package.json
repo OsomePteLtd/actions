@@ -12,7 +12,7 @@
   },
   "scripts": {
     "precommit": "ncc build index.ts -o dist && git add dist",
-    "test": "echo \"Error: run tests from root\" && exit 1"
+    "test": "echo \"No tests found\""
   },
   "dependencies": {
     "@actions/core": "^1.2.4",

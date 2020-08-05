@@ -12,7 +12,7 @@
   },
   "scripts": {
     "precommit": "ncc build src/index.ts -o dist -m && git add dist",
-    "test": "jest"
+    "test": "jest --coverage"
   },
   "dependencies": {
     "@actions/core": "^1.2.4",

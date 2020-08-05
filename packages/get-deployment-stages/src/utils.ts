@@ -15,6 +15,10 @@ export const getEvent = async (eventName: string) => {
     return event as EventPayloads.WebhookPayloadPush;
   }
 
+  if (eventName === 'repository_dispatch') {
+    return event as EventPayloads.WebhookPayloadRepositoryDispatch;
+  }
+
   if (eventName === 'workflow_dispatch') {
     return event as EventPayloads.WebhookPayloadWorkflowDispatch;
   }
