@@ -20,7 +20,7 @@ async function run() {
     await exec("git", ["config", "user.name", `"${DEFAULT_USER_NAME}"`]);
     await exec("git", ["config", "user.email", `"${DEFAULT_USER_EMAIL}"`]);
 
-    await exec(`echo ::set-env name=NPM_TOKEN::${npmToken}`);
+    await exec("npm", ["config", "set", `'//registry.npmjs.org/:_authToken' ${npmToken}`]);
     await exec("npm", ["ci"]);
 
     // Update spec
