@@ -182,10 +182,75 @@ describe('get-deployment-stages', () => {
     });
   });
 
+  describe('repository_dispatch', () => {
+    it('sets failed when env is production and actor is not osome-bot', async () => {
+      const event = { client_payload: { environment: 'production' } };
+      mockReadFile.mockResolvedValue(JSON.stringify(event));
+      github.context.actor = 'octocat';
+      github.context.eventName = 'repository_dispatch';
+
+      await expect(run()).resolves.not.toThrow();
+
+      const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(setFailed).toHaveBeenCalledTimes(1);
+      expect(setOutput).toHaveBeenCalledTimes(0);
+      expect(setFailed.mock.calls[0][0]).toMatchInlineSnapshot(`"Only osome-bot can deploy to production"`);
+    });
+
+    it('sets failed when env is not production', async () => {
+      const event = { client_payload: { environment: 'stage' } };
+      mockReadFile.mockResolvedValue(JSON.stringify(event));
+      github.context.actor = 'osome-bot';
+      github.context.eventName = 'repository_dispatch';
+
+      await expect(run()).resolves.not.toThrow();
+
+      const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(setFailed).toHaveBeenCalledTimes(1);
+      expect(setOutput).toHaveBeenCalledTimes(0);
+      expect(setFailed.mock.calls[0][0]).toMatchInlineSnapshot(
+        `"Can use repository_dispatch only to deploy to production"`,
+      );
+    });
+
+    it('sets output when actor is osome-bot and env is production', async () => {
+      const event = { client_payload: { environment: 'production' } };
+      mockReadFile.mockResolvedValue(JSON.stringify(event));
+      github.context.actor = 'osome-bot';
+      github.context.eventName = 'repository_dispatch';
+
+      await expect(run()).resolves.not.toThrow();
+
+      const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(setFailed).toHaveBeenCalledTimes(0);
+      expect(setOutput).toHaveBeenCalledTimes(1);
+      expect(setOutput.mock.calls[0][0]).toMatchInlineSnapshot(`"stages"`);
+      expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(
+        `"[{\\"name\\":\\"production\\",\\"transient_environment\\":true,\\"production_environment\\":true}]"`,
+      );
+    });
+  });
+
   describe('workflow_dispatch', () => {
+    it('sets failed when env is production and actor is not osome-bot', async () => {
+      const event = { inputs: { environment: 'production' } };
+      mockReadFile.mockResolvedValue(JSON.stringify(event));
+      github.context.actor = 'octocat';
+      github.context.eventName = 'workflow_dispatch';
+      github.context.ref = 'refs/heads/feature/test';
+
+      await expect(run()).resolves.not.toThrow();
+
+      const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(setFailed).toHaveBeenCalledTimes(1);
+      expect(setOutput).toHaveBeenCalledTimes(0);
+      expect(setFailed.mock.calls[0][0]).toMatchInlineSnapshot(`"Only osome-bot can deploy to production"`);
+    });
+
     it('sets failed when env is production and ref is not master', async () => {
       const event = { inputs: { environment: 'production' } };
       mockReadFile.mockResolvedValue(JSON.stringify(event));
+      github.context.actor = 'osome-bot';
       github.context.eventName = 'workflow_dispatch';
       github.context.ref = 'refs/heads/feature/test';
 
@@ -200,6 +265,7 @@ describe('get-deployment-stages', () => {
     it('sets output when env is production and ref is master', async () => {
       const event = { inputs: { environment: 'production' } };
       mockReadFile.mockResolvedValue(JSON.stringify(event));
+      github.context.actor = 'osome-bot';
       github.context.eventName = 'workflow_dispatch';
       github.context.ref = 'refs/heads/master';
 
