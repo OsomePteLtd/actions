@@ -3,6 +3,7 @@ import * as github from '@actions/github';
 
 import { on as onPullRequest } from './events/pull_request';
 import { on as onPush } from './events/push';
+import { on as onRepositoryDispatch } from './events/repository_dispatch';
 import { on as onWorkflowDispatch } from './events/workflow_dispatch';
 import { getEvent } from './utils';
 
@@ -20,6 +21,8 @@ async function run() {
         return onPullRequest(event, context);
       case 'push':
         return onPush(event, context);
+      case 'repository_dispatch':
+        return onRepositoryDispatch(event, context);
       case 'workflow_dispatch':
         return onWorkflowDispatch(event, context);
       default:
