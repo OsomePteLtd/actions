@@ -8023,13 +8023,13 @@ async function run() {
     try {
         const githubToken = core.getInput("token");
         const npmToken = core.getInput("npm");
+        core.exportVariable('NPM_TOKEN', npmToken);
         const { ref, repo: { owner, repo }, } = github.context;
         // Configure git
         const origin = `https://${DEFAULT_USER_ID}:${githubToken}@github.com/${owner}/${repo}.git`;
         await exec_1.exec("git", ["remote", "set-url", "origin", origin]);
         await exec_1.exec("git", ["config", "user.name", `"${DEFAULT_USER_NAME}"`]);
         await exec_1.exec("git", ["config", "user.email", `"${DEFAULT_USER_EMAIL}"`]);
-        await exec_1.exec(`echo ::set-env name=NPM_TOKEN::${npmToken}`);
         await exec_1.exec("npm", ["ci"]);
         // Update spec
         await exec_1.exec("curl", ["-f", "-u", "ooo:some!", "https://docs.osome.club/api/stage/agent/openapi.json", "--output", "spec/core.json"]);
@@ -8040,7 +8040,7 @@ async function run() {
         await exec_1.exec("npm", ["run", "generate"]);
         await exec_1.exec("npm", ["run", "build"]);
         await exec_1.exec("git", ["add", "."]);
-        await exec_1.exec("git", ["commit", "-m \"Update Spec\""]);
+        await exec_1.exec("git", ["commit", "-m Update Spec"]);
         await exec_1.exec("git", ["push", "origin", `HEAD:${ref}`]);
     }
     catch (error) {

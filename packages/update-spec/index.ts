@@ -10,6 +10,8 @@ async function run() {
   try {
     const githubToken = core.getInput("token");
     const npmToken = core.getInput("npm");
+    core.exportVariable('NPM_TOKEN', npmToken);
+
     const {
       ref,
       repo: { owner, repo },
@@ -20,7 +22,6 @@ async function run() {
     await exec("git", ["config", "user.name", `"${DEFAULT_USER_NAME}"`]);
     await exec("git", ["config", "user.email", `"${DEFAULT_USER_EMAIL}"`]);
 
-    await exec(`echo ::set-env name=NPM_TOKEN::${npmToken}`);
     await exec("npm", ["ci"]);
 
     // Update spec
@@ -34,7 +35,7 @@ async function run() {
     await exec("npm", ["run", "build"]);
 
     await exec("git", ["add", "."]);
-    await exec("git", ["commit", "-m \"Update Spec\""]);
+    await exec("git", ["commit", "-m Update Spec"]);
     await exec("git", ["push", "origin", `HEAD:${ref}`]);
   } catch (error) {
     core.setFailed(error.message);
