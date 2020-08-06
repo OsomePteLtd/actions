@@ -8022,6 +8022,8 @@ const DEFAULT_USER_EMAIL = "67785357+osome-bot@users.noreply.github.com";
 async function run() {
     try {
         const githubToken = core.getInput("token");
+        const npmToken = core.getInput("npm");
+        core.exportVariable('NPM_TOKEN', npmToken);
         const { ref, repo: { owner, repo }, } = github.context;
         // Configure git
         const origin = `https://${DEFAULT_USER_ID}:${githubToken}@github.com/${owner}/${repo}.git`;
