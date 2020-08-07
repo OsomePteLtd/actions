@@ -20,7 +20,7 @@
     "@actions/github": "^4.0.0"
   },
   "devDependencies": {
-    "@octokit/webhooks": "^7.7.1",
+    "@octokit/webhooks": "^7.9.1",
     "@types/jest": "^26.0.7",
     "@zeit/ncc": "^0.22.3",
     "jest": "^26.2.2",
