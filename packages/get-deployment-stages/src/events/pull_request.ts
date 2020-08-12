@@ -17,6 +17,7 @@ export const on = async (event: EventPayloads.WebhookPayloadPullRequest, context
 };
 
 const onPullRequest = async (event: EventPayloads.WebhookPayloadPullRequest, context: Context) => {
+  const withTransient = JSON.parse(core.getInput('with-transient') || 'true');
   const {
     pull_request: {
       head: { ref },
@@ -31,6 +32,10 @@ const onPullRequest = async (event: EventPayloads.WebhookPayloadPullRequest, con
   // If stage-specific labels are found, use them.
   if (stages.length) {
     return core.setOutput('stages', toEnvironments(stages));
+  }
+
+  if (!withTransient) {
+    return core.setOutput('stages', toEnvironments([]));
   }
 
   // If no stage-specific labels are found, use task name or branch name.
