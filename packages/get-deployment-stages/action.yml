@@ -4,6 +4,10 @@ inputs:
   token:
     description: 'Personal access token'
     required: false
+  with-transient:
+    description: 'Suggest transient environments'
+    required: false
+    default: 'true'
 outputs:
   stages:
     description: 'List of environments'

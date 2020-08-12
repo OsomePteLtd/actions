@@ -10,8 +10,8 @@ const mockReadFile = fs.readFile as jest.Mock;
 
 jest.mock('@actions/core');
 jest.mock('fs', () => ({
-  ...jest.requireActual('fs') as typeof fs,
-  promises: { ...jest.requireActual('fs').promises, readFile: jest.fn(), },
+  ...(jest.requireActual('fs') as typeof fs),
+  promises: { ...jest.requireActual('fs').promises, readFile: jest.fn() },
 }));
 
 describe('get-deployment-stages', () => {
@@ -142,7 +142,26 @@ describe('get-deployment-stages', () => {
       );
     });
 
-    it('sets output to branch name when env is production', async () => {
+    it('sets output to empty array when transient are disabled', async () => {
+      const event = {
+        pull_request: { head: { ref: 'feature/test' }, labels: [] },
+      };
+
+      mockCoreGetInput.mockReturnValueOnce('false');
+      mockReadFile.mockResolvedValue(JSON.stringify(event));
+      github.context.eventName = 'pull_request';
+      github.context.ref = 'refs/heads/feature/test';
+
+      await expect(run()).resolves.not.toThrow();
+
+      const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(setFailed).toHaveBeenCalledTimes(0);
+      expect(setOutput).toHaveBeenCalledTimes(1);
+      expect(setOutput.mock.calls[0][0]).toBe(`stages`);
+      expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(`"[]"`);
+    });
+
+    it('sets output to branch name when env is not provided', async () => {
       const event = {
         pull_request: { head: { ref: 'feature/test' }, labels: [{ name: '' }] },
       };
