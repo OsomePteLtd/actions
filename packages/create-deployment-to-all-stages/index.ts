@@ -24,13 +24,15 @@ async function run() {
     const octokit = github.getOctokit(token)
 
     for (const environment of stages) {
-      await octokit.repos.createDeployment({
+      console.log({ owner, repo, ref, environment});
+      const deployment = await octokit.repos.createDeployment({
         owner,
         repo,
         ref,
         environment,
         required_contexts: [],
       });
+      console.log({ deployment: deployment.status });
     }
   } catch (error) {
     core.setFailed(error.message);
