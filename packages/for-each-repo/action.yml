@@ -1,0 +1,12 @@
+name: 'For each repo'
+description: 'Returns a list of organisation repositories'
+inputs:
+  token:
+    description: 'Personal access token'
+    required: false
+outputs:
+  repos:
+    description: 'List of repositories'
+runs:
+  using: 'node12'
+  main: './dist/index.js'
