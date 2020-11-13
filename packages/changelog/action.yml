@@ -1,0 +1,12 @@
+name: 'Changelog'
+description: 'Returns a changelog since last successful deployment'
+inputs:
+  token:
+    description: 'Personal access token'
+    required: true
+outputs:
+  changelog:
+    description: 'Changelog'
+runs:
+  using: 'node12'
+  main: './dist/index.js'
