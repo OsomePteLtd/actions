@@ -125,8 +125,8 @@ async function sendChangelogToSlack(changelog: Changelog) {
     const texts = [];
 
     for (const item of items) {
-      const slackUser = await slack.users.lookupByEmail({ email: item.author.email });
-      const author = slackUser.ok
+      const slackUser = await slack.users.lookupByEmail({ email: item.author.email }).catch(() => null);
+      const author = slackUser?.ok
         ? `by ${(slackUser as any).user.name}` // TODO: Add @
         : `by *<https://github.com/${item.author.login}|${item.author.login}>*`;
 
