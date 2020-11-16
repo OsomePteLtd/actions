@@ -121,7 +121,7 @@ async function sendChangelogToSlack(changelog: Changelog) {
     for (const item of items) {
       const slackUser = await slack.users.lookupByEmail({ email: item.author.email }).catch(() => null);
       const author = slackUser?.ok
-        ? `by ${(slackUser as any).user.name}` // TODO: Add @
+        ? `by @${(slackUser as any).user.name}`
         : `by *<https://github.com/${item.author.login}|${item.author.login}>*`;
 
       if (item.issue) {
@@ -164,7 +164,7 @@ async function sendChangelogToSlack(changelog: Changelog) {
     text: `${changelog.title} is live :party:`,
     blocks,
     channel: core.getInput('slack-channel', { required: true }),
-    link_names: false,
+    link_names: true,
   });
 }
 
