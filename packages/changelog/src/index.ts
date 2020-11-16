@@ -43,6 +43,7 @@ async function getLastDeploymentSha() {
     });
 
     if (statuses.some((status) => status.state === 'success')) {
+      core.debug(`Last deployment: ${deployment.url}`);
       return deployment.sha;
     }
   }
@@ -58,7 +59,9 @@ async function getCommitsBetween(base: string, head: string) {
     data: { commits },
   } = await octokit.repos.compareCommits({ repo, owner, base, head });
 
-  return commits.filter((commit) => commit.author.login !== 'osome-bot');
+  const nonBotCommits = commits.filter((commit) => commit.author.login !== 'osome-bot');
+  core.debug(JSON.stringify(nonBotCommits));
+  return nonBotCommits;
 }
 
 async function buildChangelog(
@@ -75,8 +78,9 @@ async function buildChangelog(
 
   for (const ghCommit of commits) {
     const { commit } = ghCommit;
+    core.debug(`Processing commit ${commit.message}`)
     const issueKeys = commit.message.match(/\w+\-\d+/g) ?? [];
-    const issues = await Promise.all(issueKeys.map((issueKey) => jira.findIssue(issueKey).catch((err) => null)));
+    const issues = await Promise.all(issueKeys.map((issueKey) => jira.findIssue(issueKey).catch(() => null)));
 
     for (const issue of issues) {
       changelog.items.push({
