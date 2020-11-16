@@ -1,8 +1,17 @@
 name: 'Changelog'
 description: 'Returns a changelog since last successful deployment'
 inputs:
+  jira-host:
+    required: true
+  jira-username:
+    required: true
+  jira-password:
+    required: true
   token:
-    description: 'Personal access token'
+    required: true
+  slack-channel:
+    required: true
+  slack-token:
     required: true
 outputs:
   changelog:

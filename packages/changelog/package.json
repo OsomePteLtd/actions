@@ -11,17 +11,22 @@
     "url": "git+https://github.com/OsomePteLtd/actions.git"
   },
   "scripts": {
-    "precommit": "ncc build index.ts -o dist -m && git add dist",
+    "precommit": "ncc build src/index.ts -o dist -m && git add dist",
     "test": "echo \"No tests found\""
   },
   "dependencies": {
     "@actions/core": "^1.2.4",
     "@actions/exec": "^1.0.4",
-    "@actions/github": "^4.0.0"
+    "@actions/github": "^4.0.0",
+    "@slack/web-api": "^5.13.0",
+    "jira-client": "^6.21.1",
+    "lodash": "^4.17.20"
   },
   "devDependencies": {
     "@octokit/webhooks": "^7.15.1",
     "@types/jest": "^26.0.7",
+    "@types/jira-client": "^6.13.1",
+    "@types/lodash": "^4.14.165",
     "@zeit/ncc": "^0.22.3",
     "jest": "^26.2.2",
     "nock": "^13.0.3",

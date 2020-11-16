@@ -1,7 +1,7 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
 import { promises as fs } from 'fs';
-import * as nock from 'nock';
+import nock from 'nock';
 
 import run from '..';
 
