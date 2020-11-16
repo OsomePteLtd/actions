@@ -9,7 +9,6 @@ import { Changelog } from './types';
 async function run() {
   try {
     const { eventName, sha } = github.context;
-    console.log(github);
 
     if (eventName !== 'deployment') {
       throw new Error(`This action only works with depoyment events`);
@@ -17,7 +16,7 @@ async function run() {
 
     const deploymentSha = await getLastDeploymentSha();
     const commits = await getCommitsBetween(deploymentSha, sha);
-    const changelog = await buildChangelog(commits, '');
+    const changelog = await buildChangelog(commits);
 
     await sendChangelogToSlack(changelog);
   } catch (err) {
@@ -44,7 +43,6 @@ async function getLastDeploymentSha() {
     });
 
     if (statuses.some((status) => status.state === 'success')) {
-      core.debug(`Last deployment: ${deployment.url}`);
       return deployment.sha;
     }
   }
@@ -60,17 +58,13 @@ async function getCommitsBetween(base: string, head: string) {
     data: { commits },
   } = await octokit.repos.compareCommits({ repo, owner, base, head });
 
-  const nonBotCommits = commits.filter((commit) => commit.author.login !== 'osome-bot');
-  core.debug(JSON.stringify(nonBotCommits));
-  return nonBotCommits;
+  return commits.filter((commit) => commit.author.login !== 'osome-bot');
 }
 
-async function buildChangelog(
-  commits: ReposCompareCommitsResponseData['commits'],
-  version: string,
-): Promise<Changelog> {
+async function buildChangelog(commits: ReposCompareCommitsResponseData['commits']): Promise<Changelog> {
   const jira = getJira();
   const { owner, repo } = github.context.repo;
+  const version = core.getInput('version', { required: true });
 
   const changelog: Changelog = {
     title: `@${owner}/${repo} ${version}`,
@@ -79,7 +73,6 @@ async function buildChangelog(
 
   for (const ghCommit of commits) {
     const { commit } = ghCommit;
-    core.debug(`Processing commit ${commit.message}`)
     const issueKeys = commit.message.match(/\w+\-\d+/g) ?? [];
     const issues = await Promise.all(issueKeys.map((issueKey) => jira.findIssue(issueKey).catch(() => null)));
 
@@ -161,7 +154,7 @@ async function sendChangelogToSlack(changelog: Changelog) {
       elements: [
         {
           type: 'plain_text',
-          text: `By the way , :green_book: are stories, :closed_book: are bugfixes, :blue_book: are subtasks and :orange_book: are all other issue types.`,
+          text: `By the way, :green_book: are stories, :closed_book: are bugfixes, :blue_book: are subtasks and :orange_book: are all other issue types.`,
         },
       ],
     },
