@@ -13,6 +13,8 @@ inputs:
     required: true
   slack-token:
     required: true
+  version:
+    required: true
 outputs:
   changelog:
     description: 'Changelog'
