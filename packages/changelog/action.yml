@@ -1,0 +1,22 @@
+name: 'Changelog'
+description: 'Returns a changelog since last successful deployment'
+inputs:
+  jira-host:
+    required: true
+  jira-username:
+    required: true
+  jira-password:
+    required: true
+  token:
+    required: true
+  slack-channel:
+    required: true
+  slack-token:
+    required: true
+  version:
+outputs:
+  changelog:
+    description: 'Changelog'
+runs:
+  using: 'node12'
+  main: './dist/index.js'
