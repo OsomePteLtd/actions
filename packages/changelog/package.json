@@ -1,7 +1,7 @@
 {
-  "name": "@osomepteltd/for-each-repo",
+  "name": "@osomepteltd/changelog",
   "version": "1.0.0",
-  "description": "Get deploy target",
+  "description": "Generate changelog",
   "author": "Egor Zaitsev <heuels@osome.com>",
   "homepage": "https://github.com/OsomePteLtd/actions#readme",
   "license": "UNLICENSED",
