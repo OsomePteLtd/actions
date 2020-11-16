@@ -64,10 +64,10 @@ async function getCommitsBetween(base: string, head: string) {
 async function buildChangelog(commits: ReposCompareCommitsResponseData['commits']): Promise<Changelog> {
   const jira = getJira();
   const { owner, repo } = github.context.repo;
-  const version = core.getInput('version', { required: true });
+  const version = core.getInput('version');
 
   const changelog: Changelog = {
-    title: `@${owner}/${repo} ${version}`,
+    title: [`@${owner}/${repo}`, version].filter(Boolean).join(' '),
     items: [],
   };
 
