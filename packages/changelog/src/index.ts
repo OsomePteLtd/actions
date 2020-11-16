@@ -9,6 +9,7 @@ import { Changelog } from './types';
 async function run() {
   try {
     const { eventName, sha } = github.context;
+    console.log(github);
 
     if (eventName !== 'deployment') {
       throw new Error(`This action only works with depoyment events`);
