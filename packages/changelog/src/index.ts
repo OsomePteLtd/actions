@@ -3,7 +3,15 @@ import * as github from '@actions/github';
 import { ReposCompareCommitsResponseData } from '@octokit/types';
 import { KnownBlock } from '@slack/web-api';
 import groupBy from 'lodash/groupBy';
-import { getCoauthors, getEvent, getIcon, getJira, getOctokit, getSlack, joinAuthors } from './utils';
+import {
+  getCoauthors,
+  getEvent,
+  getIcon,
+  getJira,
+  getOctokit,
+  getSlack,
+  joinAuthors,
+} from './utils';
 import { Changelog } from './types';
 
 async function run() {
@@ -15,8 +23,9 @@ async function run() {
     }
 
     const deploymentSha = await getLastDeploymentSha();
+    const version = await getVersionFromCommit(sha);
     const commits = await getCommitsBetween(deploymentSha, sha);
-    const changelog = await buildChangelog(commits);
+    const changelog = await buildChangelog(commits, version);
 
     await sendChangelogToSlack(changelog);
   } catch (err) {
@@ -50,6 +59,17 @@ async function getLastDeploymentSha() {
   throw new Error('Unable to find previous deployment');
 }
 
+async function getVersionFromCommit(sha: string) {
+  const octokit = getOctokit();
+  const { owner, repo } = github.context.repo;
+
+  const {
+    data: { tag },
+  } = await octokit.git.getTag({ owner, repo, tag_sha: sha }); //repos.getCommit({ repo, owner, ref: sha });
+
+  return tag ?? null;
+}
+
 async function getCommitsBetween(base: string, head: string) {
   const octokit = getOctokit();
   const { owner, repo } = github.context.repo;
@@ -61,10 +81,12 @@ async function getCommitsBetween(base: string, head: string) {
   return commits.filter((commit) => commit.author.login !== 'osome-bot');
 }
 
-async function buildChangelog(commits: ReposCompareCommitsResponseData['commits']): Promise<Changelog> {
+async function buildChangelog(
+  commits: ReposCompareCommitsResponseData['commits'],
+  version: string,
+): Promise<Changelog> {
   const jira = getJira();
   const { owner, repo } = github.context.repo;
-  const version = core.getInput('version');
 
   const changelog: Changelog = {
     title: [`@${owner}/${repo}`, version].filter(Boolean).join(' '),
