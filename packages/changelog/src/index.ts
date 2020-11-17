@@ -3,15 +3,7 @@ import * as github from '@actions/github';
 import { ReposCompareCommitsResponseData } from '@octokit/types';
 import { KnownBlock } from '@slack/web-api';
 import groupBy from 'lodash/groupBy';
-import {
-  getCoauthors,
-  getEvent,
-  getIcon,
-  getJira,
-  getOctokit,
-  getSlack,
-  joinAuthors,
-} from './utils';
+import { getCoauthors, getEvent, getIcon, getJira, getOctokit, getSlack, joinAuthors } from './utils';
 import { Changelog } from './types';
 
 async function run() {
@@ -63,11 +55,8 @@ async function getVersionFromCommit(sha: string) {
   const octokit = getOctokit();
   const { owner, repo } = github.context.repo;
 
-  const {
-    data: { tag },
-  } = await octokit.git.getTag({ owner, repo, tag_sha: sha }); //repos.getCommit({ repo, owner, ref: sha });
-
-  return tag ?? null;
+  const { data: tags } = await octokit.repos.listTags({ owner, repo }); //repos.getCommit({ repo, owner, ref: sha });
+  return tags.find(tag => tag.commit.sha === sha)?.name ?? null;
 }
 
 async function getCommitsBetween(base: string, head: string) {
@@ -83,7 +72,7 @@ async function getCommitsBetween(base: string, head: string) {
 
 async function buildChangelog(
   commits: ReposCompareCommitsResponseData['commits'],
-  version: string,
+  version: string | null,
 ): Promise<Changelog> {
   const jira = getJira();
   const { owner, repo } = github.context.repo;
