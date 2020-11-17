@@ -3,7 +3,7 @@ import * as github from '@actions/github';
 import { ReposCompareCommitsResponseData } from '@octokit/types';
 import { KnownBlock } from '@slack/web-api';
 import groupBy from 'lodash/groupBy';
-import { getEvent, getIcon, getJira, getOctokit, getSlack } from './utils';
+import { getCoauthors, getEvent, getIcon, getJira, getOctokit, getSlack, joinAuthors } from './utils';
 import { Changelog } from './types';
 
 async function run() {
@@ -73,15 +73,19 @@ async function buildChangelog(commits: ReposCompareCommitsResponseData['commits'
 
   for (const ghCommit of commits) {
     const { commit } = ghCommit;
-    const issueKeys = commit.message.match(/\w+\-\d+/g) ?? [];
-    const issues = await Promise.all(issueKeys.map((issueKey) => jira.findIssue(issueKey).catch(() => null)));
+    const author = { email: commit.author.email, login: ghCommit.author.login };
+    const [issueKey] = commit.message.match(/\w+\-\d+/) ?? [];
+    const issueExistsInChangelog = !!issueKey && changelog.items.some((item) => item.issue?.key === issueKey);
 
-    for (const issue of issues) {
+    if (issueExistsInChangelog) {
+      const item = changelog.items.find((item) => item.issue?.key === issueKey);
+      if (item) item.coauthors = [...item.coauthors, author, ...getCoauthors(commit.message)];
+    } else {
+      const issue = issueKey ? await jira.findIssue(issueKey).catch(() => null) : null;
+
       changelog.items.push({
-        author: {
-          email: commit.author.email,
-          login: ghCommit.author.login,
-        },
+        author,
+        coauthors: getCoauthors(commit.message),
         commit: {
           message: commit.message,
           shortSha: commit.tree.sha.substring(0, 8),
@@ -109,7 +113,7 @@ async function sendChangelogToSlack(changelog: Changelog) {
     type: 'header',
     text: {
       type: 'plain_text',
-      text: `${changelog.title} is now live :party:`,
+      text: `${changelog.title.toLowerCase()} is now live :party:`,
     },
   });
 
@@ -119,15 +123,12 @@ async function sendChangelogToSlack(changelog: Changelog) {
     const texts = [];
 
     for (const item of items) {
-      const slackUser = await slack.users.lookupByEmail({ email: item.author.email }).catch(() => null);
-      const author = slackUser?.ok
-        ? `by <@${(slackUser as any).user.id}>`
-        : `by *<https://github.com/${item.author.login}|${item.author.login}>*`;
+      const authors = await joinAuthors([item.author, ...item.coauthors]);
 
       if (item.issue) {
-        texts.push(`${icon} *<${item.issue.link}|${item.issue.key}>* ${item.issue.text} ${author}`);
+        texts.push(`${icon} *<${item.issue.link}|${item.issue.key}>* ${item.issue.text} ${authors}`);
       } else {
-        texts.push(`${icon} *${item.commit.shortSha}* ${item.commit.message} ${author}`);
+        texts.push(`${icon} *${item.commit.shortSha}* ${item.commit.message} ${authors}`);
       }
     }
 
