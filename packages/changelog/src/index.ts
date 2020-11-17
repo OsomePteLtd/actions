@@ -15,8 +15,9 @@ async function run() {
     }
 
     const deploymentSha = await getLastDeploymentSha();
+    const version = await getVersionFromCommit(sha);
     const commits = await getCommitsBetween(deploymentSha, sha);
-    const changelog = await buildChangelog(commits);
+    const changelog = await buildChangelog(commits, version);
 
     await sendChangelogToSlack(changelog);
   } catch (err) {
@@ -50,6 +51,14 @@ async function getLastDeploymentSha() {
   throw new Error('Unable to find previous deployment');
 }
 
+async function getVersionFromCommit(sha: string) {
+  const octokit = getOctokit();
+  const { owner, repo } = github.context.repo;
+
+  const { data: tags } = await octokit.repos.listTags({ owner, repo }); //repos.getCommit({ repo, owner, ref: sha });
+  return tags.find(tag => tag.commit.sha === sha)?.name ?? null;
+}
+
 async function getCommitsBetween(base: string, head: string) {
   const octokit = getOctokit();
   const { owner, repo } = github.context.repo;
@@ -61,10 +70,12 @@ async function getCommitsBetween(base: string, head: string) {
   return commits.filter((commit) => commit.author.login !== 'osome-bot');
 }
 
-async function buildChangelog(commits: ReposCompareCommitsResponseData['commits']): Promise<Changelog> {
+async function buildChangelog(
+  commits: ReposCompareCommitsResponseData['commits'],
+  version: string | null,
+): Promise<Changelog> {
   const jira = getJira();
   const { owner, repo } = github.context.repo;
-  const version = core.getInput('version');
 
   const changelog: Changelog = {
     title: [`@${owner}/${repo}`, version].filter(Boolean).join(' '),
