@@ -98,8 +98,9 @@ async function buildChangelog(
         author,
         coauthors: getCoauthors(commit.message),
         commit: {
-          message: commit.message,
-          shortSha: commit.tree.sha.substring(0, 8),
+          link: `https://github.com/${owner}/${repo}/commit/${commit.tree.sha}`,
+          message: commit.message.split('\n')[0],
+          shortSha: commit.tree.sha.substring(0, 7),
         },
         issue: issue
           ? {
@@ -139,7 +140,7 @@ async function sendChangelogToSlack(changelog: Changelog) {
       if (item.issue) {
         texts.push(`${icon} *<${item.issue.link}|${item.issue.key}>* ${item.issue.text} ${authors}`);
       } else {
-        texts.push(`${icon} *${item.commit.shortSha}* ${item.commit.message} ${authors}`);
+        texts.push(`${icon} *<${item.commit.link}|${item.commit.shortSha}>* ${item.commit.message} ${authors}`);
       }
     }
 
