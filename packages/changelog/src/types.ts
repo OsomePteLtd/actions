@@ -6,7 +6,7 @@ export type Changelog = {
 type ChangelogItem = {
   author: { email: string; login?: string };
   coauthors: { email: string }[];
-  commit: { message: string; shortSha: string };
+  commit: { link: string; message: string; shortSha: string };
   issue: ChangelogIssue | null;
   type: string;
 };
