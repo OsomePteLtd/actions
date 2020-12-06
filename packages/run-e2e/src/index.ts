@@ -1,5 +1,7 @@
+import AdmZip from 'adm-zip';
 import * as core from '@actions/core';
 import * as github from '@actions/github';
+import { exec } from "@actions/exec";
 
 async function run() {
   const {
@@ -14,6 +16,11 @@ async function run() {
     repo,
     ref,
   });
+
+  const zip = new AdmZip(Buffer.from((downloadUrl.data as ArrayBuffer)));
+  zip.extractAllTo('./e2e',true);
+
+  await exec('ls -R');
 
   console.log({ downloadUrl });
 }
