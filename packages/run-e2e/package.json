@@ -1,0 +1,27 @@
+{
+  "name": "@osome/run-e2e",
+  "version": "1.0.0",
+  "description": "Run E2E tests",
+  "main": "src/index.ts",
+  "author": "Vlad Ponomarev <v.ponomarev@osome.com>",
+  "license": "UNLICENSED",
+  "homepage": "https://github.com/OsomePteLtd/actions#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OsomePteLtd/actions.git"
+  },
+  "scripts": {
+    "precommit": "ncc build src/index.ts -o dist -m && git add dist",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.25.1",
+    "prettier": "^2.2.1",
+    "typescript": "^4.1.2"
+  },
+  "dependencies": {
+    "@actions/core": "^1.2.6",
+    "@actions/exec": "^1.0.4",
+    "@actions/github": "^4.0.0"
+  }
+}
