@@ -6,7 +6,9 @@ import { exec } from '@actions/exec';
 async function run() {
   await downloadE2ERepo('./e2e');
 
-  await exec('ls -laR');
+  await exec('cd ./e2e');
+  await exec('yarn install');
+  // await exec('yarn install');
 }
 
 async function downloadE2ERepo(path: string) {
