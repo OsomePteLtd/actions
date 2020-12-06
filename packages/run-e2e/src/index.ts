@@ -9,11 +9,10 @@ async function run() {
   const token = core.getInput('token', { required: true });
   const octokit = github.getOctokit(token);
 
-  const downloadUrl = await octokit.repos.downloadArchive({
+  const downloadUrl = await octokit.repos.downloadZipballArchive({
     owner,
     repo,
     ref,
-    archive_format: 'tar',
   });
 
   console.log({ downloadUrl });
