@@ -5,33 +5,5 @@ inputs:
     description: 'Personal access token'
     required: false
 runs:
-  using: 'composite'
-  steps:
-    - uses: actions/checkout@v2
-      with:
-        repository: 'e2e'
-        ref: ${{ github.context.ref }}
-
-    - name: Setup Node.js
-      shell: bash -l {0}
-      run: nvm install
-
-    - name: Restore cache
-      uses: c-hive/gha-yarn-cache@v1
-
-    - name: Install dependencies
-      run: yarn install
-
-    - name: Run agent e2e
-      run: yarn codecept:ci:report -- --grep @adminsome
-
-    - name: Archive output
-      uses: actions/upload-artifact@v2
-      if: ${{ always() }}
-      with:
-        name: agent-output
-        path: output/**
-#
-#runs:
-#  using: 'node12'
-#  main: './dist/index.js'
+  using: 'node12'
+  main: './dist/index.js'
