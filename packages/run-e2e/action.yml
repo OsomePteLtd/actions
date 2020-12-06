@@ -1,0 +1,9 @@
+name: 'Run E2E tests'
+description: ''
+inputs:
+  token:
+    description: 'Personal access token'
+    required: false
+runs:
+  using: 'node12'
+  main: './dist/index.js'
