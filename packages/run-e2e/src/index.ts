@@ -1,28 +1,39 @@
 import AdmZip from 'adm-zip';
 import * as core from '@actions/core';
 import * as github from '@actions/github';
-import { exec } from "@actions/exec";
+import { exec } from '@actions/exec';
 
 async function run() {
+  await downloadE2ERepo('./e2e');
+
+  await exec('ls -laR');
+}
+
+async function downloadE2ERepo(path: string) {
   const {
-    ref,
     repo: { owner },
+    ref,
   } = github.context;
+  const e2eRepo = 'e2e';
   const token = core.getInput('token', { required: true });
   const octokit = github.getOctokit(token);
 
-  const downloadUrl = await octokit.repos.downloadZipballArchive({
+  console.log({ ref });
+  const temp = await octokit.repos.getBranch({
     owner,
-    repo: 'e2e',
-    ref,
+    repo: e2eRepo,
+    branch: ref,
   });
 
-  const zip = new AdmZip(Buffer.from((downloadUrl.data as ArrayBuffer)));
-  zip.extractAllTo('./e2e',true);
+  console.log({ temp });
+  const downloadedRepo = await octokit.repos.downloadZipballArchive({
+    owner,
+    repo: e2eRepo,
+    ref: 'master',
+  });
 
-  await exec('cd ./e2e && ls -R');
-
-  console.log({ downloadUrl });
+  const zip = new AdmZip(Buffer.from(downloadedRepo.data as ArrayBuffer));
+  zip.extractAllTo(path, true);
 }
 
 // Don't auto-execute in the test environment
