@@ -1,49 +1,57 @@
-import AdmZip from 'adm-zip';
 import * as core from '@actions/core';
 import * as github from '@actions/github';
-import { exec } from '@actions/exec';
+
+const defaultUrls = {
+  ADMIN_URL: 'https://stage.agent.osome.club',
+  WEBSOME_URL: 'https://stage.my.osome.club',
+  API_AGENT_URL: 'https://api.stage.osome.club/api/v2',
+};
 
 async function run() {
-  await downloadE2ERepo('./e2e');
-
-  await exec('cd ./e2e');
-  await exec('yarn install');
-  // await exec('yarn install');
-}
-
-async function downloadE2ERepo(path: string) {
   const {
-    repo: { owner },
+    repo: { owner, repo },
     ref,
   } = github.context;
-  const e2eRepo = 'e2e';
   const token = core.getInput('token', { required: true });
   const octokit = github.getOctokit(token);
 
-  let downloadedRepo = null;
-  try {
-    await octokit.repos.getBranch({
-      owner,
-      repo: e2eRepo,
-      branch: ref,
-    });
-    console.log(`Using branch ${ref} for tests`);
-    downloadedRepo = await octokit.repos.downloadZipballArchive({
-      owner,
-      repo: e2eRepo,
-      ref: 'master',
-    });
-  } catch (e) {
-    console.log(`Can't branch ${ref} in https://github.com/OsomePteLtd/e2e, using master`);
-    downloadedRepo = await octokit.repos.downloadZipballArchive({
-      owner,
-      repo: e2eRepo,
-      ref: 'master',
-    });
+  if (repo === 'backend') {
+    return defaultUrls;
   }
 
-  const zip = new AdmZip(Buffer.from(downloadedRepo.data as ArrayBuffer));
-  zip.extractAllTo(path, true);
+  const deploymentsList = await octokit.repos.listDeployments({
+    owner,
+    repo,
+    ref,
+  });
+
+  if (repo === 'websome') {
+    defaultUrls.WEBSOME_URL = getWebsomeUrl(deploymentsList);
+  }
+
+  if (repo === 'agent') {
+    defaultUrls.ADMIN_URL = getAgentUrl(deploymentsList);
+  }
+
+  console.log({ deploymentsList, repo, ref, defaultUrls });
+
+  return defaultUrls;
+}
+
+function getWebsomeUrl(deploymentsList: any) {
+  if (deploymentsList.data.length === 0) {
+    return 'https://stage.my.osome.club';
+  }
+
+  return `https://${deploymentsList.data[0].environment}.my.osome.club`;
+}
+
+function getAgentUrl(deploymentsList: any) {
+  if (deploymentsList.data.length === 0) {
+    return 'https://stage.agent.osome.club';
+  }
+
+  return 'https://stage.agent.osome.club';
 }
 
 // Don't auto-execute in the test environment
