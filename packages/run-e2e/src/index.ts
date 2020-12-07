@@ -1,5 +1,7 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
+import { EventPayloads } from '@octokit/webhooks';
+import { promises as fs } from 'fs';
 
 const defaultUrls = {
   ADMIN_URL: 'https://stage.agent.osome.club',
@@ -9,11 +11,18 @@ const defaultUrls = {
 
 async function run() {
   const {
+    eventName,
     repo: { owner, repo },
-    ref,
   } = github.context;
+  const event = await getEvent(eventName);
   const token = core.getInput('token', { required: true });
   const octokit = github.getOctokit(token);
+
+  const {
+    pull_request: {
+      head: { ref },
+    },
+  } = event;
 
   if (repo === 'backend') {
     return defaultUrls;
@@ -52,6 +61,12 @@ function getAgentUrl(deploymentsList: any) {
   }
 
   return 'https://stage.agent.osome.club';
+}
+
+async function getEvent(eventName: string): Promise<EventPayloads.WebhookPayloadPullRequest> {
+  const event = await fs.readFile(process.env.GITHUB_EVENT_PATH!).then((buffer) => JSON.parse(buffer.toString()));
+
+  return event as EventPayloads.WebhookPayloadPullRequest;
 }
 
 // Don't auto-execute in the test environment
