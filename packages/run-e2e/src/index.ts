@@ -25,7 +25,7 @@ async function run() {
   } = event;
 
   if (repo === 'backend') {
-    return defaultUrls;
+    return core.setOutput('e2e', defaultUrls);
   }
 
   const deploymentsList = await octokit.repos.listDeployments({
@@ -42,9 +42,7 @@ async function run() {
     defaultUrls.ADMIN_URL = getAgentUrl(deploymentsList);
   }
 
-  console.log({ deploymentsList, repo, ref, defaultUrls });
-
-  return defaultUrls;
+  return core.setOutput('e2e', defaultUrls);
 }
 
 function getWebsomeUrl(deploymentsList: any) {
