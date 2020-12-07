@@ -8773,25 +8773,22 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__webpack_require__(5250));
 const github = __importStar(__webpack_require__(7209));
-const fs_1 = __webpack_require__(5747);
 const defaultUrls = {
     ADMIN_URL: 'https://stage.agent.osome.club',
     WEBSOME_URL: 'https://stage.my.osome.club',
     API_AGENT_URL: 'https://api.stage.osome.club/api/v2',
 };
 async function run() {
-    const { eventName, repo: { owner, repo }, } = github.context;
-    const event = await getEvent(eventName);
+    const { repo: { owner, repo }, ref, } = github.context;
     const token = core.getInput('token', { required: true });
     const octokit = github.getOctokit(token);
-    const { pull_request: { head: { ref }, }, } = event;
     if (repo === 'backend') {
         return core.setOutput('e2e', defaultUrls);
     }
     const deploymentsList = await octokit.repos.listDeployments({
         owner,
         repo,
-        ref,
+        ref: ref.replace('refs/heads/', ''),
     });
     if (repo === 'websome') {
         defaultUrls.WEBSOME_URL = getWebsomeUrl(deploymentsList);
@@ -8812,10 +8809,6 @@ function getAgentUrl(deploymentsList) {
         return 'https://stage.agent.osome.club';
     }
     return 'https://stage.agent.osome.club';
-}
-async function getEvent(eventName) {
-    const event = await fs_1.promises.readFile(process.env.GITHUB_EVENT_PATH).then((buffer) => JSON.parse(buffer.toString()));
-    return event;
 }
 // Don't auto-execute in the test environment
 // istanbul ignore next
