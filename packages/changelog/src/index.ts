@@ -98,7 +98,7 @@ async function buildChangelog(
         author,
         coauthors: getCoauthors(commit.message),
         commit: {
-          link: `https://github.com/${owner}/${repo}/commit/${commit.tree.sha}`,
+          link: ghCommit.html_url,
           message: commit.message.split('\n')[0],
           shortSha: commit.tree.sha.substring(0, 7),
         },
