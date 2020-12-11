@@ -100,7 +100,7 @@ async function buildChangelog(
         commit: {
           link: ghCommit.html_url,
           message: commit.message.split('\n')[0],
-          shortSha: commit.tree.sha.substring(0, 7),
+          shortSha: ghCommit.sha.substring(0, 7),
         },
         issue: issue
           ? {
