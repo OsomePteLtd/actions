@@ -12,7 +12,7 @@
   },
   "scripts": {
     "precommit": "ncc build src/index.ts -o dist -m && git add dist",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"No tests found\""
   },
   "devDependencies": {
     "@octokit/webhooks": "^7.18.1",
