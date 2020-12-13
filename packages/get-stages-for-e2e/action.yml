@@ -1,4 +1,4 @@
-name: 'Run E2E tests'
+name: 'Get stages for E2E'
 description: ''
 inputs:
   token:
@@ -6,7 +6,7 @@ inputs:
     required: false
 outputs:
   e2e:
-    description: 'List of e2e environments'
+    description: 'List of E2E environments'
 runs:
   using: 'node12'
   main: './dist/index.js'
