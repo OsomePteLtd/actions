@@ -1,7 +1,7 @@
 {
-  "name": "@osome/run-e2e",
+  "name": "@osome/get-stages-for-e2e",
   "version": "1.0.0",
-  "description": "Run E2E tests",
+  "description": "Get stages for E2E",
   "main": "src/index.ts",
   "author": "Vlad Ponomarev <v.ponomarev@osome.com>",
   "license": "UNLICENSED",
