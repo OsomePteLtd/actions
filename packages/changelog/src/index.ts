@@ -3,6 +3,7 @@ import * as github from '@actions/github';
 import { ReposCompareCommitsResponseData } from '@octokit/types';
 import { KnownBlock } from '@slack/web-api';
 import groupBy from 'lodash/groupBy';
+import parse from 'parse-link-header';
 import { getCoauthors, getEvent, getIcon, getJira, getOctokit, getSlack, joinAuthors } from './utils';
 import { Changelog } from './types';
 
@@ -48,7 +49,12 @@ async function getLastDeploymentSha() {
     }
   }
 
-  throw new Error('Unable to find previous deployment');
+  const firstCommitSha = await getFirstCommitSha({owner, repo, sha: 'master'});
+  if (firstCommitSha) {
+    return firstCommitSha;
+  }
+
+  throw new Error('Unable to find previous deployment or first commit');
 }
 
 async function getVersionFromCommit(sha: string) {
@@ -56,7 +62,7 @@ async function getVersionFromCommit(sha: string) {
   const { owner, repo } = github.context.repo;
 
   const { data: tags } = await octokit.repos.listTags({ owner, repo }); //repos.getCommit({ repo, owner, ref: sha });
-  return tags.find(tag => tag.commit.sha === sha)?.name ?? null;
+  return tags.find((tag) => tag.commit.sha === sha)?.name ?? null;
 }
 
 async function getCommitsBetween(base: string, head: string) {
@@ -179,6 +185,37 @@ async function sendChangelogToSlack(changelog: Changelog) {
     channel: core.getInput('slack-channel', { required: true }),
     link_names: true,
   });
+}
+
+export function getFirstCommitSha({
+  owner,
+  repo,
+  sha,
+}: {
+  owner: string;
+  repo: string;
+  sha: string;
+}): Promise<string | undefined> {
+  const request = async (page: number): Promise<string | undefined> => {
+    const octokit = getOctokit();
+    const {
+      data,
+      headers: { link },
+    } = await octokit.repos.listCommits({ owner, repo, sha, page, per_page: 100 });
+
+    if (!link) {
+      return data[data.length - 1].sha;
+    }
+
+    const parsedLink = parse(link);
+    if (!parsedLink) {
+      return data[data.length - 1].sha;
+    }
+
+    return request(parseInt(parsedLink.last.page, 10));
+  };
+
+  return request(1);
 }
 
 // Don't auto-execute in the test environment
