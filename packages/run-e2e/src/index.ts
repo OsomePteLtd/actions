@@ -15,40 +15,51 @@ async function run() {
   const token = core.getInput('token', { required: true });
   const octokit = github.getOctokit(token);
 
-  if (repo === 'backend') {
-    return core.setOutput('e2e', defaultUrls);
-  }
-
-  const deploymentsList = await octokit.repos.listDeployments({
+  const { data } = await octokit.repos.listDeployments({
     owner,
     repo,
     ref: ref.replace('refs/heads/', ''),
   });
 
   if (repo === 'websome') {
-    defaultUrls.WEBSOME_URL = getWebsomeUrl(deploymentsList);
+    defaultUrls.WEBSOME_URL = getWebsomeUrl(data);
   }
   if (repo === 'agent') {
-    defaultUrls.ADMIN_URL = getAgentUrl(deploymentsList);
+    defaultUrls.ADMIN_URL = getAgentUrl(data);
+  }
+  if (repo === 'backend') {
+    defaultUrls.API_AGENT_URL = getBackendUrl(data);
   }
 
   return core.setOutput('e2e', defaultUrls);
 }
 
-function getWebsomeUrl(deploymentsList: any) {
-  if (deploymentsList.data.length === 0) {
+type Deployment = {
+  environment: string;
+}
+
+function getBackendUrl(deploymentsList: Deployment[]) {
+  if (deploymentsList.length === 0) {
+    return 'https://api.stage.osome.club/api/v2';
+  }
+
+  return `https://api.${deploymentsList[0].environment}.osome.club/api/v2`;
+}
+
+function getWebsomeUrl(deploymentsList: Deployment[]) {
+  if (deploymentsList.length === 0) {
     return 'https://stage.my.osome.club';
   }
 
-  return `https://${deploymentsList.data[0].environment}.my.osome.club`;
+  return `https://${deploymentsList[0].environment}.my.osome.club`;
 }
 
-function getAgentUrl(deploymentsList: any) {
-  if (deploymentsList.data.length === 0) {
+function getAgentUrl(deploymentsList: Deployment[]) {
+  if (deploymentsList.length === 0) {
     return 'https://stage.agent.osome.club';
   }
 
-  return 'https://stage.agent.osome.club';
+  return `https://${deploymentsList[0].environment}.agent.osome.club`;
 }
 
 // Don't auto-execute in the test environment
