@@ -1,4 +1,4 @@
-name: 'Get stages for E2E'
+name: 'Get E2E stages'
 description: ''
 inputs:
   token:
