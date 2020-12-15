@@ -20,6 +20,7 @@ async function run() {
     repo,
     ref: ref.replace('refs/heads/', ''),
   });
+  console.log({ ref, data });
 
   if (repo === 'websome') {
     defaultUrls.WEBSOME_URL = getWebsomeUrl(data);
