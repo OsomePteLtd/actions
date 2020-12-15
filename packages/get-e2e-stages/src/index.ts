@@ -40,7 +40,7 @@ type Deployment = {
 
 function getBackendUrl(deploymentsList: Deployment[]) {
   if (deploymentsList.length === 0) {
-    return 'https://api.stage.osome.club/api/v2';
+    return defaultUrls.API_AGENT_URL;
   }
 
   return `https://api.${deploymentsList[0].environment}.osome.club/api/v2`;
@@ -48,7 +48,7 @@ function getBackendUrl(deploymentsList: Deployment[]) {
 
 function getWebsomeUrl(deploymentsList: Deployment[]) {
   if (deploymentsList.length === 0) {
-    return 'https://stage.my.osome.club';
+    return defaultUrls.WEBSOME_URL;
   }
 
   return `https://${deploymentsList[0].environment}.my.osome.club`;
@@ -56,7 +56,7 @@ function getWebsomeUrl(deploymentsList: Deployment[]) {
 
 function getAgentUrl(deploymentsList: Deployment[]) {
   if (deploymentsList.length === 0) {
-    return 'https://stage.agent.osome.club';
+    return defaultUrls.ADMIN_URL;
   }
 
   return `https://${deploymentsList[0].environment}.agent.osome.club`;
