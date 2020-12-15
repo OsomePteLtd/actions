@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Get E2E stages",
   "main": "src/index.ts",
-  "author": "Osome Pte. Ltd.",
+  "author": "Vlad Ponomarev <v.ponomarev@osome.com>",
   "license": "UNLICENSED",
   "homepage": "https://github.com/OsomePteLtd/actions#readme",
   "repository": {
