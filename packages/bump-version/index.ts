@@ -31,7 +31,7 @@ async function run() {
     });
 
     await exec('git', ['push', 'origin', `HEAD:${ref}`]);
-    await exec('git', ['push', 'origin', tag]);
+    await exec('git', ['push', 'origin', `refs/tags/${tag.trim()}`]);
   } catch (error) {
     core.setFailed(error.message);
   }
