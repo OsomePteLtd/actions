@@ -179,6 +179,9 @@ async function sendChangelogToSlack(changelog: Changelog) {
     },
   );
 
+  core.info('Sending the following blocks to Slack');
+  core.info(JSON.stringify(blocks, null, '  '));
+
   await slack.chat.postMessage({
     text: `${changelog.title} is live :party:`,
     blocks,
@@ -203,7 +206,7 @@ export function getFirstCommitSha({
       headers: { link },
     } = await octokit.repos.listCommits({ owner, repo, sha, page, per_page: 100 });
 
-    if (!link) {
+    if (!link || page !== 1) {
       return data[data.length - 1].sha;
     }
 
