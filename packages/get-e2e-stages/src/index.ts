@@ -13,7 +13,18 @@ const defaultUrls = {
   API_AGENT_URL: 'https://api.stage.osome.club/api/v2',
 };
 
-export const testEnvs = ['stage', 'test-1', 'test-2', 'test-3', 'test-4', 'test-5', 'test-6', 'test-7', 'test-8', 'test-9'];
+export const testEnvs = [
+  'stage',
+  'test-1',
+  'test-2',
+  'test-3',
+  'test-4',
+  'test-5',
+  'test-6',
+  'test-7',
+  'test-8',
+  'test-9',
+];
 
 async function run() {
   const repo = github.context.repo.repo as Repo;
@@ -35,7 +46,6 @@ async function run() {
   core.info(`Repo: ${repo}`);
   core.info(`Ref: ${ref}`);
   core.info(`Urls: ${JSON.stringify(urls)}`);
-
 
   return core.setOutput('e2e', urls);
 }
@@ -59,15 +69,13 @@ function getLinks(repo: Repo, deployment?: Deployment) {
         ...defaultUrls,
         ADMIN_URL: `https://${deployment.environment}.agent.osome.club`,
       };
-    case 'backend':
-      return {
-        ...defaultUrls,
-      };
     case 'websome':
       return {
         ...defaultUrls,
         WEBSOME_URL: `https://${deployment.environment}.my.osome.club`,
       };
+    default:
+      return defaultUrls;
   }
 }
 
