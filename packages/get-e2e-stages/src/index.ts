@@ -43,9 +43,10 @@ async function run() {
 
   const urls = getLinks(repo, data[0]);
 
-  core.info(`Repo: ${repo}`);
-  core.info(`Ref: ${ref}`);
-  core.info(`Urls: ${JSON.stringify(urls)}`);
+  core.debug(`Repo: ${repo}`);
+  core.debug(`Ref: ${ref}`);
+  core.debug(`Deployments: ${JSON.stringify(data)}`);
+  core.debug(`Urls: ${JSON.stringify(urls)}`);
 
   return core.setOutput('e2e', urls);
 }
