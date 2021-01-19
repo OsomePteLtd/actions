@@ -45,6 +45,7 @@ async function run() {
 
   core.info(`Repo: ${repo}`);
   core.info(`Ref: ${ref}`);
+  core.info(`Deployments: ${JSON.stringify(data)}`);
   core.info(`Urls: ${JSON.stringify(urls)}`);
 
   return core.setOutput('e2e', urls);
