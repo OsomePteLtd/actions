@@ -1,8 +1,8 @@
 name: 'Get E2E stages'
 description: ''
 inputs:
-  token:
-    description: 'Personal access token'
+  environment:
+    description: 'Deploy environment'
     required: false
 outputs:
   e2e:
