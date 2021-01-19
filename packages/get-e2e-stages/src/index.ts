@@ -1,10 +1,6 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
 
-type Deployment = {
-  environment: string;
-};
-
 type Repo = 'websome' | 'agent' | 'backend';
 
 const defaultUrls = {
@@ -29,38 +25,29 @@ export const testEnvs = [
 async function run() {
   const repo = github.context.repo.repo as Repo;
   const {
-    repo: { owner },
     ref,
   } = github.context;
-  const token = core.getInput('token', { required: true });
-  const octokit = github.getOctokit(token);
+  const environment = core.getInput('environment', { required: false });
 
-  const { data } = await octokit.repos.listDeployments({
-    owner,
-    repo,
-    ref: ref.replace('refs/heads/', ''),
-  });
-
-  const urls = getLinks(repo, data[0]);
+  const urls = getLinks(repo, environment);
 
   core.info(`Repo: ${repo}`);
   core.info(`Ref: ${ref}`);
-  core.info(`Deployments: ${JSON.stringify(data)}`);
   core.info(`Urls: ${JSON.stringify(urls)}`);
 
   return core.setOutput('e2e', urls);
 }
 
-function getLinks(repo: Repo, deployment?: Deployment) {
-  if (!deployment) {
+function getLinks(repo: Repo, environment?: string) {
+  if (!environment) {
     return defaultUrls;
   }
 
-  if (testEnvs.includes(deployment.environment)) {
+  if (testEnvs.includes(environment)) {
     return {
-      ADMIN_URL: `https://${deployment.environment}.agent.osome.club`,
-      WEBSOME_URL: `https://${deployment.environment}.my.osome.club`,
-      API_AGENT_URL: `https://api.${deployment.environment}.osome.club/api/v2`,
+      ADMIN_URL: `https://${environment}.agent.osome.club`,
+      WEBSOME_URL: `https://${environment}.my.osome.club`,
+      API_AGENT_URL: `https://api.${environment}.osome.club/api/v2`,
     };
   }
 
@@ -68,12 +55,12 @@ function getLinks(repo: Repo, deployment?: Deployment) {
     case 'agent':
       return {
         ...defaultUrls,
-        ADMIN_URL: `https://${deployment.environment}.agent.osome.club`,
+        ADMIN_URL: `https://${environment}.agent.osome.club`,
       };
     case 'websome':
       return {
         ...defaultUrls,
-        WEBSOME_URL: `https://${deployment.environment}.my.osome.club`,
+        WEBSOME_URL: `https://${environment}.my.osome.club`,
       };
     default:
       return defaultUrls;

@@ -14,7 +14,6 @@ jest.mock('fs', () => ({
 describe('get-e2e-stages', () => {
   beforeEach(() => {
     jest.resetAllMocks();
-    jest.spyOn(core, 'getInput').mockImplementation(() => 'token');
     jest.spyOn(core, 'info').mockImplementation(jest.fn());
   });
 
@@ -24,11 +23,8 @@ describe('get-e2e-stages', () => {
     });
 
     it.each(testEnvs)('sets output for %s environment', async (environment) => {
+      jest.spyOn(core, 'getInput').mockImplementation(() => environment);
       github.context.ref = 'refs/heads/some-ref';
-
-      nock(/api\.github\.com/)
-        .get('/repos/OsomePteLtd/websome/deployments?ref=some-ref')
-        .reply(200, [{ environment }]);
 
       await expect(run()).resolves.not.toThrow();
       const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
@@ -43,11 +39,8 @@ describe('get-e2e-stages', () => {
     });
 
     it('sets output for feature-branch environment', async () => {
+      jest.spyOn(core, 'getInput').mockImplementation(() => 'feature-ec-111');
       github.context.ref = 'refs/heads/some-ref';
-
-      nock(/api\.github\.com/)
-        .get('/repos/OsomePteLtd/websome/deployments?ref=some-ref')
-        .reply(200, [{ environment: 'feature-ec-111' }]);
 
       await expect(run()).resolves.not.toThrow();
       const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
@@ -62,11 +55,8 @@ describe('get-e2e-stages', () => {
     });
 
     it('sets default output if deployment list is empty', async () => {
+      jest.spyOn(core, 'getInput').mockImplementation(jest.fn());
       github.context.ref = 'refs/heads/some-ref';
-
-      nock(/api\.github\.com/)
-        .get('/repos/OsomePteLtd/websome/deployments?ref=some-ref')
-        .reply(200, []);
 
       await expect(run()).resolves.not.toThrow();
       const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
@@ -87,11 +77,8 @@ describe('get-e2e-stages', () => {
     });
 
     it.each(testEnvs)('sets output for %s environment', async (environment) => {
+      jest.spyOn(core, 'getInput').mockImplementation(() => environment);
       github.context.ref = 'refs/heads/some-ref';
-
-      nock(/api\.github\.com/)
-        .get('/repos/OsomePteLtd/agent/deployments?ref=some-ref')
-        .reply(200, [{ environment }]);
 
       await expect(run()).resolves.not.toThrow();
       const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
@@ -106,11 +93,8 @@ describe('get-e2e-stages', () => {
     });
 
     it('sets output for feature-branch environment', async () => {
+      jest.spyOn(core, 'getInput').mockImplementation(() => 'feature-ec-111');
       github.context.ref = 'refs/heads/some-ref';
-
-      nock(/api\.github\.com/)
-        .get('/repos/OsomePteLtd/agent/deployments?ref=some-ref')
-        .reply(200, [{ environment: 'feature-ec-111' }]);
 
       await expect(run()).resolves.not.toThrow();
       const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
@@ -125,11 +109,8 @@ describe('get-e2e-stages', () => {
     });
 
     it('sets default output if deployment list is empty', async () => {
+      jest.spyOn(core, 'getInput').mockImplementation(jest.fn());
       github.context.ref = 'refs/heads/some-ref';
-
-      nock(/api\.github\.com/)
-        .get('/repos/OsomePteLtd/agent/deployments?ref=some-ref')
-        .reply(200, []);
 
       await expect(run()).resolves.not.toThrow();
       const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
@@ -150,11 +131,8 @@ describe('get-e2e-stages', () => {
     });
 
     it.each(testEnvs)('sets output for %s environment', async (environment) => {
+      jest.spyOn(core, 'getInput').mockImplementation(() => environment);
       github.context.ref = 'refs/heads/some-ref';
-
-      nock(/api\.github\.com/)
-        .get('/repos/OsomePteLtd/backend/deployments?ref=some-ref')
-        .reply(200, [{ environment }]);
 
       await expect(run()).resolves.not.toThrow();
       const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
@@ -169,11 +147,8 @@ describe('get-e2e-stages', () => {
     });
 
     it('sets output for feature-branch environment', async () => {
+      jest.spyOn(core, 'getInput').mockImplementation(() => 'feature-ec-111');
       github.context.ref = 'refs/heads/some-ref';
-
-      nock(/api\.github\.com/)
-        .get('/repos/OsomePteLtd/backend/deployments?ref=some-ref')
-        .reply(200, [{ environment: 'feature-ec-111' }]);
 
       await expect(run()).resolves.not.toThrow();
       const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
@@ -188,6 +163,7 @@ describe('get-e2e-stages', () => {
     });
 
     it('sets default output if deployment list is empty', async () => {
+      jest.spyOn(core, 'getInput').mockImplementation(jest.fn());
       github.context.ref = 'refs/heads/some-ref';
 
       nock(/api\.github\.com/)
