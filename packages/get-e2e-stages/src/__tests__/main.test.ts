@@ -34,7 +34,7 @@ describe('get-e2e-stages', () => {
       expect(setOutput.mock.calls[0][1]).toMatchObject({
         ADMIN_URL: `https://${environment}.agent.osome.club`,
         WEBSOME_URL: `https://${environment}.my.osome.club`,
-        API_AGENT_URL: `https://api.${environment}.osome.club/api/v2`,
+        API_AGENT_URL: `https://${environment}.agent.osome.club/api/v2`,
       });
     });
 
@@ -50,7 +50,7 @@ describe('get-e2e-stages', () => {
       expect(setOutput.mock.calls[0][1]).toMatchObject({
         ADMIN_URL: `https://stage.agent.osome.club`,
         WEBSOME_URL: `https://feature-ec-111.my.osome.club`,
-        API_AGENT_URL: `https://api.stage.osome.club/api/v2`,
+        API_AGENT_URL: `https://stage.agent.osome.club/api/v2`,
       });
     });
 
@@ -66,7 +66,7 @@ describe('get-e2e-stages', () => {
       expect(setOutput.mock.calls[0][1]).toMatchObject({
         ADMIN_URL: `https://stage.agent.osome.club`,
         WEBSOME_URL: `https://stage.my.osome.club`,
-        API_AGENT_URL: `https://api.stage.osome.club/api/v2`,
+        API_AGENT_URL: `https://stage.agent.osome.club/api/v2`,
       });
     });
   });
@@ -88,7 +88,7 @@ describe('get-e2e-stages', () => {
       expect(setOutput.mock.calls[0][1]).toMatchObject({
         ADMIN_URL: `https://${environment}.agent.osome.club`,
         WEBSOME_URL: `https://${environment}.my.osome.club`,
-        API_AGENT_URL: `https://api.${environment}.osome.club/api/v2`,
+        API_AGENT_URL: `https://${environment}.agent.osome.club/api/v2`,
       });
     });
 
@@ -104,7 +104,7 @@ describe('get-e2e-stages', () => {
       expect(setOutput.mock.calls[0][1]).toMatchObject({
         ADMIN_URL: `https://feature-ec-111.agent.osome.club`,
         WEBSOME_URL: `https://stage.my.osome.club`,
-        API_AGENT_URL: `https://api.stage.osome.club/api/v2`,
+        API_AGENT_URL: `https://stage.agent.osome.club/api/v2`,
       });
     });
 
@@ -120,7 +120,7 @@ describe('get-e2e-stages', () => {
       expect(setOutput.mock.calls[0][1]).toMatchObject({
         ADMIN_URL: `https://stage.agent.osome.club`,
         WEBSOME_URL: `https://stage.my.osome.club`,
-        API_AGENT_URL: `https://api.stage.osome.club/api/v2`,
+        API_AGENT_URL: `https://stage.agent.osome.club/api/v2`,
       });
     });
   });
@@ -142,7 +142,7 @@ describe('get-e2e-stages', () => {
       expect(setOutput.mock.calls[0][1]).toMatchObject({
         ADMIN_URL: `https://${environment}.agent.osome.club`,
         WEBSOME_URL: `https://${environment}.my.osome.club`,
-        API_AGENT_URL: `https://api.${environment}.osome.club/api/v2`,
+        API_AGENT_URL: `https://${environment}.agent.osome.club/api/v2`,
       });
     });
 
@@ -158,7 +158,7 @@ describe('get-e2e-stages', () => {
       expect(setOutput.mock.calls[0][1]).toMatchObject({
         ADMIN_URL: `https://stage.agent.osome.club`,
         WEBSOME_URL: `https://stage.my.osome.club`,
-        API_AGENT_URL: `https://api.stage.osome.club/api/v2`,
+        API_AGENT_URL: `https://stage.agent.osome.club/api/v2`,
       });
     });
 
@@ -178,7 +178,7 @@ describe('get-e2e-stages', () => {
       expect(setOutput.mock.calls[0][1]).toMatchObject({
         ADMIN_URL: `https://stage.agent.osome.club`,
         WEBSOME_URL: `https://stage.my.osome.club`,
-        API_AGENT_URL: `https://api.stage.osome.club/api/v2`,
+        API_AGENT_URL: `https://stage.agent.osome.club/api/v2`,
       });
     });
   });
