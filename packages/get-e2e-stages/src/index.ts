@@ -6,7 +6,7 @@ type Repo = 'websome' | 'agent' | 'backend';
 const defaultUrls = {
   ADMIN_URL: 'https://stage.agent.osome.club',
   WEBSOME_URL: 'https://stage.my.osome.club',
-  API_AGENT_URL: 'https://api.stage.osome.club/api/v2',
+  API_AGENT_URL: 'https://stage.agent.osome.club/api/v2',
 };
 
 export const testEnvs = [
@@ -47,7 +47,7 @@ function getLinks(repo: Repo, environment?: string) {
     return {
       ADMIN_URL: `https://${environment}.agent.osome.club`,
       WEBSOME_URL: `https://${environment}.my.osome.club`,
-      API_AGENT_URL: `https://api.${environment}.osome.club/api/v2`,
+      API_AGENT_URL: `https://${environment}.agent.osome.club/api/v2`,
     };
   }
 
