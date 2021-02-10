@@ -35,6 +35,7 @@ describe('get-e2e-stages', () => {
         ADMIN_URL: `https://${environment}.agent.osome.club`,
         WEBSOME_URL: `https://${environment}.my.osome.club`,
         API_AGENT_URL: `https://${environment}.agent.osome.club/api/v2`,
+        API_WEBSOME_URL: `https://${environment}.api.osome.club/api/v2`,
       });
     });
 
@@ -51,6 +52,7 @@ describe('get-e2e-stages', () => {
         ADMIN_URL: `https://stage.agent.osome.club`,
         WEBSOME_URL: `https://feature-ec-111.my.osome.club`,
         API_AGENT_URL: `https://stage.agent.osome.club/api/v2`,
+        API_WEBSOME_URL: `https://stage.my.osome.club/api/v2`,
       });
     });
 
@@ -67,6 +69,24 @@ describe('get-e2e-stages', () => {
         ADMIN_URL: `https://stage.agent.osome.club`,
         WEBSOME_URL: `https://stage.my.osome.club`,
         API_AGENT_URL: `https://stage.agent.osome.club/api/v2`,
+        API_WEBSOME_URL: `https://stage.my.osome.club/api/v2`,
+      });
+    });
+
+    it('sets default output for stage', async () => {
+      jest.spyOn(core, 'getInput').mockImplementation(() => 'stage');
+      github.context.ref = 'refs/heads/some-ref';
+
+      await expect(run()).resolves.not.toThrow();
+      const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(setFailed).toHaveBeenCalledTimes(0);
+      expect(setOutput).toHaveBeenCalledTimes(1);
+      expect(setOutput.mock.calls[0][0]).toBe('e2e');
+      expect(setOutput.mock.calls[0][1]).toMatchObject({
+        ADMIN_URL: `https://stage.agent.osome.club`,
+        WEBSOME_URL: `https://stage.my.osome.club`,
+        API_AGENT_URL: `https://stage.agent.osome.club/api/v2`,
+        API_WEBSOME_URL: 'https://stage.my.osome.club/api/v2',
       });
     });
   });
@@ -89,6 +109,7 @@ describe('get-e2e-stages', () => {
         ADMIN_URL: `https://${environment}.agent.osome.club`,
         WEBSOME_URL: `https://${environment}.my.osome.club`,
         API_AGENT_URL: `https://${environment}.agent.osome.club/api/v2`,
+        API_WEBSOME_URL: `https://${environment}.api.osome.club/api/v2`,
       });
     });
 
@@ -105,6 +126,7 @@ describe('get-e2e-stages', () => {
         ADMIN_URL: `https://feature-ec-111.agent.osome.club`,
         WEBSOME_URL: `https://stage.my.osome.club`,
         API_AGENT_URL: `https://stage.agent.osome.club/api/v2`,
+        API_WEBSOME_URL: 'https://stage.my.osome.club/api/v2',
       });
     });
 
@@ -121,6 +143,24 @@ describe('get-e2e-stages', () => {
         ADMIN_URL: `https://stage.agent.osome.club`,
         WEBSOME_URL: `https://stage.my.osome.club`,
         API_AGENT_URL: `https://stage.agent.osome.club/api/v2`,
+        API_WEBSOME_URL: 'https://stage.my.osome.club/api/v2',
+      });
+    });
+
+    it('sets default output for stage', async () => {
+      jest.spyOn(core, 'getInput').mockImplementation(() => 'stage');
+      github.context.ref = 'refs/heads/some-ref';
+
+      await expect(run()).resolves.not.toThrow();
+      const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(setFailed).toHaveBeenCalledTimes(0);
+      expect(setOutput).toHaveBeenCalledTimes(1);
+      expect(setOutput.mock.calls[0][0]).toBe('e2e');
+      expect(setOutput.mock.calls[0][1]).toMatchObject({
+        ADMIN_URL: `https://stage.agent.osome.club`,
+        WEBSOME_URL: `https://stage.my.osome.club`,
+        API_AGENT_URL: `https://stage.agent.osome.club/api/v2`,
+        API_WEBSOME_URL: 'https://stage.my.osome.club/api/v2',
       });
     });
   });
@@ -143,6 +183,7 @@ describe('get-e2e-stages', () => {
         ADMIN_URL: `https://${environment}.agent.osome.club`,
         WEBSOME_URL: `https://${environment}.my.osome.club`,
         API_AGENT_URL: `https://${environment}.agent.osome.club/api/v2`,
+        API_WEBSOME_URL: `https://${environment}.api.osome.club/api/v2`,
       });
     });
 
@@ -159,6 +200,7 @@ describe('get-e2e-stages', () => {
         ADMIN_URL: `https://stage.agent.osome.club`,
         WEBSOME_URL: `https://stage.my.osome.club`,
         API_AGENT_URL: `https://stage.agent.osome.club/api/v2`,
+        API_WEBSOME_URL: 'https://stage.my.osome.club/api/v2',
       });
     });
 
@@ -179,6 +221,24 @@ describe('get-e2e-stages', () => {
         ADMIN_URL: `https://stage.agent.osome.club`,
         WEBSOME_URL: `https://stage.my.osome.club`,
         API_AGENT_URL: `https://stage.agent.osome.club/api/v2`,
+        API_WEBSOME_URL: 'https://stage.my.osome.club/api/v2',
+      });
+    });
+
+    it('sets default output for stage', async () => {
+      jest.spyOn(core, 'getInput').mockImplementation(() => 'stage');
+      github.context.ref = 'refs/heads/some-ref';
+
+      await expect(run()).resolves.not.toThrow();
+      const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(setFailed).toHaveBeenCalledTimes(0);
+      expect(setOutput).toHaveBeenCalledTimes(1);
+      expect(setOutput.mock.calls[0][0]).toBe('e2e');
+      expect(setOutput.mock.calls[0][1]).toMatchObject({
+        ADMIN_URL: `https://stage.agent.osome.club`,
+        WEBSOME_URL: `https://stage.my.osome.club`,
+        API_AGENT_URL: `https://stage.agent.osome.club/api/v2`,
+        API_WEBSOME_URL: 'https://stage.my.osome.club/api/v2',
       });
     });
   });
