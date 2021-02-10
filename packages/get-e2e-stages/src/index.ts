@@ -7,26 +7,14 @@ const defaultUrls = {
   ADMIN_URL: 'https://stage.agent.osome.club',
   WEBSOME_URL: 'https://stage.my.osome.club',
   API_AGENT_URL: 'https://stage.agent.osome.club/api/v2',
+  API_WEBSOME_URL: 'https://stage.my.osome.club/api/v2',
 };
 
-export const testEnvs = [
-  'stage',
-  'test-1',
-  'test-2',
-  'test-3',
-  'test-4',
-  'test-5',
-  'test-6',
-  'test-7',
-  'test-8',
-  'test-9',
-];
+export const testEnvs = ['test-1', 'test-2', 'test-3', 'test-4', 'test-5', 'test-6', 'test-7', 'test-8', 'test-9'];
 
 async function run() {
   const repo = github.context.repo.repo as Repo;
-  const {
-    ref,
-  } = github.context;
+  const { ref } = github.context;
   const environment = core.getInput('environment', { required: false });
 
   const urls = getLinks(repo, environment);
@@ -39,7 +27,7 @@ async function run() {
 }
 
 function getLinks(repo: Repo, environment?: string) {
-  if (!environment) {
+  if (!environment || environment === 'stage') {
     return defaultUrls;
   }
 
@@ -48,6 +36,7 @@ function getLinks(repo: Repo, environment?: string) {
       ADMIN_URL: `https://${environment}.agent.osome.club`,
       WEBSOME_URL: `https://${environment}.my.osome.club`,
       API_AGENT_URL: `https://${environment}.agent.osome.club/api/v2`,
+      API_WEBSOME_URL: `https://${environment}.api.osome.club/api/v2`,
     };
   }
 
