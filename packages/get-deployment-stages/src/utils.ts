@@ -44,7 +44,7 @@ export const toEnvironments = (envs: string[]) => {
 
 export const isOsomeBot = (actor: string) => actor === 'osome-bot';
 
-export const isMaster = (ref: string) => ref === 'refs/heads/master';
+export const isMaster = (ref: string) => ['refs/heads/master', 'refs/heads/main'].includes(ref);
 export const isTag = (ref: string) => ref.startsWith('refs/tags');
 
 export const isProductionEnv = (env: string) => env === 'production';

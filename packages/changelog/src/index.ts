@@ -49,9 +49,14 @@ async function getLastDeploymentSha() {
     }
   }
 
-  const firstCommitSha = await getFirstCommitSha({owner, repo, sha: 'master'});
-  if (firstCommitSha) {
-    return firstCommitSha;
+  const firstMasterCommitSha = await getFirstCommitSha({owner, repo, sha: 'master'});
+  if (firstMasterCommitSha) {
+    return firstMasterCommitSha;
+  }
+
+  const firstMainCommitSha = await getFirstCommitSha({owner, repo, sha: 'main'});
+  if (firstMainCommitSha) {
+    return firstMainCommitSha;
   }
 
   throw new Error('Unable to find previous deployment or first commit');
