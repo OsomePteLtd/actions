@@ -37,6 +37,23 @@ describe('get-deployment-stages', () => {
       );
     });
 
+    it('sets output to stage when ref is main', async () => {
+      const event = {};
+      mockReadFile.mockResolvedValue(JSON.stringify(event));
+      github.context.eventName = 'push';
+      github.context.ref = 'refs/heads/main';
+
+      await expect(run()).resolves.not.toThrow();
+
+      const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(setFailed).toHaveBeenCalledTimes(0);
+      expect(setOutput).toHaveBeenCalledTimes(1);
+      expect(setOutput.mock.calls[0][0]).toBe(`stages`);
+      expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(
+        `"[{\\"name\\":\\"stage\\",\\"transient_environment\\":true,\\"production_environment\\":false}]"`,
+      );
+    });
+
     it('sets output to empty array when ref is not master', async () => {
       const event = {};
       mockReadFile.mockResolvedValue(JSON.stringify(event));
