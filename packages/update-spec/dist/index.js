@@ -8131,6 +8131,7 @@ async function run() {
         await exec_1.exec("curl", ["-f", "-u", "ooo:some!", "https://docs.osome.club/api/stage/pechkin/openapi.json", "--output", "spec/pechkin.json"]);
         await exec_1.exec("curl", ["-f", "-u", "ooo:some!", "https://docs.osome.club/api/stage/shiva/openapi.json", "--output", "spec/shiva.json"]);
         await exec_1.exec("curl", ["-f", "-u", "ooo:some!", "https://docs.osome.club/api/stage/scrooge/openapi.json", "--output", "spec/scrooge.json"]);
+        await exec_1.exec("curl", ["-f", "-u", "ooo:some!", "https://docs.osome.club/api/stage/payot/openapi.json", "--output", "spec/payot.json"]);
         // Validate the fresh spec
         await exec_1.exec("npm", ["run", "generate"]);
         await exec_1.exec("npm", ["run", "build"]);
