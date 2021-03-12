@@ -141,12 +141,12 @@ describe('get-deployment-stages', () => {
 
     it('sets output to branch name when env is not provided', async () => {
       const event = {
-        pull_request: { head: { ref: 'feature/test' }, labels: [] },
+        pull_request: { head: { ref: 'dependabot/npm_and_yarn/packages/package-x/sandbox/module-6.5.4' }, labels: [] },
       };
 
       mockReadFile.mockResolvedValue(JSON.stringify(event));
       github.context.eventName = 'pull_request';
-      github.context.ref = 'refs/heads/feature/test';
+      github.context.ref = 'refs/heads/dependabot/npm_and_yarn/packages/package-x/sandbox/module-6.5.4';
 
       await expect(run()).resolves.not.toThrow();
 
@@ -155,7 +155,7 @@ describe('get-deployment-stages', () => {
       expect(setOutput).toHaveBeenCalledTimes(1);
       expect(setOutput.mock.calls[0][0]).toBe(`stages`);
       expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(
-        `"[{\\"name\\":\\"feature-test\\",\\"transient_environment\\":false,\\"production_environment\\":false}]"`,
+        `"[{\\"name\\":\\"dependabot-npm-and-yarn-packages-package-x-sandbox-module-6-5-4\\",\\"transient_environment\\":false,\\"production_environment\\":false}]"`,
       );
     });
 
