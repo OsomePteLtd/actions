@@ -39,7 +39,7 @@ const onPullRequest = async (event: EventPayloads.WebhookPayloadPullRequest, con
   }
 
   // If no stage-specific labels are found, use task name or branch name.
-  const output = [ref.replace(/[\/|=]/, '-').toLowerCase()];
+  const output = [ref.replace(/[\/|=|_|\.]/g, '-').toLowerCase()];
   return core.setOutput('stages', toEnvironments(output));
 };
 
