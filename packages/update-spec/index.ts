@@ -35,11 +35,10 @@ async function run() {
     await exec("curl", ["-f", "-u", "ooo:some!", "https://docs.osome.club/api/stage/scrooge/openapi.json", "--output", "spec/scrooge.json"]);
     await exec("curl", ["-f", "-u", "ooo:some!", "https://docs.osome.club/api/stage/payot/openapi.json", "--output", "spec/payot.json"]);
 
-    // Validate the fresh spec
-    await exec("npm", ["run", "spec"]);
-    await exec("npm", ["run", "generate"]);
+    // Validate (try to build) the fresh spec
     await exec("npm", ["run", "build"]);
 
+    // Commit changes
     await exec("git", ["add", "."]);
     await exec("git", ["commit", "-m Update Spec"]);
     await exec("git", ["push", "origin", `HEAD:${ref}`]);
