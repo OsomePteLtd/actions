@@ -159,7 +159,7 @@ async function sendChangelogToSlack(changelog: Changelog) {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: texts.join('\n'),
+        text: texts.join('\n').slice(0, 3000),
       },
     });
   }
