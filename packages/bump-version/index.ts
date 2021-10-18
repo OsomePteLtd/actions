@@ -9,6 +9,7 @@ const DEFAULT_USER_EMAIL = '67785357+osome-bot@users.noreply.github.com';
 async function run() {
   try {
     const token = core.getInput('token');
+    const workingDirectory = core.getInput('working-directory', { required: false });
     const {
       ref,
       repo: { owner, repo },
@@ -28,6 +29,7 @@ async function run() {
           tag += data.toString();
         },
       },
+      cwd: workingDirectory,
     });
 
     await exec('git', ['push', 'origin', `HEAD:${ref}`]);

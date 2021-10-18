@@ -4,6 +4,9 @@ inputs:
   token:
     description: 'Personal access token'
     required: true
+  working-directory:
+    description: 'Working directory'
+    required: false
 runs:
   using: 'node12'
   main: './dist/index.js'
