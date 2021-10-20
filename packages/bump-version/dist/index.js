@@ -13633,8 +13633,8 @@ async function run() {
         await exec_1.exec('git', ['add', '.']);
         await exec_1.exec('git', ['status']);
         console.log({ ref, tag });
-        // await exec('git', ['push', 'origin', `HEAD:${ref}`]);
-        // await exec('git', ['push', 'origin', `refs/tags/${tag.trim()}`]);
+        await exec_1.exec('git', ['push', 'origin', `HEAD:${ref}`]);
+        await exec_1.exec('git', ['push', 'origin', `refs/tags/${tag.trim()}`]);
     }
     catch (error) {
         core.setFailed(error.message);
