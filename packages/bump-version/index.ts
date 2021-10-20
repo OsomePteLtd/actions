@@ -21,6 +21,7 @@ async function run() {
     await exec('git', ['config', 'user.name', `"${DEFAULT_USER_NAME}"`]);
     await exec('git', ['config', 'user.email', `"${DEFAULT_USER_EMAIL}"`]);
 
+    // Why create the directory? https://github.com/npm/npm/issues/9111#issuecomment-126279242
     if (workingDirectory) {
       await exec('mkdir', ['.git'], { cwd: workingDirectory });
     }
@@ -37,11 +38,8 @@ async function run() {
     });
 
 
-    await exec('git', ['status']);
-    await exec('git', ['log']);
-    console.log({ ref, tag });
-    // await exec('git', ['push', 'origin', `HEAD:${ref}`]);
-    // await exec('git', ['push', 'origin', `refs/tags/${tag.trim()}`]);
+    await exec('git', ['push', 'origin', `HEAD:${ref}`]);
+    await exec('git', ['push', 'origin', `refs/tags/${tag.trim()}`]);
   } catch (error) {
     core.setFailed(error.message);
   }
