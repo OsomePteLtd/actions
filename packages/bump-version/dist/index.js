@@ -13620,6 +13620,9 @@ async function run() {
         await exec_1.exec('git', ['remote', 'set-url', 'origin', origin]);
         await exec_1.exec('git', ['config', 'user.name', `"${DEFAULT_USER_NAME}"`]);
         await exec_1.exec('git', ['config', 'user.email', `"${DEFAULT_USER_EMAIL}"`]);
+        if (workingDirectory) {
+            await exec_1.exec('mkdir', ['.git'], { cwd: workingDirectory });
+        }
         // Bump version and push the commit and tag
         let tag = '';
         await exec_1.exec('npm', ['version', 'patch'], {

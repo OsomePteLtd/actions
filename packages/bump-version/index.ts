@@ -21,6 +21,10 @@ async function run() {
     await exec('git', ['config', 'user.name', `"${DEFAULT_USER_NAME}"`]);
     await exec('git', ['config', 'user.email', `"${DEFAULT_USER_EMAIL}"`]);
 
+    if (workingDirectory) {
+      await exec('mkdir', ['.git'], { cwd: workingDirectory });
+    }
+
     // Bump version and push the commit and tag
     let tag = '';
     await exec('npm', ['version', 'patch'], {
