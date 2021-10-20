@@ -32,6 +32,7 @@ async function run() {
       cwd: workingDirectory,
     });
 
+    await exec('git', ['add', '.']);
     await exec('git', ['push', 'origin', `HEAD:${ref}`]);
     await exec('git', ['push', 'origin', `refs/tags/${tag.trim()}`]);
   } catch (error) {
