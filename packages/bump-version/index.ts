@@ -28,7 +28,7 @@ async function run() {
 
     // Bump version and push the commit and tag
     let tag = '';
-    await exec('npm', ['version', 'patch'], {
+    await exec('npm', ['version', 'minor'], {
       listeners: {
         stdout: (data: Buffer) => {
           tag += data.toString();
