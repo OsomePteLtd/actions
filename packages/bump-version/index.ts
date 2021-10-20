@@ -23,7 +23,7 @@ async function run() {
 
     // Bump version and push the commit and tag
     let tag = '';
-    await exec('npm', ['version', 'minor'], {
+    await exec('npm', ['version', 'patch'], {
       listeners: {
         stdout: (data: Buffer) => {
           tag += data.toString();
@@ -32,9 +32,6 @@ async function run() {
       cwd: workingDirectory,
     });
 
-    await exec('git', ['add', '.']);
-    await exec('git', ['status']);
-    console.log({ ref, tag });
     await exec('git', ['push', 'origin', `HEAD:${ref}`]);
     await exec('git', ['push', 'origin', `refs/tags/${tag.trim()}`]);
   } catch (error) {

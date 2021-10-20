@@ -13622,7 +13622,7 @@ async function run() {
         await exec_1.exec('git', ['config', 'user.email', `"${DEFAULT_USER_EMAIL}"`]);
         // Bump version and push the commit and tag
         let tag = '';
-        await exec_1.exec('npm', ['version', 'minor'], {
+        await exec_1.exec('npm', ['version', 'patch'], {
             listeners: {
                 stdout: (data) => {
                     tag += data.toString();
@@ -13630,9 +13630,6 @@ async function run() {
             },
             cwd: workingDirectory,
         });
-        await exec_1.exec('git', ['add', '.']);
-        await exec_1.exec('git', ['status']);
-        console.log({ ref, tag });
         await exec_1.exec('git', ['push', 'origin', `HEAD:${ref}`]);
         await exec_1.exec('git', ['push', 'origin', `refs/tags/${tag.trim()}`]);
     }
