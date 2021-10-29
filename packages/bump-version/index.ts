@@ -28,7 +28,7 @@ async function run() {
 
     // Bump version and push the commit and tag
     let tag = '';
-    await exec('npm', ['version', 'minor'], {
+    await exec('npm', ['version', '--commit-hooks', 'false', 'minor'], {
       listeners: {
         stdout: (data: Buffer) => {
           tag += data.toString();
@@ -38,8 +38,8 @@ async function run() {
     });
 
 
-    await exec('git', ['push', 'origin', `HEAD:${ref}`]);
-    await exec('git', ['push', 'origin', `refs/tags/${tag.trim()}`]);
+    await exec('git', ['push', 'origin', `HEAD:${ref}`, '--no-verify']);
+    await exec('git', ['push', 'origin', `refs/tags/${tag.trim()}`, '--no-verify']);
   } catch (error) {
     core.setFailed(error.message);
   }
