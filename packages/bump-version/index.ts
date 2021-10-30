@@ -10,6 +10,7 @@ async function run() {
   try {
     const token = core.getInput('token');
     const workingDirectory = core.getInput('working-directory', { required: false });
+    const newversion = core.getInput('newversion', { required: false });
     const {
       ref,
       repo: { owner, repo },
@@ -28,7 +29,7 @@ async function run() {
 
     // Bump version and push the commit and tag
     let tag = '';
-    await exec('npm', ['version', '--commit-hooks', 'false', 'minor'], {
+    await exec('npm', ['version', '--commit-hooks', 'false', newversion], {
       listeners: {
         stdout: (data: Buffer) => {
           tag += data.toString();
@@ -36,7 +37,6 @@ async function run() {
       },
       cwd: workingDirectory,
     });
-
 
     await exec('git', ['push', 'origin', `HEAD:${ref}`, '--no-verify']);
     await exec('git', ['push', 'origin', `refs/tags/${tag.trim()}`, '--no-verify']);
