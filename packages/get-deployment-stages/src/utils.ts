@@ -27,7 +27,7 @@ export const getEvent = async (eventName: string) => {
   return event;
 };
 
-export const toEnvironments = (envs: string[], projects: string[] = []) => {
+export const toEnvironments = (envs: string[], projects: string[]) => {
   const environments = envs.reduce(
     (envs, env) => [
       ...envs,

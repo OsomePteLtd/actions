@@ -12667,7 +12667,7 @@ exports.getEvent = async (eventName) => {
     }
     return event;
 };
-exports.toEnvironments = (envs, projects = []) => {
+exports.toEnvironments = (envs, projects) => {
     const environments = envs.reduce((envs, env) => [
         ...envs,
         ...exports.getEnvironmentsByProjects(env, projects),
