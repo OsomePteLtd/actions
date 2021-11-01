@@ -2,7 +2,10 @@
   "name": "actions",
   "private": true,
   "devDependencies": {
-    "husky": "^4.2.5",
+    "husky": "^7.0.4",
     "lerna": "^3.22.1"
+  },
+  "scripts": {
+    "prepare": "husky install"
   }
 }
