@@ -269,6 +269,23 @@ describe('get-deployment-stages', () => {
         `"[{\\"name\\":\\"production\\",\\"transient_environment\\":true,\\"production_environment\\":true}]"`,
       );
     });
+
+    it('should return the prod env for a project', async () => {
+      const event = { client_payload: { environment: 'project-a:production' } };
+      mockReadFile.mockResolvedValue(JSON.stringify(event));
+      github.context.actor = 'osome-bot';
+      github.context.eventName = 'repository_dispatch';
+
+      await expect(run()).resolves.not.toThrow();
+
+      const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(setFailed).toHaveBeenCalledTimes(0);
+      expect(setOutput).toHaveBeenCalledTimes(1);
+      expect(setOutput.mock.calls[0][0]).toMatchInlineSnapshot(`"stages"`);
+      expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(
+        `"[{\\"name\\":\\"production\\",\\"transient_environment\\":true,\\"production_environment\\":true}]"`,
+      );
+    });
   });
 
   describe('workflow_dispatch', () => {
