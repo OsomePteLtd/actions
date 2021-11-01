@@ -12551,8 +12551,6 @@ exports.on = async (event, context) => {
     if (stages.length) {
         return core.setOutput('stages', utils_1.toEnvironments(stages, projects));
     }
-    // Using `workflow_dispatch` for deploying feature
-    // branches to transient environments is not supported.
     return core.setOutput('stages', utils_1.toEnvironments([], projects));
 };
 
@@ -12694,7 +12692,7 @@ exports.getEnvironmentsByProjects = (env, projects) => {
 exports.isOsomeBot = (actor) => actor === 'osome-bot';
 exports.isMaster = (ref) => ['refs/heads/master', 'refs/heads/main'].includes(ref);
 exports.isTag = (ref) => ref.startsWith('refs/tags');
-exports.isProductionEnv = (env) => env === 'production';
+exports.isProductionEnv = (env) => env === 'production' || env.endsWith(':production');
 exports.isTransientEnv = (env) => Object.values(constants_1.STAGE_LABELS).includes(env);
 exports.getProjectsFromInput = () => {
     const projects = (core.getInput('projects') || '').split(',').map(project => project.trim()).filter(x => x !== '');

@@ -63,7 +63,7 @@ export const isOsomeBot = (actor: string) => actor === 'osome-bot';
 export const isMaster = (ref: string) => ['refs/heads/master', 'refs/heads/main'].includes(ref);
 export const isTag = (ref: string) => ref.startsWith('refs/tags');
 
-export const isProductionEnv = (env: string) => env === 'production';
+export const isProductionEnv = (env: string) => env === 'production' || env.endsWith(':production');
 export const isTransientEnv = (env: string) => Object.values(STAGE_LABELS).includes(env);
 
 export const getProjectsFromInput = () => {
