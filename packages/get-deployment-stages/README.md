@@ -1,6 +1,6 @@
 # :package: `get-deployment-stages`
 
-This actions supports three different types of webhook events: `pull_request`, `push`, and `workflow_dispatch` and returns context-aware list of environments to which a ref should be deployed to.
+This actions supports four different types of webhook events: `pull_request`, `push`, `repository_dispatch`, and `workflow_dispatch` and returns context-aware list of environments to which a ref should be deployed to.
 
 ## Usage
 
@@ -24,10 +24,15 @@ By default, a workflow only runs when a pull_request's activity type is `opened`
 When `closed` activity type is provided by specifying it in types property of the workflow, this package will output a list of all transient environments that this ref has been deployed to. It's intended usage is to deactivate these environments in the next step of your workflow.
 
 ### `push`
+This workflow uses for a tag to a commit on the main/master branch. As a default this workflow returns the stage environment.
 
 
 ### `workflow_dispatch`
+The manual trigger workflow works only with stage environments like the stage and all tests.
+
+Using `workflow_dispatch` for deploying feature branches to transient environments is not supported.
 
 > :warning: In order to use `workflow_dispatch` you'll need to conditionally disable caching for this type of event in your workflow files.
 
-
+### `repository_dispatch`
+This workflow uses for deployment to the production by the slack bot.
