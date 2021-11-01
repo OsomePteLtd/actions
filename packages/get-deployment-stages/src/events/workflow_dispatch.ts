@@ -22,7 +22,5 @@ export const on = async (event: EventPayloads.WebhookPayloadWorkflowDispatch, co
     return core.setOutput('stages', toEnvironments(stages));
   }
 
-  // Using `workflow_dispatch` for deploying feature
-  // branches to transient environments is not supported.
   return core.setOutput('stages', toEnvironments([]));
 };
