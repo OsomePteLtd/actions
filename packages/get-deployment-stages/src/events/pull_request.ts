@@ -4,7 +4,7 @@ import { Context } from '@actions/github/lib/context';
 import { EventPayloads } from '@octokit/webhooks';
 
 import { previews, STAGE_LABELS } from '../constants';
-import { isProductionEnv, toEnvironments } from '../utils';
+import { isProductionEnv, toEnvironments, getProjectsFromInput } from '../utils';
 
 export const on = async (event: EventPayloads.WebhookPayloadPullRequest, context: Context) => {
   const { action } = event;
@@ -18,6 +18,7 @@ export const on = async (event: EventPayloads.WebhookPayloadPullRequest, context
 
 const onPullRequest = async (event: EventPayloads.WebhookPayloadPullRequest, context: Context) => {
   const withTransient = JSON.parse(core.getInput('with-transient') || 'true');
+  const projects = getProjectsFromInput();
   const {
     pull_request: {
       head: { ref },
@@ -31,16 +32,16 @@ const onPullRequest = async (event: EventPayloads.WebhookPayloadPullRequest, con
 
   // If stage-specific labels are found, use them.
   if (stages.length) {
-    return core.setOutput('stages', toEnvironments(stages));
+    return core.setOutput('stages', toEnvironments(stages, projects));
   }
 
   if (!withTransient) {
-    return core.setOutput('stages', toEnvironments([]));
+    return core.setOutput('stages', toEnvironments([], projects));
   }
 
   // If no stage-specific labels are found, use task name or branch name.
   const output = [ref.replace(/[\/|=|_|\.]/g, '-').toLowerCase().substring(0, 63)];
-  return core.setOutput('stages', toEnvironments(output));
+  return core.setOutput('stages', toEnvironments(output, projects));
 };
 
 const onPullRequestClosed = async (event: EventPayloads.WebhookPayloadPullRequest, context: Context) => {
@@ -53,6 +54,7 @@ const onPullRequestClosed = async (event: EventPayloads.WebhookPayloadPullReques
 
   const token = core.getInput('token', { required: true });
   const octokit = github.getOctokit(token);
+  const projects = getProjectsFromInput();
 
   const stages: string[] = [];
   const { data: deployments } = await octokit.repos.listDeployments({
@@ -76,5 +78,5 @@ const onPullRequestClosed = async (event: EventPayloads.WebhookPayloadPullReques
     }
   }
 
-  return core.setOutput('stages', toEnvironments(stages));
+  return core.setOutput('stages', toEnvironments(stages, projects));
 };
