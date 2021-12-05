@@ -8,6 +8,9 @@ inputs:
     description: 'Suggest transient environments'
     required: false
     default: 'true'
+  projects:
+    description: 'All affected project'
+    required: false
 outputs:
   stages:
     description: 'List of environments'

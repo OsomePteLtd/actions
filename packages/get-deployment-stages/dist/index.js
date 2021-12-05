@@ -12376,26 +12376,28 @@ exports.on = async (event, context) => {
 };
 const onPullRequest = async (event, context) => {
     const withTransient = JSON.parse(core.getInput('with-transient') || 'true');
+    const projects = utils_1.getProjectsFromInput();
     const { pull_request: { head: { ref }, labels, }, } = event;
     const stages = labels
         .map(({ name: labelName }) => constants_1.STAGE_LABELS[labelName])
         .filter((stage) => !!stage && !utils_1.isProductionEnv(stage));
     // If stage-specific labels are found, use them.
     if (stages.length) {
-        return core.setOutput('stages', utils_1.toEnvironments(stages));
+        return core.setOutput('stages', utils_1.toEnvironments(stages, projects));
     }
     if (!withTransient) {
-        return core.setOutput('stages', utils_1.toEnvironments([]));
+        return core.setOutput('stages', utils_1.toEnvironments([], projects));
     }
     // If no stage-specific labels are found, use task name or branch name.
     const output = [ref.replace(/[\/|=|_|\.]/g, '-').toLowerCase().substring(0, 63)];
-    return core.setOutput('stages', utils_1.toEnvironments(output));
+    return core.setOutput('stages', utils_1.toEnvironments(output, projects));
 };
 const onPullRequestClosed = async (event, context) => {
     const { pull_request: { head: { ref }, }, } = event;
     const { repo } = context;
     const token = core.getInput('token', { required: true });
     const octokit = github.getOctokit(token);
+    const projects = utils_1.getProjectsFromInput();
     const stages = [];
     const { data: deployments } = await octokit.repos.listDeployments({
         mediaType: { previews: constants_1.previews },
@@ -12415,7 +12417,7 @@ const onPullRequestClosed = async (event, context) => {
             stages.push(environment);
         }
     }
-    return core.setOutput('stages', utils_1.toEnvironments(stages));
+    return core.setOutput('stages', utils_1.toEnvironments(stages, projects));
 };
 
 
@@ -12451,11 +12453,12 @@ const core = __importStar(__nccwpck_require__(1626));
 const utils_1 = __nccwpck_require__(8732);
 exports.on = async (event, context) => {
     const { ref } = context;
+    const projects = utils_1.getProjectsFromInput();
     if (utils_1.isMaster(ref) || utils_1.isTag(ref)) {
         // TODO: Check that tag is on master branch.
-        return core.setOutput('stages', utils_1.toEnvironments(['stage']));
+        return core.setOutput('stages', utils_1.toEnvironments(['stage'], projects));
     }
-    return core.setOutput('stages', utils_1.toEnvironments([]));
+    return core.setOutput('stages', utils_1.toEnvironments([], projects));
 };
 
 
@@ -12492,13 +12495,14 @@ const utils_1 = __nccwpck_require__(8732);
 exports.on = async (event, context) => {
     const { environment } = event.client_payload;
     const { actor } = context;
+    const projects = utils_1.getProjectsFromInput();
     if (!utils_1.isOsomeBot(actor) && utils_1.isProductionEnv(environment)) {
         return core.setFailed('Only osome-bot can deploy to production');
     }
     if (!utils_1.isProductionEnv(environment)) {
         return core.setFailed('Can use repository_dispatch only to deploy to production');
     }
-    return core.setOutput('stages', utils_1.toEnvironments(['production']));
+    return core.setOutput('stages', utils_1.toEnvironments(['production'], projects));
 };
 
 
@@ -12537,6 +12541,7 @@ exports.on = async (event, context) => {
     const { actor, ref } = context;
     const { environment } = event.inputs;
     const stages = Object.values(constants_1.STAGE_LABELS).filter((label) => label === environment);
+    const projects = utils_1.getProjectsFromInput();
     if (!utils_1.isOsomeBot(actor) && utils_1.isProductionEnv(environment)) {
         return core.setFailed('Only osome-bot can deploy to production');
     }
@@ -12544,11 +12549,9 @@ exports.on = async (event, context) => {
         return core.setFailed('Can deploy to production from master branch only');
     }
     if (stages.length) {
-        return core.setOutput('stages', utils_1.toEnvironments(stages));
+        return core.setOutput('stages', utils_1.toEnvironments(stages, projects));
     }
-    // Using `workflow_dispatch` for deploying feature
-    // branches to transient environments is not supported.
-    return core.setOutput('stages', utils_1.toEnvironments([]));
+    return core.setOutput('stages', utils_1.toEnvironments([], projects));
 };
 
 
@@ -12618,12 +12621,32 @@ exports.default = run;
 /***/ }),
 
 /***/ 8732:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.isTransientEnv = exports.isProductionEnv = exports.isTag = exports.isMaster = exports.isOsomeBot = exports.toEnvironments = exports.getEvent = void 0;
+exports.getProjectsFromInput = exports.isTransientEnv = exports.isProductionEnv = exports.isTag = exports.isMaster = exports.isOsomeBot = exports.getEnvironmentsByProjects = exports.toEnvironments = exports.getEvent = void 0;
+const core = __importStar(__nccwpck_require__(1626));
 const fs_1 = __nccwpck_require__(5747);
 const constants_1 = __nccwpck_require__(1092);
 exports.getEvent = async (eventName) => {
@@ -12642,22 +12665,39 @@ exports.getEvent = async (eventName) => {
     }
     return event;
 };
-exports.toEnvironments = (envs) => {
+exports.toEnvironments = (envs, projects) => {
     const environments = envs.reduce((envs, env) => [
         ...envs,
-        {
-            name: env,
-            transient_environment: exports.isTransientEnv(env),
-            production_environment: exports.isProductionEnv(env),
-        },
+        ...exports.getEnvironmentsByProjects(env, projects),
     ], []);
     return JSON.stringify(environments);
+};
+exports.getEnvironmentsByProjects = (env, projects) => {
+    if (!projects.length) {
+        return [{
+                name: env,
+                transient_environment: exports.isTransientEnv(env),
+                production_environment: exports.isProductionEnv(env),
+            }];
+    }
+    return projects.map(project => ({
+        name: env,
+        transient_environment: exports.isTransientEnv(env),
+        production_environment: exports.isProductionEnv(env),
+        payload: {
+            project,
+        },
+    }));
 };
 exports.isOsomeBot = (actor) => actor === 'osome-bot';
 exports.isMaster = (ref) => ['refs/heads/master', 'refs/heads/main'].includes(ref);
 exports.isTag = (ref) => ref.startsWith('refs/tags');
 exports.isProductionEnv = (env) => env === 'production' || env.endsWith(':production');
 exports.isTransientEnv = (env) => Object.values(constants_1.STAGE_LABELS).includes(env);
+exports.getProjectsFromInput = () => {
+    const projects = (core.getInput('projects') || '').split(',').map(project => project.trim()).filter(x => x !== '');
+    return projects;
+};
 
 
 /***/ }),
