@@ -132,13 +132,13 @@ async function sendChangelogToSlack(changelog: Changelog) {
   const slack = getSlack();
   const status = getStatus();
   const blocks: KnownBlock[] = [];
-  var message = status != 'failed' ? `${changelog.title.toLowerCase()} is now live :party:` : `${changelog.title.toLowerCase()} tst;
+  var slack_message = status != 'failed' ? `${changelog.title.toLowerCase()} is now live :party:` : `${changelog.title.toLowerCase()} tst;
 
   blocks.push({
     type: 'header',
     text: {
       type: 'plain_text',
-      text: ${message},
+      text: '${slack_message}',
     },
   });
 
@@ -190,7 +190,7 @@ async function sendChangelogToSlack(changelog: Changelog) {
   core.info(JSON.stringify(blocks, null, '  '));
 
   await slack.chat.postMessage({
-    text: `${message}`,
+    text: `${slack_message}`,
     blocks,
     channel: core.getInput('slack-channel', { required: true }),
     link_names: true,
