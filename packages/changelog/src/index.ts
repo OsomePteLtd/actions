@@ -89,7 +89,7 @@ async function buildChangelog(
   const { owner, repo } = github.context.repo;
 
   const changelog: Changelog = {
-    title: [`@${owner}/${repo}`, version].filter(Boolean).join(' '),
+    title: [`${owner}/${repo}`, version].filter(Boolean).join(' '),
     items: [],
   };
 
@@ -132,7 +132,7 @@ async function sendChangelogToSlack(changelog: Changelog) {
   const slack = getSlack();
   const status = getStatus();
   const blocks: KnownBlock[] = [];
-  var slack_message = status != 'failed' ? `${changelog.title.toLowerCase()} is now live :party:` : `${changelog.title.toLowerCase()} tst`;
+  const slack_message = status != 'failed' ? `${changelog.title.toLowerCase()} is now live :party:` : `${changelog.title.toLowerCase()} tst`;
 
   blocks.push({
     type: 'header',
