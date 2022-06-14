@@ -138,7 +138,7 @@ async function sendChangelogToSlack(changelog: Changelog) {
     type: 'header',
     text: {
       type: 'plain_text',
-      text: `${slack_message}`,
+      text: `${status}`,
     },
   });
 
