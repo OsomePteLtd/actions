@@ -6,6 +6,7 @@ import { WebClient } from '@slack/web-api';
 import { promises as fs } from 'fs';
 import JiraClient from 'jira-client';
 import uniqBy from 'lodash/uniqBy';
+import JobStatus from 'job-status';
 
 let event: EventPayloads.WebhookPayloadDeployment | null = null;
 export const getEvent = async (): Promise<EventPayloads.WebhookPayloadDeployment> => {
@@ -32,6 +33,11 @@ export const getSlack = () => {
   if (slack) return slack;
   const token = core.getInput('slack-token', { required: true });
   return (slack = new WebClient(token));
+};
+
+export const getStatus = () => {
+  const status = core.getInput('job-status' , { required: false });
+  return new JobStatus({status})
 };
 
 export const getIcon = (type: string) => {

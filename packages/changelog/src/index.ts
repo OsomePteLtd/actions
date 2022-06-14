@@ -4,7 +4,7 @@ import { ReposCompareCommitsResponseData } from '@octokit/types';
 import { KnownBlock } from '@slack/web-api';
 import groupBy from 'lodash/groupBy';
 import parse from 'parse-link-header';
-import { getCoauthors, getEvent, getIcon, getJira, getOctokit, getSlack, joinAuthors } from './utils';
+import { getCoauthors, getEvent, getIcon, getJira, getOctokit, getSlack, getStatus, joinAuthors } from './utils';
 import { Changelog } from './types';
 
 async function run() {
@@ -130,13 +130,15 @@ async function buildChangelog(
 
 async function sendChangelogToSlack(changelog: Changelog) {
   const slack = getSlack();
+  const status = getStatus();
   const blocks: KnownBlock[] = [];
+  var message = status != 'failed' ? `${changelog.title.toLowerCase()} is now live :party:` : `${changelog.title.toLowerCase()} tst;
 
   blocks.push({
     type: 'header',
     text: {
       type: 'plain_text',
-      text: `${changelog.title.toLowerCase()} is now live :party:`,
+      text: ${message},
     },
   });
 
@@ -188,7 +190,7 @@ async function sendChangelogToSlack(changelog: Changelog) {
   core.info(JSON.stringify(blocks, null, '  '));
 
   await slack.chat.postMessage({
-    text: `${changelog.title} is live :party:`,
+    text: `${message}`,
     blocks,
     channel: core.getInput('slack-channel', { required: true }),
     link_names: true,
