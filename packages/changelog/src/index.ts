@@ -132,13 +132,13 @@ async function sendChangelogToSlack(changelog: Changelog) {
   const slack = getSlack();
   const status = getStatus();
   const blocks: KnownBlock[] = [];
-  var slack_message = status != 'failed' ? `${changelog.title.toLowerCase()} is now live :party:` : `${changelog.title.toLowerCase()} tst;
+  var slack_message = status != 'failed' ? `${changelog.title.toLowerCase()} is now live :party:` : `${changelog.title.toLowerCase()} tst`;
 
   blocks.push({
     type: 'header',
     text: {
       type: 'plain_text',
-      text: '${slack_message}',
+      text: `${slack_message}`,
     },
   });
 
