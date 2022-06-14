@@ -190,7 +190,7 @@ async function sendChangelogToSlack(changelog: Changelog) {
   core.info(JSON.stringify(blocks, null, '  '));
 
   await slack.chat.postMessage({
-    text: `${slack_message}`,
+    text: `${status}`,
     blocks,
     channel: core.getInput('slack-channel', { required: true }),
     link_names: true,
