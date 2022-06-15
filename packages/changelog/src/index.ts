@@ -89,7 +89,7 @@ async function buildChangelog(
   const { owner, repo } = github.context.repo;
 
   const changelog: Changelog = {
-    title: [`${owner}/${repo}`, version].filter(Boolean).join(' '),
+    title: [`@${owner}/${repo}`, version].filter(Boolean).join(' '),
     items: [],
   };
 
@@ -130,17 +130,15 @@ async function buildChangelog(
 
 async function sendChangelogToSlack(changelog: Changelog) {
   const slack = getSlack();
-  const status = getStatus();
+  const ghJobStatus = getStatus();
   const blocks: KnownBlock[] = [];
-  const slack_message = status != 'failed' ? `${changelog.title.toLowerCase()} is now live :party:` : `${changelog.title.toLowerCase()} tst`;
-  console.log(slack_message);
-  
+  const slack_message = ghJobStatus != 'failure' ? `${changelog.title.toLowerCase()} is now live :party:` : `${changelog.title.toLowerCase()} deployment failed :thumbsdown:`;  
 
   blocks.push({
     type: 'header',
     text: {
       type: 'plain_text',
-      text: `${status}`,
+      text: `${slack_message}`,
     },
   });
 
@@ -192,7 +190,7 @@ async function sendChangelogToSlack(changelog: Changelog) {
   core.info(JSON.stringify(blocks, null, '  '));
 
   await slack.chat.postMessage({
-    text: `${status}`,
+    text: `${slack_message}`,
     blocks,
     channel: core.getInput('slack-channel', { required: true }),
     link_names: true,
