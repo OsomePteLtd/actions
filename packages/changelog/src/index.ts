@@ -128,17 +128,27 @@ async function buildChangelog(
   return changelog;
 }
 
+async function getSlackMessage() {
+  let message;
+  const ghJobStatus = getStatus();
+  if (ghJobStatus !== 'failure') {
+    message = ` is now live :party:`;
+  } else {
+    message = ` Deployment failed :skull: Commit authors, please check your work :alert: :red_circle:`;
+  }
+  return message
+}
+
 async function sendChangelogToSlack(changelog: Changelog) {
   const slack = getSlack();
-  const ghJobStatus = getStatus();
   const blocks: KnownBlock[] = [];
-  const slack_message = ghJobStatus != 'failure' ? `${changelog.title.toLowerCase()} is now live :party:` : `${changelog.title.toLowerCase()} deployment failed :red_circle:`;  
+  const slackMessage = getSlackMessage();
 
   blocks.push({
     type: 'header',
     text: {
       type: 'plain_text',
-      text: `${slack_message}`,
+      text: `${changelog.title.toLowerCase()} ${slackMessage}`,
     },
   });
 
@@ -190,7 +200,7 @@ async function sendChangelogToSlack(changelog: Changelog) {
   core.info(JSON.stringify(blocks, null, '  '));
 
   await slack.chat.postMessage({
-    text: `${slack_message}`,
+    text: `${changelog.title} ${slackMessage}`,
     blocks,
     channel: core.getInput('slack-channel', { required: true }),
     link_names: true,
