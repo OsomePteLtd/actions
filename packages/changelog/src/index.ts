@@ -4,7 +4,7 @@ import { ReposCompareCommitsResponseData } from '@octokit/types';
 import { KnownBlock } from '@slack/web-api';
 import groupBy from 'lodash/groupBy';
 import parse from 'parse-link-header';
-import { getCoauthors, getEvent, getIcon, getJira, getOctokit, getSlack, joinAuthors } from './utils';
+import { getCoauthors, getEvent, getIcon, getJira, getOctokit, getSlack, getStatus, joinAuthors } from './utils';
 import { Changelog } from './types';
 
 async function run() {
@@ -128,15 +128,27 @@ async function buildChangelog(
   return changelog;
 }
 
+async function getSlackMessage() {
+  let message;
+  const ghJobStatus = getStatus();
+  if (ghJobStatus !== 'failure') {
+    message = `is now live :party:`;
+  } else {
+    message = `Deployment failed :skull: Commit authors, please check your work :alert: :red_circle:`;
+  }
+  return message
+}
+
 async function sendChangelogToSlack(changelog: Changelog) {
   const slack = getSlack();
   const blocks: KnownBlock[] = [];
+  const slackMessage = await getSlackMessage();
 
   blocks.push({
     type: 'header',
     text: {
       type: 'plain_text',
-      text: `${changelog.title.toLowerCase()} is now live :party:`,
+      text: `${changelog.title.toLowerCase()} ${slackMessage}`,
     },
   });
 
@@ -188,7 +200,7 @@ async function sendChangelogToSlack(changelog: Changelog) {
   core.info(JSON.stringify(blocks, null, '  '));
 
   await slack.chat.postMessage({
-    text: `${changelog.title} is live :party:`,
+    text: `${changelog.title} ${slackMessage}`,
     blocks,
     channel: core.getInput('slack-channel', { required: true }),
     link_names: true,

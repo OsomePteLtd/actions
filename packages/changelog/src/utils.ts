@@ -34,6 +34,11 @@ export const getSlack = () => {
   return (slack = new WebClient(token));
 };
 
+export const getStatus = () => {
+  const status = core.getInput('job-status' , { required: false });
+  return status;
+};
+
 export const getIcon = (type: string) => {
   switch (type) {
     case 'Story':
