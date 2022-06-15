@@ -142,7 +142,7 @@ async function getSlackMessage() {
 async function sendChangelogToSlack(changelog: Changelog) {
   const slack = getSlack();
   const blocks: KnownBlock[] = [];
-  const slackMessage = getSlackMessage();
+  const slackMessage = await getSlackMessage();
 
   blocks.push({
     type: 'header',
