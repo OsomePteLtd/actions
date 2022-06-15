@@ -25,15 +25,21 @@ describe('get-deployment-stages', () => {
       mockReadFile.mockResolvedValue(JSON.stringify(event));
       github.context.eventName = 'push';
       github.context.ref = 'refs/heads/master';
+      mockCoreGetInput.mockImplementation((inputName) => {
+        if (inputName === 'projects') return 'project-a';
+
+        return undefined;
+      });
 
       await expect(run()).resolves.not.toThrow();
 
       const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(mockCoreGetInput).toHaveBeenCalledTimes(1);
       expect(setFailed).toHaveBeenCalledTimes(0);
       expect(setOutput).toHaveBeenCalledTimes(1);
       expect(setOutput.mock.calls[0][0]).toBe(`stages`);
       expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(
-        `"[{\\"name\\":\\"stage\\",\\"transient_environment\\":true,\\"production_environment\\":false}]"`,
+        `"[{\\"name\\":\\"stage\\",\\"transient_environment\\":true,\\"production_environment\\":false,\\"payload\\":{\\"project\\":\\"project-a\\"}}]"`,
       );
     });
 
@@ -59,10 +65,16 @@ describe('get-deployment-stages', () => {
       mockReadFile.mockResolvedValue(JSON.stringify(event));
       github.context.eventName = 'push';
       github.context.ref = 'refs/heads/develop';
+      mockCoreGetInput.mockImplementation((inputName) => {
+        if (inputName === 'projects') return 'project-a';
+
+        return undefined;
+      });
 
       await expect(run()).resolves.not.toThrow();
 
       const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(mockCoreGetInput).toHaveBeenCalledTimes(1);
       expect(setFailed).toHaveBeenCalledTimes(0);
       expect(setOutput).toHaveBeenCalledTimes(1);
       expect(setOutput.mock.calls[0][0]).toBe(`stages`);
@@ -73,16 +85,23 @@ describe('get-deployment-stages', () => {
   describe('pull_request', () => {
     describe('closed', () => {
       it('sets output to all active transient environments', async () => {
+        const ref = 'feature/test';
         const event = {
           action: 'closed',
-          pull_request: { head: { ref: 'feature/test' }, labels: [] },
+          pull_request: { head: { ref }, labels: [] },
         };
 
         process.env.GITHUB_REPOSITORY = 'owner/repo';
         mockCoreGetInput.mockReturnValueOnce('token');
         mockReadFile.mockResolvedValue(JSON.stringify(event));
         github.context.eventName = 'pull_request';
-        github.context.ref = 'refs/heads/feature/test';
+        github.context.ref = `refs/heads/${ref}`;
+        mockCoreGetInput.mockImplementation((inputName) => {
+          if (inputName === 'with-transient') return 'true';
+          if (inputName === 'projects') return 'project-a';
+
+          return undefined;
+        });
 
         nock(/api\.github\.com/)
           .get('/repos/owner/repo/deployments?ref=feature%2Ftest')
@@ -101,11 +120,12 @@ describe('get-deployment-stages', () => {
         await expect(run()).resolves.not.toThrow();
 
         const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+        expect(mockCoreGetInput).toHaveBeenCalledTimes(2);
         expect(setFailed).toHaveBeenCalledTimes(0);
         expect(setOutput).toHaveBeenCalledTimes(1);
         expect(setOutput.mock.calls[0][0]).toBe(`stages`);
         expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(
-          `"[{\\"name\\":\\"feature-test\\",\\"transient_environment\\":false,\\"production_environment\\":false}]"`,
+          `"[{\\"name\\":\\"feature-test\\",\\"transient_environment\\":false,\\"production_environment\\":false,\\"payload\\":{\\"project\\":\\"project-a\\"}}]"`,
         );
       });
 
@@ -160,18 +180,23 @@ describe('get-deployment-stages', () => {
     });
 
     it('sets output to empty array when transient are disabled', async () => {
-      const event = {
-        pull_request: { head: { ref: 'feature/test' }, labels: [] },
-      };
+      const ref = 'feature/KEY-123-new-feature';
+      const event = { pull_request: { head: { ref }, labels: [] } };
 
-      mockCoreGetInput.mockReturnValueOnce('false');
       mockReadFile.mockResolvedValue(JSON.stringify(event));
       github.context.eventName = 'pull_request';
-      github.context.ref = 'refs/heads/feature/test';
+      github.context.ref = `refs/heads/${ref}`;
+      mockCoreGetInput.mockImplementation((inputName) => {
+        if (inputName === 'with-transient') return 'false';
+        if (inputName === 'projects') return 'project-a';
+
+        return undefined;
+      });
 
       await expect(run()).resolves.not.toThrow();
 
       const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(mockCoreGetInput).toHaveBeenCalledTimes(2);
       expect(setFailed).toHaveBeenCalledTimes(0);
       expect(setOutput).toHaveBeenCalledTimes(1);
       expect(setOutput.mock.calls[0][0]).toBe(`stages`);
@@ -220,6 +245,99 @@ describe('get-deployment-stages', () => {
         `"[{\\"name\\":\\"test-1\\",\\"transient_environment\\":true,\\"production_environment\\":false},{\\"name\\":\\"test-2\\",\\"transient_environment\\":true,\\"production_environment\\":false}]"`,
       );
     });
+
+    it('should return envs by labels and one project', async () => {
+      const ref = 'feature/KEY-123-new-feature';
+      const event = {
+        pull_request: {
+          head: { ref },
+          labels: [{ name: 'deployed to test-1' }, { name: 'deployed to test-2' }],
+        },
+      };
+
+      mockReadFile.mockResolvedValue(JSON.stringify(event));
+      github.context.eventName = 'pull_request';
+      github.context.ref = `refs/heads/${ref}`;
+      mockCoreGetInput.mockImplementation((inputName) => {
+        if (inputName === 'with-transient') return 'true';
+        if (inputName === 'projects') return 'project-a';
+
+        return undefined;
+      });
+
+      // Act
+      await expect(run()).resolves.not.toThrow();
+
+      // Asserts
+      const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(mockCoreGetInput).toHaveBeenCalledTimes(2);
+      expect(setFailed).toHaveBeenCalledTimes(0);
+      expect(setOutput).toHaveBeenCalledTimes(1);
+      expect(setOutput.mock.calls[0][0]).toBe(`stages`);
+      expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(
+        `"[{\\"name\\":\\"test-1\\",\\"transient_environment\\":true,\\"production_environment\\":false,\\"payload\\":{\\"project\\":\\"project-a\\"}},{\\"name\\":\\"test-2\\",\\"transient_environment\\":true,\\"production_environment\\":false,\\"payload\\":{\\"project\\":\\"project-a\\"}}]"`,
+      );
+    });
+
+    it('should get envs for one project', async () => {
+      const ref = 'feature/KEY-123-new-feature';
+      const event = {
+        pull_request: { head: { ref }, labels: [] },
+      };
+
+      mockReadFile.mockResolvedValue(JSON.stringify(event));
+      github.context.eventName = 'pull_request';
+      github.context.ref = `refs/heads/${ref}`;
+      mockCoreGetInput.mockImplementation((inputName) => {
+        if (inputName === 'with-transient') return 'true';
+        if (inputName === 'projects') return 'project-a';
+
+        return undefined;
+      });
+
+      // Act
+      await expect(run()).resolves.not.toThrow();
+
+      // Asserts
+      const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(mockCoreGetInput).toHaveBeenCalledTimes(2);
+      expect(setFailed).toHaveBeenCalledTimes(0);
+      expect(setOutput).toHaveBeenCalledTimes(1);
+      expect(setOutput.mock.calls[0][0]).toBe(`stages`);
+      expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(
+        `"[{\\"name\\":\\"feature-key-123-new-feature\\",\\"transient_environment\\":false,\\"production_environment\\":false,\\"payload\\":{\\"project\\":\\"project-a\\"}}]"`,
+      );
+    });
+
+    it('should get envs for some projects', async () => {
+      const ref = 'feature/KEY-123-new-feature';
+      const event = {
+        pull_request: { head: { ref }, labels: [] },
+      };
+
+      mockReadFile.mockResolvedValue(JSON.stringify(event));
+      github.context.eventName = 'pull_request';
+      github.context.ref = ref;
+      mockCoreGetInput.mockImplementation((inputName) => {
+        if (inputName === 'with-transient') return 'true';
+        if (inputName === 'projects') return 'project-a, project-b';
+
+        return undefined;
+      });
+
+      // Act
+      await expect(run()).resolves.not.toThrow();
+
+      // Asserts
+      const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(mockCoreGetInput).toHaveBeenCalledTimes(2);
+      expect(setFailed).toHaveBeenCalledTimes(0);
+      expect(setOutput).toHaveBeenCalledTimes(1);
+      expect(setOutput.mock.calls[0][0]).toBe(`stages`);
+      expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(
+        `"[{\\"name\\":\\"feature-key-123-new-feature\\",\\"transient_environment\\":false,\\"production_environment\\":false,\\"payload\\":{\\"project\\":\\"project-a\\"}},{\\"name\\":\\"feature-key-123-new-feature\\",\\"transient_environment\\":false,\\"production_environment\\":false,\\"payload\\":{\\"project\\":\\"project-b\\"}}]"`,
+      );
+    });
   });
 
   describe('repository_dispatch', () => {
@@ -255,6 +373,30 @@ describe('get-deployment-stages', () => {
 
     it('sets output when actor is osome-bot and env is production', async () => {
       const event = { client_payload: { environment: 'production' } };
+      mockReadFile.mockResolvedValue(JSON.stringify(event));
+      github.context.actor = 'osome-bot';
+      github.context.eventName = 'repository_dispatch';
+      mockCoreGetInput.mockImplementation((inputName) => {
+        if (inputName === 'with-transient') return 'true';
+        if (inputName === 'projects') return 'project-a';
+
+        return undefined;
+      });
+
+      await expect(run()).resolves.not.toThrow();
+
+      const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(mockCoreGetInput).toHaveBeenCalledTimes(1);
+      expect(setFailed).toHaveBeenCalledTimes(0);
+      expect(setOutput).toHaveBeenCalledTimes(1);
+      expect(setOutput.mock.calls[0][0]).toMatchInlineSnapshot(`"stages"`);
+      expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(
+        `"[{\\"name\\":\\"production\\",\\"transient_environment\\":true,\\"production_environment\\":true,\\"payload\\":{\\"project\\":\\"project-a\\"}}]"`,
+      );
+    });
+
+    it('should return the prod env for a project', async () => {
+      const event = { client_payload: { environment: 'project-a:production' } };
       mockReadFile.mockResolvedValue(JSON.stringify(event));
       github.context.actor = 'osome-bot';
       github.context.eventName = 'repository_dispatch';
@@ -308,15 +450,21 @@ describe('get-deployment-stages', () => {
       github.context.actor = 'osome-bot';
       github.context.eventName = 'workflow_dispatch';
       github.context.ref = 'refs/heads/master';
+      mockCoreGetInput.mockImplementation((inputName) => {
+        if (inputName === 'projects') return 'project-a';
+
+        return undefined;
+      });
 
       await expect(run()).resolves.not.toThrow();
 
       const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(mockCoreGetInput).toHaveBeenCalledTimes(1);
       expect(setFailed).toHaveBeenCalledTimes(0);
       expect(setOutput).toHaveBeenCalledTimes(1);
       expect(setOutput.mock.calls[0][0]).toBe(`stages`);
       expect(setOutput.mock.calls[0][1]).toMatchInlineSnapshot(
-        `"[{\\"name\\":\\"production\\",\\"transient_environment\\":true,\\"production_environment\\":true}]"`,
+        `"[{\\"name\\":\\"production\\",\\"transient_environment\\":true,\\"production_environment\\":true,\\"payload\\":{\\"project\\":\\"project-a\\"}}]"`,
       );
     });
 
@@ -342,10 +490,17 @@ describe('get-deployment-stages', () => {
       mockReadFile.mockResolvedValue(JSON.stringify(event));
       github.context.eventName = 'workflow_dispatch';
       github.context.ref = 'refs/heads/feature/test';
+      mockCoreGetInput.mockImplementation((inputName) => {
+        if (inputName === 'with-transient') return 'true';
+        if (inputName === 'projects') return 'project-a';
+
+        return undefined;
+      });
 
       await expect(run()).resolves.not.toThrow();
 
       const { setFailed, setOutput } = core as jest.Mocked<typeof core>;
+      expect(mockCoreGetInput).toHaveBeenCalledTimes(1);
       expect(setFailed).toHaveBeenCalledTimes(0);
       expect(setOutput).toHaveBeenCalledTimes(1);
       expect(setOutput.mock.calls[0][0]).toBe(`stages`);

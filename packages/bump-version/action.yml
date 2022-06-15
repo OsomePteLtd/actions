@@ -4,6 +4,13 @@ inputs:
   token:
     description: 'Personal access token'
     required: true
+  working-directory:
+    description: 'Working directory'
+    required: false
+  newversion:
+    description: 'The newversion argument should be a valid semver string'
+    default: minor
+    required: false
 runs:
   using: 'node12'
   main: './dist/index.js'

@@ -1,3 +1,4 @@
+import * as core from '@actions/core';
 import { EventPayloads } from '@octokit/webhooks';
 import { promises as fs } from 'fs';
 
@@ -26,15 +27,11 @@ export const getEvent = async (eventName: string) => {
   return event;
 };
 
-export const toEnvironments = (envs: string[]) => {
+export const toEnvironments = (envs: string[], projects: string[]) => {
   const environments = envs.reduce(
     (envs, env) => [
       ...envs,
-      {
-        name: env,
-        transient_environment: isTransientEnv(env),
-        production_environment: isProductionEnv(env),
-      },
+      ...getEnvironmentsByProjects(env, projects),
     ],
     [] as Environment[],
   );
@@ -42,10 +39,34 @@ export const toEnvironments = (envs: string[]) => {
   return JSON.stringify(environments);
 };
 
+export const getEnvironmentsByProjects = (env: string, projects: string[]) => {
+  if (!projects.length) {
+    return [{
+      name: env,
+      transient_environment: isTransientEnv(env),
+      production_environment: isProductionEnv(env),
+    }];
+  }
+
+  return projects.map(project => ({
+    name: env,
+    transient_environment: isTransientEnv(env),
+    production_environment: isProductionEnv(env),
+    payload: {
+      project,
+    },
+  }));
+};
+
 export const isOsomeBot = (actor: string) => actor === 'osome-bot';
 
 export const isMaster = (ref: string) => ['refs/heads/master', 'refs/heads/main'].includes(ref);
 export const isTag = (ref: string) => ref.startsWith('refs/tags');
 
-export const isProductionEnv = (env: string) => env === 'production';
+export const isProductionEnv = (env: string) => env === 'production' || env.endsWith(':production');
 export const isTransientEnv = (env: string) => Object.values(STAGE_LABELS).includes(env);
+
+export const getProjectsFromInput = () => {
+  const projects = (core.getInput('projects') || '').split(',').map(project => project.trim()).filter(x => x !== '');
+  return projects;
+}
