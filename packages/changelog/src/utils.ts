@@ -7,7 +7,6 @@ import { promises as fs } from 'fs';
 import JiraClient from 'jira-client';
 import uniqBy from 'lodash/uniqBy';
 
-
 let event: EventPayloads.WebhookPayloadDeployment | null = null;
 export const getEvent = async (): Promise<EventPayloads.WebhookPayloadDeployment> => {
   if (event) return event;
