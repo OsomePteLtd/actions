@@ -132,7 +132,7 @@ async function sendChangelogToSlack(changelog: Changelog) {
   const slack = getSlack();
   const ghJobStatus = getStatus();
   const blocks: KnownBlock[] = [];
-  const slack_message = ghJobStatus != 'failure' ? `${changelog.title.toLowerCase()} is now live :party:` : `${changelog.title.toLowerCase()} deployment failed :thumbsdown:`;  
+  const slack_message = ghJobStatus != 'failure' ? `${changelog.title.toLowerCase()} is now live :party:` : `${changelog.title.toLowerCase()} deployment failed :red_circle:`;  
 
   blocks.push({
     type: 'header',
