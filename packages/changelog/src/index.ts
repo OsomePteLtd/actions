@@ -132,9 +132,9 @@ async function getSlackMessage() {
   let message;
   const ghJobStatus = getStatus();
   if (ghJobStatus !== 'failure') {
-    message = `is now live :party:`;
+    message = `is now live :large_green_circle:`;
   } else {
-    message = `Deployment failed :skull: Commit authors, please check your work :alert: :red_circle:`;
+    message = `Deployment failed :skull: Commit authors, please check your work :alert:`;
   }
   return message
 }
