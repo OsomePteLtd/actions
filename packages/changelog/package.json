@@ -21,7 +21,7 @@
     "@slack/web-api": "^5.13.0",
     "jira-client": "^6.21.1",
     "lodash": "^4.17.20",
-    "parse-link-header": "^1.0.1"
+    "parse-link-header": "^2.0.0"
   },
   "devDependencies": {
     "@octokit/webhooks": "^7.15.1",
