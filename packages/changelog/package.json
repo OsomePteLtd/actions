@@ -20,7 +20,7 @@
     "@actions/github": "^4.0.0",
     "@slack/web-api": "^5.13.0",
     "jira-client": "^6.21.1",
-    "lodash": "^4.17.20",
+    "lodash": "^4.17.21",
     "parse-link-header": "^1.0.1"
   },
   "devDependencies": {
