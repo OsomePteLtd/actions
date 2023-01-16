@@ -15,5 +15,5 @@ outputs:
   stages:
     description: 'List of environments'
 runs:
-  using: 'node12'
+  using: 'node16'
   main: './dist/index.js'
