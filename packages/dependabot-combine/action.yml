@@ -1,0 +1,52 @@
+name: dependabot-combine
+description: Action for updated all sdk dependencies in one go
+inputs:
+  token:
+    required: true
+  primary_sdk:
+    required: true
+  ref:
+    required: true
+  pr_number:
+    required: true
+  nvmrc:
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        ref: ${{ inputs.ref }}
+        token: ${{ inputs.token }}
+        fetch-depth: 0
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version-file: ${{ inputs.nvmrc }}
+
+    - name: Check if its primary sdk
+      if: ${{ contains(inputs.ref, 'dependabot/npm_and_yarn/osomepteltd/') && contains(inputs.ref, '-sdk-') && !contains(inputs.ref, inputs.primary_sdk) }}
+      run: |
+        echo "ITS DEPENDABOT PR, BUT NOT FOR PRIMARY SDK, CLOSING SDK"
+        # need to close PR (inputs.pr_number)
+        exit 1
+      shell: bash
+
+    - name: Check Dependabot
+      if: ${{ contains(inputs.ref, 'dependabot/npm_and_yarn/osomepteltd/') && contains(inputs.ref, inputs.primary_sdk) }}
+      run: |
+        echo "//npm.pkg.github.com/:_authToken=${{ inputs.token }}" >> ~/.npmrc
+        node ./update-all-sdk.js
+        [[ `git status --porcelain` ]] || exit 0;
+        git config user.name dependabot[bot]
+        git config user.email 49699333+dependabot[bot]@users.noreply.github.com
+
+        git add package.json package-lock.json
+        git commit -am "update all sdk" --no-verify
+        git push origin ${{ inputs.ref }} --no-verify
+        echo "PUSHED. RESTARTING. this workflow gonna be failed"
+        exit 1
+      shell: bash
