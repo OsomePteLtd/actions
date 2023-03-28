@@ -30,7 +30,7 @@ runs:
     - name: Check if its primary sdk
       if: ${{ contains(inputs.ref, 'dependabot/npm_and_yarn/osomepteltd/') && contains(inputs.ref, '-sdk-') && !contains(inputs.ref, inputs.primary_sdk) }}
       run: |
-        echo "ITS DEPENDABOT PR, BUT NOT FOR PRIMARY SDK, CLOSING SDK"
+        echo "ITS DEPENDABOT PR, BUT NOT FOR PRIMARY SDK, PLEASE ADD THIS DEPENDENCY INTO IGNORE LIST OF DEPENDABOT"
         # need to close PR (inputs.pr_number)
         exit 1
       shell: bash
@@ -47,6 +47,6 @@ runs:
         git add package.json package-lock.json
         git commit -am "update all sdk" --no-verify
         git push origin ${{ inputs.ref }} --no-verify
-        echo "PUSHED. RESTARTING. this workflow gonna be failed"
+        echo "NEW COMMIT PUSHED.RESTARTING THE WORKLFOW. this workflow gonna be PURPOSLY Failed"
         exit 1
       shell: bash
