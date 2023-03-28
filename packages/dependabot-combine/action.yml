@@ -39,7 +39,7 @@ runs:
       if: ${{ contains(inputs.ref, 'dependabot/npm_and_yarn/osomepteltd/') && contains(inputs.ref, inputs.primary_sdk) }}
       run: |
         echo "//npm.pkg.github.com/:_authToken=${{ inputs.token }}" >> ~/.npmrc
-        node ./update-all-sdk.js
+        node $GITHUB_ACTION_PATH/update-all-sdk.js
         [[ `git status --porcelain` ]] || exit 0;
         git config user.name dependabot[bot]
         git config user.email 49699333+dependabot[bot]@users.noreply.github.com
