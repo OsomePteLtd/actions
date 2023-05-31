@@ -18,6 +18,10 @@ inputs:
     description: 'Programming language'
     required: true
     default: 'nodejs'
+  gh_token:
+    description: 'Token for private repo'
+    required: true
+    default: 'TOKEN'
 
 outputs:
   riskscore:
