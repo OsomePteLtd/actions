@@ -16,7 +16,7 @@ case $LANGUAGE in
     "nodejs")
         lscommand=$(ls)
         echo "[*] Processing NodeJS BoM"
-        apt-get uninstall npm
+        # apt-get remove npm
         curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
         export NVM_DIR="$HOME/.nvm"
         [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
@@ -28,7 +28,7 @@ case $LANGUAGE in
         # apt-get install --no-install-recommends -y nodejs
         echo "//npm.pkg.github.com/:_authToken=$GH_TOKEN" >> ~/.npmrc
         npm install
-        npm audit fix --force
+        # npm audit fix --force
         if [ ! $? = 0 ]; then
             echo "[-] Error executing npm install. Stopping the action!"
             exit 1
