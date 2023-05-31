@@ -1,4 +1,4 @@
-#!/bin/sh -l
+#!/bin/bash -l
 
 DTRACK_URL=$1
 DTRACK_KEY=$2
@@ -16,12 +16,14 @@ case $LANGUAGE in
     "nodejs")
         lscommand=$(ls)
         echo "[*] Processing NodeJS BoM"
-        # curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash 
-        # nvm version
-        pwd
-        ls -la
-        # nvm install $npm_version
-        # nvm use
+        curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion" 
+        node_version=$(cat .nvmrc)
+        echo $node_version
+        nvm install $node_version
+        nvm use
         # apt-get install --no-install-recommends -y nodejs
         echo "//npm.pkg.github.com/:_authToken=$GH_TOKEN" >> ~/.npmrc
         npm install
