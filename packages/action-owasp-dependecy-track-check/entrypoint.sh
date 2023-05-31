@@ -37,7 +37,7 @@ case $LANGUAGE in
         path="bom.xml"
         cyclonedx-bom --help
         # BoMResult=$(cyclonedx-bom -o bom.xml)
-        BoMResult=$(node_modules/.bin/cyclonedx-npm --ignore-npm-errors --output-format XML --output-file bom.xml)
+        BoMResult=$(node_modules/.bin/cyclonedx-npm --ignore-npm-errors --output-file bom.xml)
         ;;
     
     "python")
@@ -142,9 +142,9 @@ upload_bom=$(curl $INSECURE $VERBOSE -s --location --request POST $DTRACK_URL/ap
 --form "projectVersion=$GITHUB_REF" \
 --form "bom=@sbom.xml")
 echo "============debug================"
-echo "gh_repo -> $GITHUB_REPOSITOR"
+echo "gh_repo -> $GITHUB_REPOSITORY"
 echo "gh_ref -> $GITHUB_REF"
-echo "======$upload_bom=====" 
+echo "======$upload_bom====="
 token=$(echo $upload_bom | jq ".token" | tr -d "\"")
 echo "[*] BoM file succesfully uploaded with token $token"
 
