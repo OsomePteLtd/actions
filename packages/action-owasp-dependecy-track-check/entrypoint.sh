@@ -16,16 +16,16 @@ case $LANGUAGE in
     "nodejs")
         lscommand=$(ls)
         echo "[*] Processing NodeJS BoM"
-        # apt-get remove -y nodejs
-        # curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
-        # export NVM_DIR="$HOME/.nvm"
-        # [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-        # [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion" 
-        # node_version=$(cat .nvmrc)
-        # echo $node_version
-        # nvm install $node_version
-        # nvm use
-        apt-get install --no-install-recommends -y nodejs
+        apt-get remove -y nodejs
+        curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion" 
+        node_version=$(cat .nvmrc)
+        echo $node_version
+        nvm install $node_version
+        nvm use
+        # apt-get install --no-install-recommends -y nodejs
         echo "//npm.pkg.github.com/:_authToken=$GH_TOKEN" >> ~/.npmrc
         npm install
         # npm audit fix --force
@@ -33,10 +33,11 @@ case $LANGUAGE in
             echo "[-] Error executing npm install. Stopping the action!"
             exit 1
         fi
-        npm install -g @cyclonedx/bom
+        npm install -D @cyclonedx/bom
         path="bom.xml"
         cyclonedx-bom --help
-        BoMResult=$(cyclonedx-bom -o bom.xml)
+        # BoMResult=$(cyclonedx-bom -o bom.xml)
+        BoMResult=$(node_modules/.bin/cyclonedx-npm --ignore-npm-errors --output-format XML --output-file bom.xml)
         ;;
     
     "python")
