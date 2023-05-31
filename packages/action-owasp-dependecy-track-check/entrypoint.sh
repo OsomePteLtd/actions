@@ -16,7 +16,13 @@ case $LANGUAGE in
     "nodejs")
         lscommand=$(ls)
         echo "[*] Processing NodeJS BoM"
-        apt-get install --no-install-recommends -y nodejs
+        curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash 
+        nvm version
+        npm_version=$(cat .npmrc)
+        echo $npm_version
+        nvm install $npm_version
+        nvm use
+        # apt-get install --no-install-recommends -y nodejs
         echo "//npm.pkg.github.com/:_authToken=$GH_TOKEN" >> ~/.npmrc
         npm install
         npm audit fix --force
