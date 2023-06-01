@@ -57,6 +57,6 @@ runs:
         --header "Content-Type: multipart/form-data" \
         --form "autoCreate=true" \
         --form "projectName=${{ inputs.project_name }}" \
-        --form "projectVersion=testok" \
+        --form "projectVersion=${{ inputs.ref }}" \
         --form "bom=@bom.xml"
       shell: bash
