@@ -1,0 +1,60 @@
+# action.yml
+name: 'OWASP Dependency Track check'
+description: 'Creates BoM and upload repository to OWASP Dependency Track to find vulnerabilities'
+
+inputs:
+  url:  
+    description: 'URL of OWASP Dependency Track REST API'
+    required: true
+    default: 'https://dtrack.example.com/'
+  key:
+    description: 'Key to access OWASP Dependency Track REST API'
+    required: true
+    default: 'USEAVALIDKEY'
+  token:
+    required: true
+  ref:
+    required: true
+  nvmrc:
+    required: true
+  project_name:
+    required: true
+
+outputs:
+  riskscore:
+    description: 'String with the number of vulnerabilities found'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        ref: ${{ inputs.ref }}
+        token: ${{ inputs.token }}
+        fetch-depth: 0
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version-file: ${{ inputs.nvmrc }
+
+    - name: Install dependencies
+      run: |
+        npm install
+      shell: bash
+
+    - name: Generate BOM file
+      run: |
+        npm install -g @cyclonedx/cdxgen  
+        cdxgen -o bom.json
+
+    - name: Upload Bom file to server
+      run: | 
+        curl --verbose --insecure -s --location --request POST ${{ inputs.url }}/api/v1/bom \                                                                                   ─╯
+        --header "X-Api-Key: ${{ inputs.key }}" \
+        --header "Content-Type: multipart/form-data" \
+        --form "autoCreate=true" \
+        --form "projectName=${{ inputs.project_name }}" \
+        --form "projectVersion=${{ inputs.ref }}" \
+        --form "bom=@sbom.json"
