@@ -37,7 +37,7 @@ runs:
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
-        node-version-file: ${{ inputs.nvmrc }
+        node-version-file: ${{ inputs.nvmrc }}
 
     - name: Install dependencies
       run: |
