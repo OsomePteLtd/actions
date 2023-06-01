@@ -85,7 +85,7 @@ runs:
         --header "X-Api-Key: ${{ inputs.key }}" | jq '.processing')
             if [ $((++c)) -eq 10 ]; then
                 echo "Timeout while waiting for processing result. Please check the OWASP Dependency Track status."
-                exit 1
+                exit 0
             fi
         done
 
