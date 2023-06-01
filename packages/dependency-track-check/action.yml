@@ -47,16 +47,63 @@ runs:
     - name: Generate BOM file
       run: |
         npm install -g @cyclonedx/cdxgen  
-        cdxgen -o bom.json
+        BoMResult=$(cdxgen -o bom.json)
+        if [ ! $? = 0 ]; then
+            echo "[-] Error generating BoM file: $BomResult. Stopping the action!"
+            exit 1
+        fi
+        echo "BoM file succesfully generated"
       shell: bash
 
     - name: Upload Bom file to server
-      run: | 
-        curl --verbose --insecure -s --location --request POST ${{ inputs.url }}/api/v1/bom \
+      run: |
+        echo "Uploading BoM file to Dependency Track server"
+        upload_bom=$(curl --verbose --insecure -s --location --request POST ${{ inputs.url }}/api/v1/bom \
         --header "X-Api-Key: ${{ inputs.key }}" \
         --header "Content-Type: multipart/form-data" \
         --form "autoCreate=true" \
         --form "projectName=${{ inputs.project_name }}" \
         --form "projectVersion=${{ inputs.ref }}" \
-        --form "bom=@bom.xml"
+        --form "bom=@bom.json")
+
+        token=$(echo $upload_bom | jq ".token" | tr -d "\"")
+        echo "BoM file succesfully uploaded with token $token"
+
+        if [ -z $token ]; then
+            echo "The BoM file has not been successfully processed by OWASP Dependency Track"
+            exit 1
+        fi
+
+        echo "Checking BoM processing status"
+        processing=$(curl --insecure -s --location --request GET ${{ inputs.url }}/api/v1/bom/token/$token \
+        --header "X-Api-Key: ${{ inputs.key }}" | jq '.processing')
+
+
+        while [ $processing = true ]; do
+            sleep 5
+            processing=$(curl  --insecure -s --location --request GET ${{ inputs.url }}/api/v1/bom/token/$token \
+        --header "X-Api-Key: ${{ inputs.key }}" | jq '.processing')
+            if [ $((++c)) -eq 10 ]; then
+                echo "Timeout while waiting for processing result. Please check the OWASP Dependency Track status."
+                exit 1
+            fi
+        done
+
+        echo "[*] OWASP Dependency Track processing completed"
+
+        # wait to make sure the score is available, some errors found during tests w/o this wait
+        sleep 5
+
+        echo "[*] Retrieving project information"
+        project=$(curl  --insecure -s --location --request GET "${{ inputs.url }}/api/v1/project/lookup?name=${{ inputs.project_name }}&version=${{ inputs.ref }}" \
+        --header "X-Api-Key: ${{ inputs.key }}")
+
+        echo "$project"
+
+        project_uuid=$(echo $project | jq ".uuid" | tr -d "\"")
+        risk_score=$(echo $project | jq ".lastInheritedRiskScore")
+        echo "Project risk score: $risk_score"
+
+        echo "::set-output name=riskscore::$risk_score"
+
       shell: bash
