@@ -48,6 +48,7 @@ runs:
       run: |
         npm install -g @cyclonedx/cdxgen  
         cdxgen -o bom.json
+      shell: bash
 
     - name: Upload Bom file to server
       run: | 
@@ -58,3 +59,4 @@ runs:
         --form "projectName=${{ inputs.project_name }}" \
         --form "projectVersion=${{ inputs.ref }}" \
         --form "bom=@sbom.json"
+      shell: bash
