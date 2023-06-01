@@ -58,5 +58,5 @@ runs:
         --form "autoCreate=true" \
         --form "projectName=${{ inputs.project_name }}" \
         --form "projectVersion=${{ inputs.ref }}" \
-        --form "bom=@sbom.json"
+        --form "bom=@bom.json"
       shell: bash
