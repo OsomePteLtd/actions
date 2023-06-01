@@ -83,7 +83,7 @@ runs:
             sleep 5
             processing=$(curl  --insecure -s --location --request GET ${{ inputs.url }}/api/v1/bom/token/$token \
         --header "X-Api-Key: ${{ inputs.key }}" | jq '.processing')
-            if [ $((++c)) -eq 50 ]; then
+            if [ $((++c)) -eq 100 ]; then
                 echo "Timeout while waiting for processing result. Please check the OWASP Dependency Track status."
                 exit 0
             fi
