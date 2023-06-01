@@ -52,7 +52,7 @@ runs:
 
     - name: Upload Bom file to server
       run: | 
-        curl --verbose --insecure -s --location --request POST ${{ inputs.url }}/api/v1/bom \                                                                                   ─╯
+        curl --verbose --insecure -s --location --request POST ${{ inputs.url }}/api/v1/bom \
         --header "X-Api-Key: ${{ inputs.key }}" \
         --header "Content-Type: multipart/form-data" \
         --form "autoCreate=true" \
