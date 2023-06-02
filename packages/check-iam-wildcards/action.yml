@@ -13,6 +13,6 @@ runs:
       run: |
         export PROJECT=${{ inputs.project_name }}
         echo $PROJECT
-        cp $GITHUB_ACTION_PATH/checkAsterisks.js ./checkAsterisks.js
+        cp $GITHUB_ACTION_PATH/checkAsterisks.ts ./checkAsterisks.ts
         npx ts-node checkAsterisks.ts 
       shell: bash
