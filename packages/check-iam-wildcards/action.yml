@@ -21,6 +21,4 @@ runs:
         else
             npx ts-node checkAsterisks.ts
         fi
-
-
-
+      shell: bash
