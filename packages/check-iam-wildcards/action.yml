@@ -11,6 +11,7 @@ runs:
   steps:
     - name: Generate BOM file
       run: |
+        echo "gh_action_path ---> $GITHUB_ACTION_PATH"
         pwd
         ls -la
         arr=("shiva" "core")
