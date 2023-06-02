@@ -9,7 +9,7 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Generate BOM file
+    - name: Check Iam wildcards
       run: |
         export PROJECT=${{ inputs.project_name }}
         echo $PROJECT
