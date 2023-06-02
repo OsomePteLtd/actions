@@ -1,0 +1,81 @@
+# action.yml
+name: 'OWASP Dependency Track check'
+description: 'Creates BoM and upload repository to OWASP Dependency Track to find vulnerabilities'
+
+inputs:
+  url:  
+    description: 'URL of OWASP Dependency Track REST API'
+    required: true
+    default: 'https://dtrack.example.com/'
+  key:
+    description: 'Key to access OWASP Dependency Track REST API'
+    required: true
+    default: 'USEAVALIDKEY'
+  token:
+    required: true
+  ref:
+    required: true
+  nvmrc:
+    required: true
+  project_name:
+    required: true
+
+outputs:
+  riskscore:
+    description: 'String with the number of vulnerabilities found'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        ref: ${{ inputs.ref }}
+        token: ${{ inputs.token }}
+        fetch-depth: 0
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version-file: ${{ inputs.nvmrc }}
+
+    - name: Install dependencies
+      run: |
+        echo "//npm.pkg.github.com/:_authToken=${{ inputs.token }}" >> ~/.npmrc
+        npm install
+      shell: bash
+
+    - name: Generate BOM file
+      run: |
+        npm install -g @cyclonedx/cdxgen  
+        BoMResult=$(cdxgen -o bom.json)
+        if [ ! $? = 0 ]; then
+            echo "[-] Error generating BoM file: $BomResult. Stopping the action!"
+            exit 1
+        fi
+        echo "BoM file succesfully generated"
+      shell: bash
+
+    - name: Upload Bom file to server
+      run: |
+        echo "Uploading BoM file to Dependency Track server"
+        upload_bom=$(curl --verbose --insecure -s --location --request POST ${{ inputs.url }}/api/v1/bom \
+        --header "X-Api-Key: ${{ inputs.key }}" \
+        --header "Content-Type: multipart/form-data" \
+        --form "autoCreate=true" \
+        --form "projectName=${{ inputs.project_name }}" \
+        --form "projectVersion=${{ inputs.ref }}" \
+        --form "bom=@bom.json")
+
+        token=$(echo $upload_bom | jq ".token" | tr -d "\"")
+        echo "BoM file succesfully uploaded with token $token"
+
+        if [ -z $token ]; then
+            echo "The BoM file has not been successfully processed by OWASP Dependency Track"
+            exit 1
+        fi
+
+        dtarck_ui=$(echo ${{ inputs.url }}| cut -d: -f 1-2)
+        echo "For Result checking go to $dtarck_ui"
+
+      shell: bash
