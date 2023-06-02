@@ -1,4 +1,4 @@
-import { iam } from '../security.serverless';
+import { iam } from './security.serverless';
 import { IamRole } from 'serverless/aws';
 
 const yaml = require('js-yaml');
