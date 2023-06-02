@@ -1,0 +1,26 @@
+# action.yml
+name: 'Check iam wildcards'
+description: 'Checks wildcards in Resources field for iamRoleStatement'
+
+inputs:
+  project_name:
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Generate BOM file
+      run: |
+        pwd
+        ls -la
+        arr=("shiva" "core")
+        if [ "${{ inputs.project_name }}" == "previewer" ]; then
+            node checkAsterisks.js
+        elif [[ "${arr[*]}" =~ "${{ inputs.project_name }}" ]]; then
+            npx ts-node checkAsterisksWithExceptions.ts
+        else
+            npx ts-node checkAsterisks.ts
+        fi
+
+
+
