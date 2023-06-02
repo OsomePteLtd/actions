@@ -1,4 +1,4 @@
-import { iam } from '../security.serverless';
+import { iam } from './security.serverless';
 
 async function main() {
   console.log('Going to check asterisks in iam policy ...');

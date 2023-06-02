@@ -11,16 +11,15 @@ runs:
   steps:
     - name: Generate BOM file
       run: |
-        echo "----debug"
-        echo $GITHUB_ACTION_PATH
-        pwd
-        ls -la
         arr=("shiva" "core")
         if [ "${{ inputs.project_name }}" == "previewer" ]; then
+            cp $GITHUB_ACTION_PATH/checkAsterisks.js ./checkAsterisks.js
             node checkAsterisks.js
         elif [[ "${arr[*]}" =~ "${{ inputs.project_name }}" ]]; then
+            cp $GITHUB_ACTION_PATH/checkAsterisksWithExceptions.ts ./checkAsterisksWithExceptions.ts
             npx ts-node checkAsterisksWithExceptions.ts
         else
+            cp $GITHUB_ACTION_PATH/checkAsterisks.ts ./checkAsterisks.ts
             npx ts-node checkAsterisks.ts
         fi
       shell: bash
