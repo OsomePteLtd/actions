@@ -6,7 +6,7 @@ const fs = require('fs');
 
 const project: any = process.env.PROJECT;
 const prjExceptionList: string[] = ['core', 'shiva'];
-const prjWitServerlessYml: string[] = ['previewer', 'lilith'];
+const prjWithServerlessYml: string[] = ['previewer', 'lilith'];
 
 async function main() {
   console.log('Going to check asterisks in iam policy ...');
@@ -44,7 +44,7 @@ function matchAction(line: string) {
 }
 
 function getIam() {
-  if (prjWitServerlessYml.includes(project)) {
+  if (prjWithServerlessYml.includes(project)) {
     const yamlFile = fs.readFileSync('./serverless.yml', 'utf8');
     const loadedYaml = yaml.load(yamlFile);
     const data: any = loadedYaml.provider.iamRoleStatements;
