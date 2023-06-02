@@ -41,6 +41,7 @@ runs:
 
     - name: Install dependencies
       run: |
+        echo "//npm.pkg.github.com/:_authToken=${{ inputs.token }}" >> ~/.npmrc
         npm install
       shell: bash
 
@@ -73,7 +74,7 @@ runs:
             echo "The BoM file has not been successfully processed by OWASP Dependency Track"
             exit 1
         fi
-        
+
         dtarck_ui=$(echo ${{ inputs.url }}| cut -d: -f 1-2)
         echo "For Result checking go to $dtarck_ui"
 
