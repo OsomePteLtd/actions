@@ -1,13 +1,22 @@
-import { iam } from './security.serverless';
+import { iam } from '../security.serverless';
+import { IamRole } from 'serverless/aws';
+
+const yaml = require('js-yaml');
+const fs = require('fs');
+
+const project: any = process.env.PROJECT;
+const prjExceptionList: string[] = ['core', 'shiva'];
+const prjWitServerlessYml: string[] = ['previewer', 'lilith'];
 
 async function main() {
   console.log('Going to check asterisks in iam policy ...');
-  checkAsterisks(iam);
+  const data: any = getIam();
+  checkAsterisks(data);
 }
 
-function checkAsterisks(iam: any) {
+function checkAsterisks(data: any) {
   let actions: string[] = [];
-  iam.role.statements.forEach((element: any) => {
+  data.forEach((element: any) => {
     if (element.Resource.includes('*') && !matchAction(element.Action)) {
       actions.push(element.Action);
     }
@@ -23,9 +32,27 @@ function checkAsterisks(iam: any) {
 }
 
 function matchAction(line: string) {
-  const re = /^(.*PutMetricData)/gi;
-  const result = re.test(line);
-  return result;
+  if (prjExceptionList.includes(project)) {
+    const re = /^(.*PutMetricData|lambda.*)/gi;
+    const result = re.test(line);
+    return result;
+  } else {
+    const re = /^(.*PutMetricData)/gi;
+    const result = re.test(line);
+    return result;
+  }
+}
+
+function getIam() {
+  if (prjWitServerlessYml.includes(project)) {
+    const yamlFile = fs.readFileSync('./serverless.yml', 'utf8');
+    const loadedYaml = yaml.load(yamlFile);
+    const data: any = loadedYaml.provider.iamRoleStatements;
+    return data;
+  } else {
+    const data: any = (iam.role as IamRole).statements;
+    return data;
+  }
 }
 
 main().catch((err: any) => {
