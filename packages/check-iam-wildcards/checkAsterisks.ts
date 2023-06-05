@@ -1,12 +1,14 @@
-import { IamRole } from 'serverless/aws';
-import { iam } from './security.serverless';
-
-const yaml = require('js-yaml');
 const fs = require('fs');
+const yaml = require('js-yaml');
+
+let securityServerless: any = '';
+
+if (fs.existsSync('./security.serverless.ts')) {
+  securityServerless = require('./security.serverless');
+}
 
 const project: any = process.env.PROJECT;
 const prjExceptionList: string[] = ['core', 'shiva'];
-const prjWithServerlessYml: string[] = ['previewer', 'lilith'];
 
 async function main() {
   if (!project) {
@@ -47,15 +49,14 @@ function matchAction(line: string) {
 }
 
 function getIam() {
-  if (prjWithServerlessYml.includes(project)) {
+  if (!securityServerless) {
     const yamlFile = fs.readFileSync('./serverless.yml', 'utf8');
     const loadedYaml = yaml.load(yamlFile);
     const data: any = loadedYaml.provider.iamRoleStatements;
     return data;
-  } else {
-    const data: any = (iam.role as IamRole).statements;
-    return data;
   }
+  const data: any = securityServerless.iam.role.statements;
+  return data;
 }
 
 main().catch((err: any) => {
