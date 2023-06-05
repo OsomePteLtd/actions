@@ -1,14 +1,17 @@
-import { iam } from './security.serverless';
 import { IamRole } from 'serverless/aws';
+import * as fs from 'fs';
+import * as yaml from 'js-yaml';
 
-const yaml = require('js-yaml');
-const fs = require('fs');
+import { iam } from './security.serverless';
 
 const project: any = process.env.PROJECT;
 const prjExceptionList: string[] = ['core', 'shiva'];
 const prjWithServerlessYml: string[] = ['previewer', 'lilith'];
 
 async function main() {
+  if (!project) {
+    throw new Error('PROJECT env variable should be defined');
+  }
   console.log('Going to check asterisks in iam policy ...');
   const data: any = getIam();
   checkAsterisks(data);
