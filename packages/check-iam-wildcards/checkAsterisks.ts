@@ -1,8 +1,8 @@
 import { IamRole } from 'serverless/aws';
-import * as fs from 'fs';
-import * as yaml from 'js-yaml';
-
 import { iam } from './security.serverless';
+
+const yaml = require('js-yaml');
+const fs = require('fs');
 
 const project: any = process.env.PROJECT;
 const prjExceptionList: string[] = ['core', 'shiva'];
