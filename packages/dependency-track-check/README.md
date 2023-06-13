@@ -2,11 +2,22 @@
 
 ## This action generates BoM file and uploads it to dependency-track server
 
-### Example
+### Inputs
+
+|    Input     |                                Description                                 |
+| :----------: | :------------------------------------------------------------------------: |
+|     url      |                            Dependency Track url                            |
+|     key      |                Dependency Track key for uploading artefacts                |
+|    token     |                     github token from private npm repo                     |
+|    nvmrc     |                            .nvmrc file location                            |
+| project_name | Name for project in Dependency Track (if absent will create automatically) |
+|   version    |                    Project version in Dependency Track                     |
+
+### Usage
 
 ```yaml
 jobs:
-  build:
+  dtrack-check:
     runs-on: [self-hosted, Linux, Tier1]
     steps:
       - name: Get ref
