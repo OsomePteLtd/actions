@@ -19,6 +19,8 @@ inputs:
     required: true
   project_name:
     required: true
+  version:
+    required: true 
 
 outputs:
   riskscore:
@@ -64,7 +66,7 @@ runs:
         --header "Content-Type: multipart/form-data" \
         --form "autoCreate=true" \
         --form "projectName=${{ inputs.project_name }}" \
-        --form "projectVersion=${{ inputs.ref }}" \
+        --form "projectVersion=${{ inputs.version }}" \
         --form "bom=@bom.json")
 
         token=$(echo $upload_bom | jq ".token" | tr -d "\"")
