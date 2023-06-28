@@ -49,8 +49,7 @@ runs:
 
     - name: Generate BOM file
       run: |
-        nvm use
-        npm install -g @cyclonedx/cdxgen@9.0.1
+        npm install -g @cyclonedx/cdxgen@8.6.0
         BoMResult=$(cdxgen -o bom.json)
         if [ ! $? = 0 ]; then
             echo "[-] Error generating BoM file: $BomResult. Stopping the action!"
