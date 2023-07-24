@@ -3,7 +3,8 @@ import * as github from '@actions/github';
 import { exec } from '@actions/exec';
 
 const DEFAULT_USER_ID = 'osome-bot';
-const DEFAULT_USER_NAME = 'Osome Bot';
+// Do not change next line.
+const DEFAULT_USER_NAME = 'Osome Bumper';
 const DEFAULT_USER_EMAIL = '67785357+osome-bot@users.noreply.github.com';
 
 async function run() {
