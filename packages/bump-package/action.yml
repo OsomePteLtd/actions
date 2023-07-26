@@ -5,6 +5,10 @@ description: 'Bump package version'
 inputs:
   token:
     required: true
+    description: 'Github Token'
+  prToken:
+    required: true
+    description: 'token for approving pull request'
 
 runs:
   using: 'composite'
@@ -125,7 +129,7 @@ runs:
       run: gh pr review --approve "$PR_URL"
       env:
         PR_URL: ${{ steps.cpr.outputs.pull-request-url }}
-        GITHUB_TOKEN: ${{ inputs.token }}
+        GITHUB_TOKEN: ${{ inputs.prToken }}
       shell: bash
 
     - name: Enable auto-merge for PR
