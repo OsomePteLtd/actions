@@ -65,6 +65,7 @@ runs:
               echo "The latest version of ${{ inputs.packageName }} already installed"
             else
               npm i -S ${i}@latest
+            fi
           fi
         done
         for i in ${devDependencies}; do
@@ -77,6 +78,7 @@ runs:
               echo "The latest version of ${{ inputs.packageName }} already installed"
             else
               npm i -D ${i}@latest
+            fi
           fi
         done
       shell: bash
