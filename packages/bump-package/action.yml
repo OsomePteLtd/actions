@@ -34,6 +34,7 @@ runs:
 
     - name: Set auth token
       run: echo "//npm.pkg.github.com/:_authToken=${{ inputs.token }}" >> ~/.npmrc
+      shell: bash
 
     - name: Install last version
       run: |
@@ -99,7 +100,6 @@ runs:
           bump
           automated pr
         draft: false
-      shell: bash
 
     - name: Check outputs
       if: ${{ steps.cpr.outputs.pull-request-number }}
