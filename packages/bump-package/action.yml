@@ -52,17 +52,28 @@ runs:
           )
         dependencies=$(jq -r '.dependencies | keys[]' package.json | grep '@osome')
         devDependencies=$(jq -r '.devDependencies | keys[]' package.json | grep '@osome')
-        set -xue
         for i in ${dependencies}; do
           if [[ " ${packages[*]} " =~ " ${i} " ]]; then
             echo "package ${i} in dependencies"
-            npm i -S ${i}@latest
+            installedVersion=$(cat package.json | grep ${i} | awk -F^ '{ print $2}' | sed 's/\"\,//')
+            latestVersion=$(npm view  ${i} version)
+            echo "latestVersion -> ${latestVersion}\ninstalledVersion -> ${installedVersion}" 
+            if [ "$installedVersion" == "$latestVersion" ]; then
+              echo "The latest version of ${{ inputs.packageName }} already installed"
+            else
+              npm i -S ${i}@latest
           fi
         done
         for i in ${devDependencies}; do
           if [[ " ${packages[*]} " =~ " ${i} " ]]; then
             echo "package ${i} in devDependencies"
-            npm i -D ${i}@latest
+            installedVersion=$(cat package.json | grep ${i} | awk -F^ '{ print $2}' | sed 's/\"\,//')
+            latestVersion=$(npm view  ${i} version)
+            echo "latestVersion -> ${latestVersion}\ninstalledVersion -> ${installedVersion}" 
+            if [ "$installedVersion" == "$latestVersion" ]; then
+              echo "The latest version of ${{ inputs.packageName }} already installed"
+            else
+              npm i -D ${i}@latest
           fi
         done
       shell: bash
