@@ -1,6 +1,6 @@
 # Bump packages
 
-## This action updates to the latest version packages from package.json which contains in packages array:
+This action updates packages to the latest version from package.json which contain in `packages` array
 
 ```bash
 packages=(
