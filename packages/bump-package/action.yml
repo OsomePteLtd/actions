@@ -1,0 +1,122 @@
+# action.yml
+name: 'Bump Package'
+description: 'Bump package version'
+
+inputs:
+  token:
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        token: ${{ inputs.token }}
+
+    - name: Read nvmrc
+      id: read-nvmrc
+      run: echo "version=$(cat .nvmrc)" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ steps.read-nvmrc.outputs.version }}
+
+    - name: Disable git hooks
+      run: |
+        directory="./.husky"
+        if [ -d "$directory" ]; then
+          git config --unset core.hooksPath
+        fi
+      shell: bash
+
+    - name: Set auth token
+      run: echo "//npm.pkg.github.com/:_authToken=${{ inputs.token }}" >> ~/.npmrc
+
+    - name: Install last version
+      run: |
+        packages=(
+          '@osomepteltd/sdk' 
+          '@osomepteltd/client-sdk'
+          '@osome/server-toolkit' 
+          '@osome/chatsome'
+          '@osome/client-ui-kit'
+          '@osome/ui-kit'
+          '@osomepteltd/agent-ui-kit'
+          '@osomepteltd/websome-kit'
+          '@osomepteltd/agent-kit'
+          '@osomepteltd/coolkit'
+          '@osome/eslint-config-frontend'
+          '@osomepteltd/structure-lint'
+          )
+        dependencies=$(jq -r '.dependencies | keys[]' package.json | grep '@osome')
+        devDependencies=$(jq -r '.devDependencies | keys[]' package.json | grep '@osome')
+        set -xue
+        for i in ${dependencies}; do
+          if [[ " ${packages[*]} " =~ " ${i} " ]]; then
+            echo "package ${i} in dependencies"
+            npm i -S ${i}@latest
+          fi
+        done
+        for i in ${devDependencies}; do
+          if [[ " ${packages[*]} " =~ " ${i} " ]]; then
+            echo "package ${i} in devDependencies"
+            npm i -D ${i}@latest
+          fi
+        done
+      shell: bash
+
+    - name: Create Pull Request
+      id: cpr
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ inputs.token }}
+        commit-message: Bump package to the latest version
+        committer: GitHub <noreply@github.com>
+        author: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
+        signoff: false
+        branch: bump-package
+        branch-suffix: random
+        base: main
+        delete-branch: true
+        reviewers: ${{ github.actor }}
+        title: 'Bump packages'
+        body: |
+          Bump packages to the latest version
+        labels: |
+          bump
+          automated pr
+        draft: false
+      shell: bash
+
+    - name: Check outputs
+      if: ${{ steps.cpr.outputs.pull-request-number }}
+      run: |
+        echo "Pull Request Number - ${{ steps.cpr.outputs.pull-request-number }}"
+        echo "Pull Request URL - ${{ steps.cpr.outputs.pull-request-url }}"
+      shell: bash
+
+    - name: Is pr created
+      run: |
+        if [ -z "${{ steps.cpr.outputs.pull-request-url }}" ]
+        then
+              echo "Pull request did not create, please read previous steps log"
+              exit 1
+        fi
+      shell: bash
+
+    - name: Approve a PR
+      run: gh pr review --approve "$PR_URL"
+      env:
+        PR_URL: ${{ steps.cpr.outputs.pull-request-url }}
+        GITHUB_TOKEN: ${{ inputs.token }}
+      shell: bash
+
+    - name: Enable auto-merge for PR
+      run: gh pr merge --auto --squash "$PR_URL"
+      env:
+        PR_URL: ${{ steps.cpr.outputs.pull-request-url }}
+        GITHUB_TOKEN: ${{ inputs.token }}
+      shell: bash
