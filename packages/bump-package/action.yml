@@ -48,7 +48,6 @@ runs:
           '@osomepteltd/websome-kit'
           '@osomepteltd/agent-kit'
           '@osomepteltd/coolkit'
-          '@osome/eslint-config-frontend'
           '@osomepteltd/structure-lint'
           )
         dependencies=$(jq -r '.dependencies | keys[]' package.json | grep '@osome')
