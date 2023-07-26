@@ -30,7 +30,7 @@ runs:
         ls -la
         directory="./.husky"
         if [ -d "$directory" ]; then
-          git config --unset core.hooksPath
+          git config --local core.hooksPath .git/hooks
         fi
       shell: bash
 
