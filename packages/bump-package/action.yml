@@ -26,6 +26,8 @@ runs:
 
     - name: Disable git hooks
       run: |
+        pwd
+        ls -la
         directory="./.husky"
         if [ -d "$directory" ]; then
           git config --unset core.hooksPath
