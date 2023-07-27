@@ -64,7 +64,7 @@ runs:
             latestVersion=$(npm view  ${i} version)
             echo "latestVersion -> ${latestVersion}\ninstalledVersion -> ${installedVersion}" 
             if [ "$installedVersion" == "$latestVersion" ]; then
-              echo "The latest version of ${{ inputs.packageName }} already installed"
+              echo "The latest version of ${i} already installed"
             else
               npm i -S ${i}@latest
             fi
@@ -77,7 +77,7 @@ runs:
             latestVersion=$(npm view  ${i} version)
             echo "latestVersion -> ${latestVersion}\ninstalledVersion -> ${installedVersion}" 
             if [ "$installedVersion" == "$latestVersion" ]; then
-              echo "The latest version of ${{ inputs.packageName }} already installed"
+              echo "The latest version of ${i} already installed"
             else
               npm i -D ${i}@latest
             fi
