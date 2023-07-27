@@ -43,17 +43,17 @@ runs:
     - name: Install last version
       run: |
         packages=(
-          '@osomepteltd/sdk' 
-          '@osomepteltd/client-sdk'
-          '@osome/server-toolkit' 
           '@osome/chatsome'
           '@osome/client-ui-kit'
+          '@osome/server-toolkit'
           '@osome/ui-kit'
-          '@osomepteltd/agent-ui-kit'
-          '@osomepteltd/websome-kit'
           '@osomepteltd/agent-kit'
+          '@osomepteltd/agent-ui-kit'
+          '@osomepteltd/client-sdk'
           '@osomepteltd/coolkit'
+          '@osomepteltd/sdk'
           '@osomepteltd/structure-lint'
+          '@osomepteltd/websome-kit'
           )
         dependencies=$(jq -r '.dependencies | keys[]' package.json | grep '@osome')
         devDependencies=$(jq -r '.devDependencies | keys[]' package.json | grep '@osome')
