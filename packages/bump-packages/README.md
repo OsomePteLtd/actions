@@ -2,22 +2,6 @@
 
 This action updates packages to the latest version from package.json which contain in `packages` array
 
-```bash
-packages=(
-  '@osomepteltd/sdk'
-  '@osomepteltd/client-sdk'
-  '@osome/server-toolkit'
-  '@osome/chatsome'
-  '@osome/client-ui-kit'
-  '@osome/ui-kit'
-  '@osomepteltd/agent-ui-kit'
-  '@osomepteltd/websome-kit'
-  '@osomepteltd/agent-kit'
-  '@osomepteltd/coolkit'
-  '@osomepteltd/structure-lint'
-  )
-```
-
 ### Inputs
 
 |  Input  |           Description            |
