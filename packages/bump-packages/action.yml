@@ -62,9 +62,10 @@ runs:
             echo "package ${i} in dependencies"
             installedVersion=$(cat package.json | grep ${i} | awk -F^ '{ print $2}' | sed 's/\"\,//')
             latestVersion=$(npm view  ${i} version)
-            echo "latestVersion -> ${latestVersion}\ninstalledVersion -> ${installedVersion}" 
+            echo "latestVersion -> ${latestVersion}"
+            echo "installedVersion -> ${installedVersion}" 
             if [ "$installedVersion" == "$latestVersion" ]; then
-              echo "The latest version of ${{ inputs.packageName }} already installed"
+              echo "The latest version of ${i} already installed"
             else
               npm i -S ${i}@latest
             fi
@@ -75,9 +76,10 @@ runs:
             echo "package ${i} in devDependencies"
             installedVersion=$(cat package.json | grep ${i} | awk -F^ '{ print $2}' | sed 's/\"\,//')
             latestVersion=$(npm view  ${i} version)
-            echo "latestVersion -> ${latestVersion}\ninstalledVersion -> ${installedVersion}" 
+            echo "latestVersion -> ${latestVersion}"
+            echo "installedVersion -> ${installedVersion}" 
             if [ "$installedVersion" == "$latestVersion" ]; then
-              echo "The latest version of ${{ inputs.packageName }} already installed"
+              echo "The latest version of ${i} already installed"
             else
               npm i -D ${i}@latest
             fi
