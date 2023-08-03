@@ -1,6 +1,6 @@
 # action.yml
 name: 'Check Last Version'
-description: 'Check last version from last main '
+description: 'Check last version from last main'
 
 inputs:
   token:
