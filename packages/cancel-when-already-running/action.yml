@@ -23,7 +23,7 @@ runs:
       id: skip
       run: |
         if [ "${{ inputs.deployEnv }}" = "test-1" ]; then
-          environment="stage"
+          environment="test-1"
         elif [ "${{ inputs.deployEnv }}" = "production" ]; then
           environment="production"
         fi
