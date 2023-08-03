@@ -1,0 +1,60 @@
+# action.yml
+name: 'Websome E2E'
+description: 'E2E for Websome'
+
+inputs:
+  token:
+    required: true
+    description: 'Github Token'
+  envName:
+    required: true
+    description: 'Current environment'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Load websome
+      uses: actions/checkout@v3
+      with:
+        repository: 'OsomePteLtd/websome'
+        token: ${{ inputs.token }}
+        fetch-depth: 0
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        check-latest: true
+        node-version-file: .nvmrc
+
+    - name: Install dependencies
+      run: |
+        echo "//npm.pkg.github.com/:_authToken=${{ inputs.token }}" >> ~/.npmrc
+        npm ci
+
+    - name: Restore cache
+      uses: actions/cache@v3
+      id: pw-cache
+      with:
+        path: '/home/ubuntu/.cache/ms-playwright/**'
+        key: ${{ runner.os }}-pw-cache
+
+    - name: Install Playwright
+      if: steps.pw-cache.outputs.cache-hit != 'true'
+      run: npm run pw:install-browsers
+
+    - name: Print stages
+      run: |
+        export ENVIRONMENT=${{ inputs.envName }}
+        export CIRCUIT_NAME=$(echo ${ENVIRONMENT##*:})
+        echo $CIRCUIT_NAME
+        echo "PLAYWRIGHT_BASE_URL=https://"$CIRCUIT_NAME".my.osome.club" >> $GITHUB_ENV
+        echo "PLAYWRIGHT_API_URL="https://"$CIRCUIT_NAME".my.osome.club"" >> $GITHUB_ENV
+    - name: Run Playwright tests
+      run: npm run test:e2e
+
+    - uses: actions/upload-artifact@v2
+      if: failure()
+      with:
+        name: playwright-e2e-report
+        path: |
+          test-results/
