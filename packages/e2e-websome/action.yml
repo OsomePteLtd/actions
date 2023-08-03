@@ -1,5 +1,5 @@
 # action.yml
-name: 'Websome E2E'
+name: 'E2E Websome'
 description: 'E2E for Websome'
 
 inputs:
@@ -30,6 +30,7 @@ runs:
       run: |
         echo "//npm.pkg.github.com/:_authToken=${{ inputs.token }}" >> ~/.npmrc
         npm ci
+      shell: bash
 
     - name: Restore cache
       uses: actions/cache@v3
@@ -41,6 +42,7 @@ runs:
     - name: Install Playwright
       if: steps.pw-cache.outputs.cache-hit != 'true'
       run: npm run pw:install-browsers
+      shell: bash
 
     - name: Print stages
       run: |
@@ -49,8 +51,11 @@ runs:
         echo $CIRCUIT_NAME
         echo "PLAYWRIGHT_BASE_URL=https://"$CIRCUIT_NAME".my.osome.club" >> $GITHUB_ENV
         echo "PLAYWRIGHT_API_URL="https://"$CIRCUIT_NAME".my.osome.club"" >> $GITHUB_ENV
+      shell: bash
+
     - name: Run Playwright tests
       run: npm run test:e2e
+      shell: bash
 
     - uses: actions/upload-artifact@v2
       if: failure()
