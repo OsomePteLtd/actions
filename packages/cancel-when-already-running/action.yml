@@ -1,6 +1,6 @@
 # action.yml
-name: 'Cancel run if already running'
-description: 'Cancel run if already running'
+name: 'Cancel when already running'
+description: 'Cancel when already running'
 
 inputs:
   token:
@@ -19,7 +19,7 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Cancel run if already running
+    - name: Cancel when already running
       id: skip
       run: |
         if [ "${{ inputs.deployEnv }}" = "stage" ]; then
