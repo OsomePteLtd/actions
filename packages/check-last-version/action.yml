@@ -37,3 +37,4 @@ runs:
           echo "The version in main is fresher than the deployed one"
           echo "deploy=true" >> $GITHUB_OUTPUT
         fi
+      shell: bash
