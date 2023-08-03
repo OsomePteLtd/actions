@@ -22,8 +22,8 @@ runs:
     - name: Cancel when already running
       id: skip
       run: |
-        if [ "${{ inputs.deployEnv }}" = "test-1" ]; then
-          environment="test-1"
+        if [ "${{ inputs.deployEnv }}" = "stage" ]; then
+          environment="stage"
         elif [ "${{ inputs.deployEnv }}" = "production" ]; then
           environment="production"
         fi
