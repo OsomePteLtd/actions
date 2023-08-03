@@ -39,6 +39,18 @@ runs:
             echo "$name -> $status -> $env"
             echo "Workflow with the same name already running"
             echo "skip=true" >> $GITHUB_OUTPUT
+            echo "cancel=true" >> $GITHUB_ENV
           fi
         done
+      shell: bash
+
+    - name: cancelling
+      if: ${{ env.cancel == 'true' }}
+      uses: andymckay/cancel-action@0.3
+      with: 
+        token: ${{ inputs.token }}
+
+    - name: wait for run cancellation
+      if: ${{ env.cancel == 'true' }}
+      run: while true; do echo "Waiting for job to be cancelled"; sleep 5; done
       shell: bash
