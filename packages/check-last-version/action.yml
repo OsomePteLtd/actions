@@ -21,8 +21,8 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Check latest version
-      id: check-latest
+    - name: Check last version
+      id: check-last
       run: |
         lastTag=$(curl -L \
           -H "Accept: application/vnd.github+json" \
