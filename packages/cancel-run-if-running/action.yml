@@ -20,7 +20,6 @@ runs:
   using: 'composite'
   steps:
     - name: Cancel run if already running
-      id: skip
       run: |
         if [ "${{ inputs.deployEnv }}" = "stage" ]; then
           environment="stage"
