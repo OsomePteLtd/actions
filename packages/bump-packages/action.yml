@@ -126,7 +126,7 @@ runs:
       if: ${{ env.UPDATED_PACKAGES != '' }}
       run: |
         if [ -z "${{ steps.cpr.outputs.pull-request-url }}" ]; then
-          echo "Pull request did not create, the latest version of all packages is already installed"
+          echo "Pull request did not create, please read logs from the previous steps"
         fi
       shell: bash
 
