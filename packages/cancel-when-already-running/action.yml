@@ -36,7 +36,7 @@ runs:
         echo $workflows | jq -rc '.name + " " + .status + " " + .display_title' + " " + .run_number' |
         while read -r name status env runNumber; do
           if [ "$name" = "Deploy" ] && [ "$status" = "in_progress" ] && [ "$env" = "$environment" ] && [ "$runNumber" != "${{ inputs.runNumber }}" ]; then
-            echo "$name -> $status -> $env"
+            echo "$name -> $status -> $env -> $runNumber" 
             echo "Workflow with the same name already running"
             echo "cancel=true" >> $GITHUB_ENV
           fi
