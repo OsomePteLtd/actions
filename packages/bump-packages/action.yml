@@ -54,6 +54,10 @@ runs:
           '@osomepteltd/sdk'
           '@osomepteltd/structure-lint'
           '@osomepteltd/websome-kit'
+          '@osomepteltd/accounting-aggregations'
+          '@osomepteltd/accounting-mapping'
+          '@osomepteltd/accounting-number'
+          '@osomepteltd/accounting-validation'
           )
         dependencies=$(jq -r '.dependencies | keys[]' package.json | grep '@osome')
         devDependencies=$(jq -r '.devDependencies | keys[]' package.json | grep '@osome')
