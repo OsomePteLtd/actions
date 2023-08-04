@@ -133,6 +133,8 @@ runs:
     - name: cancelling
       if: ${{ env.UPDATED_PACKAGES == '' }}
       uses: andymckay/cancel-action@0.3
+      with:
+        token: ${{ inputs.token }}
 
     - name: wait for run cancellation
       if: ${{ env.UPDATED_PACKAGES == '' }}
