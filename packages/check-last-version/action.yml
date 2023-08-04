@@ -15,8 +15,10 @@ inputs:
 outputs:
   lastVersion:
     description: 'Project last version'
+    value: ${{ steps.lastVersion.outputs.lastVersion }}
   deploy:
     description: 'if version is not last takes on the value true'
+    value: ${{ steps.lastVersion.outputs.deploy }}
 
 runs:
   using: 'composite'
