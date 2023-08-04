@@ -89,6 +89,7 @@ runs:
           fi
         done
         echo "UPDATED_PACKAGES=${updatedPackages[@]}" >> $GITHUB_ENV
+        echo "Updated packages ---> ${updatedPackages[@]}"
       shell: bash
 
     - name: Create Pull Request
@@ -124,7 +125,7 @@ runs:
     - name: Is pr created
       if: ${{ env.UPDATED_PACKAGES != '' }}
       run: |
-        if [ -z "${{ steps.cpr.outputs.pull-request-url }}" ]: then
+        if [ -z "${{ steps.cpr.outputs.pull-request-url }}" ]; then
           echo "Pull request did not create, the latest version of all packages is already installed"
         fi
       shell: bash
