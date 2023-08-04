@@ -57,6 +57,7 @@ runs:
           )
         dependencies=$(jq -r '.dependencies | keys[]' package.json | grep '@osome')
         devDependencies=$(jq -r '.devDependencies | keys[]' package.json | grep '@osome')
+        updatedPackages=()
         for i in ${dependencies}; do
           if [[ " ${packages[*]} " =~ " ${i} " ]]; then
             echo "package ${i} in dependencies"
@@ -65,9 +66,10 @@ runs:
             echo "latestVersion -> ${latestVersion}"
             echo "installedVersion -> ${installedVersion}" 
             if [ "$installedVersion" == "$latestVersion" ]; then
-              echo "The latest version of ${i} already installed"
+              echo "The latest version of ${i} is already installed"
             else
               npm i -S ${i}@latest
+              updatedPackages+=("$i")
             fi
           fi
         done
@@ -79,16 +81,19 @@ runs:
             echo "latestVersion -> ${latestVersion}"
             echo "installedVersion -> ${installedVersion}" 
             if [ "$installedVersion" == "$latestVersion" ]; then
-              echo "The latest version of ${i} already installed"
+              echo "The latest version of ${i} is already installed"
             else
               npm i -D ${i}@latest
+              updatedPackages+=("$i")
             fi
           fi
         done
+        echo "UPDATED_PACKAGES=${updatedPackages[@]}" >> $GITHUB_ENV
       shell: bash
 
     - name: Create Pull Request
       id: cpr
+      if: ${{ env.UPDATED_PACKAGES != '' }}
       uses: peter-evans/create-pull-request@v5
       with:
         token: ${{ inputs.token }}
@@ -117,12 +122,20 @@ runs:
       shell: bash
 
     - name: Is pr created
+      if: ${{ env.UPDATED_PACKAGES != '' }}
       run: |
-        if [ -z "${{ steps.cpr.outputs.pull-request-url }}" ]
-        then
-              echo "Pull request did not create, please read previous steps log"
-              exit 1
+        if [ -z "${{ steps.cpr.outputs.pull-request-url }}" ]: then
+          echo "Pull request did not create, the latest version of all packages is already installed"
         fi
+      shell: bash
+
+    - name: cancelling
+      if: ${{ env.UPDATED_PACKAGES == '' }}
+      uses: andymckay/cancel-action@0.3
+
+    - name: wait for run cancellation
+      if: ${{ env.UPDATED_PACKAGES == '' }}
+      run: while true; do echo "Waiting for job to be cancelled"; sleep 5; done
       shell: bash
 
     - name: Approve a PR
