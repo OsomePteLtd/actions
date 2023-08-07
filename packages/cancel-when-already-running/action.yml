@@ -22,6 +22,8 @@ runs:
     - name: Cancel when already running
       id: skip
       run: |
+        echo "Waiting when Github is changed Deploy workflow status"
+        sleep 10
         if [ "${{ inputs.deployEnv }}" = "stage" ]; then
           environment="stage"
         elif [ "${{ inputs.deployEnv }}" = "production" ]; then
