@@ -18,12 +18,12 @@ jobs:
         uses: actions/checkout@v3
         with:
           ref: ${{ github.ref }}
-      
+
       - name: Check index.js rebuild
         run: |
           diff=$(git diff --name-only)
           if [[ "${diff[*]}" =~ ^(packages\/.*\/src\/.*.ts) ]] && [[ ! "${diff[*]}" =~ ^(packages\/.*\/dst\/.*.js) ]]; then
-            echo "Some "src/*.ts" files have been changed but "dist/*.js" files still unchanged. \nPlease run:\nnpm i && npm run precommit in the action directory"
+            echo "Some 'src/*.ts' files have been changed but "dist/*.js" files still unchanged. \nPlease run:\nnpm i && npm run precommit in the action directory"
             exit 1
           fi
 
