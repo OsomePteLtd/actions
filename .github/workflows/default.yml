@@ -22,8 +22,8 @@ jobs:
       - name: Check index.js rebuild
         run: |
           diff=$(git diff --name-only)
-          if [[ "${diff[*]}" == *"index.ts"* ]] && [[ "${diff[*]}" != *"index.js"* ]]; then
-            echo "index.ts has been changed but index.js didn't rebuild.\nPlease run:\nnpm i && npm run precommit in the root dir of the action"
+          if [[ "${diff[*]}" =~ ^(packages\/.*.\/*.ts) ]] && [[ ! "${diff[*]}" =~ ^(packages\/.*.\/*.js) ]]; then
+            echo "index.ts has been changed but index.js didn't rebuild.\nPlease run:\nnpm i && npm run precommit in the root dir of action"
             exit 1
           fi
 
