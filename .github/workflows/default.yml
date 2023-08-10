@@ -23,7 +23,7 @@ jobs:
         run: |
           diff=$(git diff --name-only)
           if [[ "${diff[*]}" =~ ^(packages\/.*\/src\/.*.ts) ]] && [[ ! "${diff[*]}" =~ ^(packages\/.*\/dst\/.*.js) ]]; then
-            echo "Some "src/*.ts" files have been changed but "dist/*.js" files still unchanged."
+            echo "Some "src/*.ts" files have been changed but "dist/*.js" files still unchanged. \nPlease run:\nnpm i && npm run precommit in the action directory"
             exit 1
           fi
 
