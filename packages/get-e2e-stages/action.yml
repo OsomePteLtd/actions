@@ -8,5 +8,5 @@ outputs:
   e2e:
     description: 'List of E2E environments'
 runs:
-  using: 'node18'
+  using: 'node16'
   main: './dist/index.js'

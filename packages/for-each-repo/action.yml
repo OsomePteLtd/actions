@@ -8,5 +8,5 @@ outputs:
   repos:
     description: 'List of repositories'
 runs:
-  using: 'node18'
+  using: 'node16'
   main: './dist/index.js'
