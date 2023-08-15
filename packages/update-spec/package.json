@@ -11,7 +11,7 @@
     "url": "git+https://github.com/OsomePteLtd/actions.git"
   },
   "scripts": {
-    "precommit": "ncc build index.ts -o dist && git add dist",
+    "precommit": "ncc build src/index.ts -o dist -m && git add dist",
     "test": "echo \"No tests found\""
   },
   "dependencies": {
@@ -20,7 +20,7 @@
     "@actions/github": "^4.0.0"
   },
   "devDependencies": {
-    "@zeit/ncc": "^0.22.3",
+    "@vercel/ncc": "^0.36.1",
     "typescript": "^3.9.6"
   }
 }

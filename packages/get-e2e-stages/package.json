@@ -17,7 +17,7 @@
   "devDependencies": {
     "@octokit/webhooks": "^7.18.1",
     "@types/jest": "^26.0.20",
-    "@vercel/ncc": "^0.25.1",
+    "@vercel/ncc": "^0.36.1",
     "jest": "^26.6.3",
     "nock": "^13.0.5",
     "prettier": "^2.2.1",
