@@ -3,7 +3,7 @@ name: 'OWASP Dependency Track check'
 description: 'Creates BoM and upload repository to OWASP Dependency Track to find vulnerabilities'
 
 inputs:
-  url:  
+  url:
     description: 'URL of OWASP Dependency Track REST API'
     required: true
     default: 'https://dtrack.example.com/'
@@ -20,7 +20,10 @@ inputs:
   project_name:
     required: true
   version:
-    required: true 
+    required: true
+  type:
+    required: false
+    deafult: 'nodejs'
 
 outputs:
   riskscore:
@@ -42,6 +45,7 @@ runs:
         node-version-file: ${{ inputs.nvmrc }}
 
     - name: Install dependencies
+      if: ${{ inputs.type == 'nodejs'}}
       run: |
         echo "//npm.pkg.github.com/:_authToken=${{ inputs.token }}" >> ~/.npmrc
         npm install
@@ -50,7 +54,11 @@ runs:
     - name: Generate BOM file
       run: |
         npm install -g @cyclonedx/cdxgen@8.6.0
-        BoMResult=$(cdxgen -o bom.json)
+        if [ "${{ inputs.type }}" == [ "android" ]; then
+            BoMResult=$(cdxgen -t java -o bom.json)
+        else:
+            BoMResult=$(cdxgen -o bom.json)
+        fi
         if [ ! $? = 0 ]; then
             echo "[-] Error generating BoM file: $BomResult. Stopping the action!"
             exit 1
