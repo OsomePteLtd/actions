@@ -3,7 +3,7 @@ name: 'OWASP Dependency Track check'
 description: 'Creates BoM and upload repository to OWASP Dependency Track to find vulnerabilities'
 
 inputs:
-  url:  
+  url:
     description: 'URL of OWASP Dependency Track REST API'
     required: true
     default: 'https://dtrack.example.com/'
@@ -20,7 +20,7 @@ inputs:
   project_name:
     required: true
   version:
-    required: true 
+    required: true
 
 outputs:
   riskscore:
@@ -34,7 +34,6 @@ runs:
       with:
         ref: ${{ inputs.ref }}
         token: ${{ inputs.token }}
-        fetch-depth: 0
 
     - name: Setup Node.js
       uses: actions/setup-node@v3
