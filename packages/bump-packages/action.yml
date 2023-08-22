@@ -99,7 +99,7 @@ runs:
     - name: Check github-actor
       run: |
         if [ "${{ github.actor }}" = "osome-bot" ]; then
-          reviewer=""
+          echo "reviewer=${{ github.actor }}" >> $GITHUB_ENV
         else
           echo "reviewer=${{ github.actor }}" >> $GITHUB_ENV
         fi
@@ -119,7 +119,7 @@ runs:
         branch-suffix: random
         base: main
         delete-branch: true
-        reviewers: ${{ github.actor }}
+        reviewers: ${{ env.reviewer }}
         title: 'Bump packages'
         body: |
           Bump packages to the latest version
