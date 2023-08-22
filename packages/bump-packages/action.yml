@@ -99,7 +99,7 @@ runs:
     - name: Check github-actor
       run: |
         if [ "${{ github.actor }}" = "osome-bot" ]; then
-          echo "reviewer=${{ github.actor }}" >> $GITHUB_ENV
+          echo "Workflow triggered from slack reviewer will not set"
         else
           echo "reviewer=${{ github.actor }}" >> $GITHUB_ENV
         fi
