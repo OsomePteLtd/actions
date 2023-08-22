@@ -96,6 +96,14 @@ runs:
         echo "Updated packages ---> ${updatedPackages[@]}"
       shell: bash
 
+    - name: Check github-actor
+      run: |
+        if [ "${{ github.actor }}" = "osome-bot" ]; then
+          reviewer=""
+        else
+          echo "reviewer=${{ github.actor }" >> $GITHUB_ENV
+      shell: bash
+
     - name: Create Pull Request
       id: cpr
       if: ${{ env.UPDATED_PACKAGES != '' }}
@@ -110,7 +118,7 @@ runs:
         branch-suffix: random
         base: main
         delete-branch: true
-        reviewers: ${{ github.actor }}
+        reviewers: ${{ env.reviewer}}
         title: 'Bump packages'
         body: |
           Bump packages to the latest version
