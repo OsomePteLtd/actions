@@ -102,6 +102,7 @@ runs:
           reviewer=""
         else
           echo "reviewer=${{ github.actor }" >> $GITHUB_ENV
+        fi
       shell: bash
 
     - name: Create Pull Request
