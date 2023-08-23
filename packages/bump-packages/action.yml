@@ -9,6 +9,12 @@ inputs:
   prToken:
     required: true
     description: 'token for approving pull request'
+  slackChannelId:
+    required: false
+    description: 'Slack channel_id for sending notification'
+  slackToken:
+    required: false
+    description: 'Slack api token'
 
 runs:
   using: 'composite'
