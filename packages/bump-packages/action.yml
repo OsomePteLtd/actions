@@ -158,7 +158,7 @@ runs:
       shell: bash
 
     - name: Post to a Slack channel
-      if: ${{ steps.cpr.outputs.pull-request-url && github.actor == 'slack-bot' }}"
+      if: ${{ steps.cpr.outputs.pull-request-url }}
       id: slack
       uses: slackapi/slack-github-action@v1.24.0
       with:
