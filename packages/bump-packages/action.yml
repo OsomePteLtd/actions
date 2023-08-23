@@ -9,6 +9,9 @@ inputs:
   prToken:
     required: true
     description: 'token for approving pull request'
+  slackChannelId:
+    required: false
+    description: 'Slack channel_id for sending notification'
 
 runs:
   using: 'composite'
@@ -153,6 +156,16 @@ runs:
       if: ${{ env.UPDATED_PACKAGES == '' }}
       run: while true; do echo "Waiting for job to be cancelled"; sleep 5; done
       shell: bash
+
+    - name: Post to a Slack channel
+      if: ${{ steps.cpr.outputs.pull-request-url && github.actor == 'slack-bot' }}"
+      id: slack
+      uses: slackapi/slack-github-action@v1.24.0
+      with:
+        channel-id: D037N76E5AN
+        slack-message: '<${{ steps.cpr.outputs.pull-request-url }}|Bamp packages pull request url>'
+      env:
+        SLACK_BOT_TOKEN: ${{ secrets.SLACK_TOKEN }}
 
     - name: Approve a PR
       run: gh pr review --approve "$PR_URL"
