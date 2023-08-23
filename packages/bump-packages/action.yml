@@ -12,9 +12,6 @@ inputs:
   slackChannelId:
     required: false
     description: 'Slack channel_id for sending notification'
-  slackToken:
-    required: false
-    description: 'Slack api access token'
 
 runs:
   using: 'composite'
@@ -166,9 +163,9 @@ runs:
       uses: slackapi/slack-github-action@v1.24.0
       with:
         channel-id: D039XU2P3EK
-        slack-message: '<${{ steps.cpr.outputs.pull-request-url }}|Bamp packages pull request url>'
+        slack-message: '<Here is your ${{ steps.cpr.outputs.pull-request-url }}|Bump PR> in ${{ github.event.repository.name }}'
       env:
-        SLACK_BOT_TOKEN: ${{ inputs.slackToken }}
+        SLACK_BOT_TOKEN: ${{ secrets.SLACK_API_TOKEN }}
 
     - name: Approve a PR
       run: gh pr review --approve "$PR_URL"
