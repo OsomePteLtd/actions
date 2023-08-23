@@ -12,6 +12,9 @@ inputs:
   slackChannelId:
     required: false
     description: 'Slack channel_id for sending notification'
+  slackToken:
+    required: false
+    description: 'Slack api access token'
 
 runs:
   using: 'composite'
@@ -165,7 +168,7 @@ runs:
         channel-id: D037N76E5AN
         slack-message: '<${{ steps.cpr.outputs.pull-request-url }}|Bamp packages pull request url>'
       env:
-        SLACK_BOT_TOKEN: ${{ secrets.SLACK_TOKEN }}
+        SLACK_BOT_TOKEN: ${{ inputs.slackToken }}
 
     - name: Approve a PR
       run: gh pr review --approve "$PR_URL"
