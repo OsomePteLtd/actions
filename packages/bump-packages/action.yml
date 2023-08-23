@@ -165,7 +165,7 @@ runs:
       id: slack
       uses: slackapi/slack-github-action@v1.24.0
       with:
-        channel-id: D037N76E5AN
+        channel-id: D039XU2P3EK
         slack-message: '<${{ steps.cpr.outputs.pull-request-url }}|Bamp packages pull request url>'
       env:
         SLACK_BOT_TOKEN: ${{ inputs.slackToken }}
