@@ -158,11 +158,11 @@ runs:
       shell: bash
 
     - name: Post to a Slack channel
-      if: ${{ steps.cpr.outputs.pull-request-url }}
+      if: ${{ steps.cpr.outputs.pull-request-url && github.actor == "osome-bot" }}
       id: slack
       uses: slackapi/slack-github-action@v1.24.0
       with:
-        channel-id: D039XU2P3EK
+        channel-id: ${{ inputs.slackChannelId }}
         slack-message: '<Here is your ${{ steps.cpr.outputs.pull-request-url }}|Bump PR> in ${{ github.event.repository.name }}'
       env:
         SLACK_BOT_TOKEN: ${{ secrets.SLACK_API_TOKEN }}
