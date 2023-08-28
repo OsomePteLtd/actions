@@ -5,8 +5,9 @@ import { EventPayloads } from '@octokit/webhooks';
 import { toEnvironments, getProjectsFromInput } from '../utils';
 
 export const on = async (event: EventPayloads.WebhookPayloadPush, context: Context) => {
-  const { ref } = context;
+  const {payload: { merge_group: {head_sha } }} = context
+  const env = 'merge-queue-' + head_sha.substring(0,7)
+  console.log('env--->', env)
   const projects = getProjectsFromInput();
-
-  return core.setOutput(ref.split("refs/heads/")[1], toEnvironments([], projects));
+  return core.setOutput('stages', toEnvironments([env], projects));
 };
