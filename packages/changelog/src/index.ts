@@ -49,7 +49,7 @@ async function getLastDeploymentSha() {
     }
   }
 
-  const firstMasterCommitSha = await getFirstCommitSha({owner, repo, sha: 'master'});
+  const firstMasterCommitSha = await getFirstCommitSha({owner, repo, sha: 'master'}).catch(err => null);
   if (firstMasterCommitSha) {
     return firstMasterCommitSha;
   }
