@@ -28,7 +28,7 @@ Download localisation files in any format to a directory
 ### Usage
 
 ```yaml
-name: Lokilise sync
+name: Lokalise sync
 
 on:
   workflow_dispatch:
