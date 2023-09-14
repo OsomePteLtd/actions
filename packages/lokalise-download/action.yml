@@ -65,7 +65,7 @@ runs:
         curl -sfL https://raw.githubusercontent.com/lokalise/lokalise-cli-2-go/master/install.sh | sh
         mv ./bin/lokalise2 /usr/local/bin
         lokalise2 --version
-      shel: bash
+      shell: bash
 
     - name: Lokalise download
       run: |
