@@ -13,7 +13,8 @@ echo " Going to start lokalise download with the folloeing args:\n
         plural-format -> ${11}
         indentation -> ${12}
         export-sort -> ${13}
-        original-filenames -> ${14}  
+        original-filenames -> ${14}
+        directory-prefix -> ${15}
      "
 
 lokalise2 \
