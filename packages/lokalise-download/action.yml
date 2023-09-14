@@ -30,7 +30,7 @@ inputs:
     description: 'Trigger integration export'
     required: true
     default: 'github'
-  add-newline_eof:
+  add-newline-eof:
     description: 'Enable to add new line at end of file'
     required: true
     default: 'true'
