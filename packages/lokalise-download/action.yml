@@ -56,6 +56,10 @@ inputs:
     description: 'Use original filenames'
     required: false
     default: true
+  directory-prefix:
+    description: ''
+    required: true
+    default: 'public/locales-%LANG_ISO%'
 
 runs:
   using: 'composite'
