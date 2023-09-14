@@ -59,7 +59,7 @@ inputs:
   directory-prefix:
     description: ''
     required: true
-    default: 'public/locales'
+    default: 'public/locales/%LANG_ISO%'
 
 runs:
   using: 'composite'
