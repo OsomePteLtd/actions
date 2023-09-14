@@ -7,7 +7,7 @@ echo " Going to start lokalise download with the folloeing args:\n
         bundle-structure -> $5
         placeholder-format -> $6
         triggers -> $7
-        add-newline_eof -> $8
+        add-newline-eof -> $8
         filter-repositories -> $9 
         filter-filenames -> ${10}
         plural-format -> ${11}

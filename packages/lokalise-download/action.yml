@@ -21,7 +21,7 @@ inputs:
   bundle-structure: # id of input
     description: 'The bundle structure'
     required: true
-    default: 'public/locales/%LANG_ISO%'
+    default: '%LANG_ISO%'
   placeholder-format:
     description: 'Placeholder format of strings'
     required: true
