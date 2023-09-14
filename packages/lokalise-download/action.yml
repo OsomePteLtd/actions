@@ -85,3 +85,8 @@ runs:
             ${{ inputs.export-sort }} \
             ${{ inputs.original-filename }}
       shell: bash
+
+    - name: Debug
+      run: |
+        ls -la ./src/locales
+      shell: bash
