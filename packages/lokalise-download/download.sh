@@ -31,4 +31,5 @@ lokalise2 \
     --plural-format ${11} \
     --indentation ${12} \
     --export-sort ${13} \
-    --original-filenames ${14}
+    --original-filenames ${14} \
+    --directory-prefix ${15}

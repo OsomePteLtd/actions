@@ -87,5 +87,6 @@ runs:
             ${{ inputs.plural-format }} \
             ${{ inputs.indentation }} \
             ${{ inputs.export-sort }} \
-            ${{ inputs.original-filename }}
+            ${{ inputs.original-filename }} \
+            ${{ inputs.directory-prefix }}
       shell: bash
