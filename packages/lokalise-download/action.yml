@@ -4,21 +4,21 @@ branding:
   icon: 'flag'
   color: 'green'
 inputs:
-  lokalise-token: # id of input
+  lokalise-token:
     description: 'Your CLI/API token for Lokalise'
     required: true
-  lokalise-project-id: # id of input
+  lokalise-project-id:
     description: 'Your project ID for Lokalise'
     required: true
-  file-path: # id of input
+  file-path:
     description: 'The path to the destination folder'
     required: true
-    default: 'public/locales'
-  format: # id of input
+    default: 'src/locales'
+  format:
     description: 'The format of the file you want to download'
     required: true
     default: 'json'
-  bundle-structure: # id of input
+  bundle-structure:
     description: 'The bundle structure'
     required: true
     default: '%LANG_ISO%'
@@ -59,7 +59,7 @@ inputs:
   directory-prefix:
     description: 'Directory prefix in the bundle'
     required: true
-    default: 'public/locales/%LANG_ISO%'
+    default: 'src/locales/%LANG_ISO%'
 
 runs:
   using: 'composite'
