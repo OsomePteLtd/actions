@@ -13,7 +13,7 @@ inputs:
   file-path: # id of input
     description: 'The path to the destination folder'
     required: true
-    default: './src/locales'
+    default: './public/locales'
   format: # id of input
     description: 'The format of the file you want to download'
     required: true
@@ -21,7 +21,7 @@ inputs:
   bundle-structure: # id of input
     description: 'The bundle structure'
     required: true
-    default: '%LANG_ISO%'
+    default: 'public/locales/%LANG_ISO%'
   placeholder-format:
     description: 'Placeholder format of strings'
     required: true
