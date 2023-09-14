@@ -53,7 +53,7 @@ jobs:
           add_newline_eof: true
           filter_repositories: 'websome'
           filter_filenames: '<filter_filename>'
-          plural_format: ''icu
+          plural_format: 'icu'
           indentation: '2cp'
           export_sort: 'a_z'
 ```
