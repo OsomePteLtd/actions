@@ -13,12 +13,12 @@ Download localisation files in any format to a directory
 |  bundle-structure   |    Bundle structure, used when original-filenames set to false    |
 | placeholder-format  |     Override the default placeholder format for the file type     |
 |       trigger       | Trigger integration exports (must be enabled in project settings) |
-|   add_newline_eof   |               Enable to add new line at end of file               |
-| filter_repositories |    Pull requests will be created only for listed repositories     |
-|  filter_filenames   |      Only keys attributed to selected files will be included      |
-|    plural_format    |       Override the default plural format for the file type        |
+|   add-newline-eof   |               Enable to add new line at end of file               |
+| filter-repositories |    Pull requests will be created only for listed repositories     |
+|  filter-filenames   |      Only keys attributed to selected files will be included      |
+|    plural-format    |       Override the default plural format for the file type        |
 |     indentation     |    Provide to override default indentation in supported files     |
-|     export_sort     | Allowed value are first_added, last_added, last_updated, a_z, z_a |
+|     export-sort     | Allowed value are first_added, last_added, last_updated, a_z, z_a |
 |  original-filename  |             Enable to use original filenames/formats              |
 
 > **_Detailed information_**: `lokalise2 file download --help`
@@ -50,10 +50,10 @@ jobs:
           bundle-structure: 'src/locales/%LANG_ISO%'
           placeholder-format: 'i18n'
           trigger: 'github'
-          add_newline_eof: true
-          filter_repositories: 'websome'
-          filter_filenames: '<filter_filename>'
-          plural_format: 'icu'
+          add-newline-eof: true
+          filter-repositories: 'websome'
+          filter-filenames: '<filter_filename>'
+          plural-format: 'icu'
           indentation: '2cp'
-          export_sort: 'a_z'
+          export-sort: 'a_z'
 ```

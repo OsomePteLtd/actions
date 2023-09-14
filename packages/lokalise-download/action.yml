@@ -30,17 +30,17 @@ inputs:
     description: 'Trigger integration export'
     required: true
     default: 'github'
-  add_newline_eof:
+  add-newline_eof:
     description: 'Enable to add new line at end of file'
     required: true
     default: 'true'
-  filter_repositories:
+  filter-repositories:
     description: 'Pull requests will be created only for listed repositories'
     required: true
-  filter_filenames:
+  filter-filenames:
     description: 'Only keys attributed to selected files will be included'
     required: true
-  plural_format:
+  plural-format:
     description: 'Override the default plural format for the file type'
     required: true
     default: 'icu'
@@ -48,7 +48,7 @@ inputs:
     description: 'Provide to override default indentation in supported files'
     required: true
     default: '2sp'
-  export_sort:
+  export-sort:
     description: 'Allowed value are first_added, last_added, last_updated, a_z, z_a'
     required: true
     default: 'a_z'
@@ -78,10 +78,10 @@ runs:
             ${{ inputs.placeholder-format }} \
             ${{ inputs.trigger }} \
             ${{ inputs.add_newline_eof }} \
-            ${{ inputs.filter_repositories }} \
-            ${{ inputs.filter_filenames }} \
-            ${{ inputs.plural_format }} \
+            ${{ inputs.filter-repositories }} \
+            ${{ inputs.filter-filenames }} \
+            ${{ inputs.plural-format }} \
             ${{ inputs.indentation }} \
-            ${{ inputs.export_sort }} \
+            ${{ inputs.export-sort }} \
             ${{ inputs.original-filename }}
       shell: bash
