@@ -7,6 +7,12 @@ lokalise2 \
     --format $4 \
     --unzip-to $3 \
     --bundle-structure $5 \
-    --original-filenames $6 \
-    --placeholder-format $7 \
-    --triggers $8
+    --placeholder-format $6 \
+    --triggers $7 \
+    --add_newline_eof $8 \
+    --filter_repositories $9 \
+    --filter_filenames ${10} \
+    --plural_format ${11} \
+    --indentation ${12} \
+    --export_sort ${13} \
+    --original-filenames ${14}
