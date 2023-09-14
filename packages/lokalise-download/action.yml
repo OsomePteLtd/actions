@@ -57,7 +57,7 @@ inputs:
     required: false
     default: true
   directory-prefix:
-    description: ''
+    description: 'Directory prefix in the bundle'
     required: true
     default: 'public/locales/%LANG_ISO%'
 

@@ -1,4 +1,4 @@
-set -ex
+set -e
 
 echo " Going to start lokalise download with the folloeing args:\n
         project-id -> $2
