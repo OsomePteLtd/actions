@@ -77,7 +77,7 @@ runs:
             ${{ inputs.bundle-structure }} \
             ${{ inputs.placeholder-format }} \
             ${{ inputs.trigger }} \
-            ${{ inputs.add_newline_eof }} \
+            ${{ inputs.add-newline-eof }} \
             ${{ inputs.filter-repositories }} \
             ${{ inputs.filter-filenames }} \
             ${{ inputs.plural-format }} \
