@@ -60,6 +60,10 @@ inputs:
     description: 'Directory prefix in the bundle'
     required: true
     default: 'src/locales/%LANG_ISO%'
+  json-unescaped-slashes:
+    description: '(JSON export only). Enable to leave forward slashes unescaped.'
+    required: false
+    default: 'true'
 
 runs:
   using: 'composite'
@@ -88,5 +92,6 @@ runs:
             ${{ inputs.indentation }} \
             ${{ inputs.export-sort }} \
             ${{ inputs.original-filename }} \
-            ${{ inputs.directory-prefix }}
+            ${{ inputs.directory-prefix }} \
+            ${{ inputs.json-unescaped-slashes }}
       shell: bash
