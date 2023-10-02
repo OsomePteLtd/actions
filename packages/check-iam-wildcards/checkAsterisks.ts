@@ -8,7 +8,7 @@ if (fs.existsSync('./security.serverless.ts')) {
 }
 
 const project: any = process.env.PROJECT;
-const prjExceptionList: string[] = ['core', 'shiva'];
+const prjExceptionList: string[] = [];
 
 async function main() {
   if (!project) {
