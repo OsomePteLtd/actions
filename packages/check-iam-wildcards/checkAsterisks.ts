@@ -8,7 +8,6 @@ if (fs.existsSync('./security.serverless.ts')) {
 }
 
 const project: any = process.env.PROJECT;
-const prjExceptionList: string[] = ['core', 'shiva'];
 
 async function main() {
   if (!project) {
@@ -37,15 +36,9 @@ function checkAsterisks(data: any) {
 }
 
 function matchAction(line: string) {
-  if (prjExceptionList.includes(project)) {
-    const re = /^(.*PutMetricData|lambda.*)/gi;
-    const result = re.test(line);
-    return result;
-  } else {
-    const re = /^(.*PutMetricData)/gi;
-    const result = re.test(line);
-    return result;
-  }
+  const re = /^(.*PutMetricData)/gi;
+  const result = re.test(line);
+  return result;
 }
 
 function getIam() {
