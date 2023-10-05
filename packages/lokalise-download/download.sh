@@ -16,6 +16,7 @@ echo " Going to start lokalise download with the folloeing args:\n
         original-filenames -> ${14}
         directory-prefix -> ${15}
         json-unescaped-slashes -> ${16}
+        replace-breaks -> ${17}
      "
 
 lokalise2 \
@@ -35,4 +36,5 @@ lokalise2 \
     --export-sort ${13} \
     --original-filenames ${14} \
     --directory-prefix ${15} \
-    --json-unescaped-slashes ${16}
+    --json-unescaped-slashes ${16} \
+    --replace-breaks ${17}
