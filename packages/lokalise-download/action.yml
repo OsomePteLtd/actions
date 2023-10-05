@@ -64,6 +64,10 @@ inputs:
     description: '(JSON export only). Enable to leave forward slashes unescaped.'
     required: false
     default: 'true'
+  replace-breaks:
+    description: 'Enable to replace line breaks in exported translations with \n.'
+    required: false
+    default: 'false'
 
 runs:
   using: 'composite'
@@ -93,5 +97,6 @@ runs:
             ${{ inputs.export-sort }} \
             ${{ inputs.original-filename }} \
             ${{ inputs.directory-prefix }} \
-            ${{ inputs.json-unescaped-slashes }}
+            ${{ inputs.json-unescaped-slashes }} \
+            ${{ inputs.replace-breaks }}
       shell: bash
