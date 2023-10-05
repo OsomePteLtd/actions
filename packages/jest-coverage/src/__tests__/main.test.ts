@@ -7,8 +7,6 @@ import * as process from 'process';
 
 const mockCoreGetInput = core.getInput as jest.Mock;
 const mockCoreSetFailed = core.setFailed as jest.Mock;
-const mockCoreInfo = core.info as jest.Mock;
-const mockCoreError = core.error as jest.Mock;
 const mockReadFileAsync = fs.readFile as jest.Mock;
 const mockReadDirAsync = fs.readdir as jest.Mock;
 const mockPathResolve = resolve as jest.Mock;
@@ -50,8 +48,6 @@ describe('jest-coverage', () => {
       return inputName;
     });
 
-    mockCoreInfo.mockImplementation(console.info);
-    mockCoreError.mockImplementation(console.error);
     mockPathResolve.mockImplementation((...paths) => joinPath(...paths));
   });
 
