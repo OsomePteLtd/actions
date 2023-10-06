@@ -54,7 +54,7 @@ runs:
       shell: bash
 
     - name: Run Playwright tests
-      run: npm run test:e2e
+      run: npm run test:e2e:stable
       shell: bash
 
     - uses: actions/upload-artifact@v2
