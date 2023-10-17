@@ -57,5 +57,5 @@ runs:
 
     - name: import semgrep repport
       run: |
-        python3 import_semgrep_to_defect_dojo.py --host ${{ inputs.host }}  --product ${{ inputs.project }}  --engagement ${{ inputs.engagement }} --report semgrep.json token ${{ inputs.defectDojoTokentoken }}
+        python3 import_semgrep_to_defect_dojo.py --host ${{ inputs.host }}  --product ${{ inputs.project }}  --engagement ${{ inputs.engagement }} --report semgrep.json token ${{ inputs.defectDojoToken }}
       shell: bash
