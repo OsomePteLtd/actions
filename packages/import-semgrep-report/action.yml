@@ -1,0 +1,61 @@
+# action.yml
+name: 'Import semgrep report to DefectDojo'
+description: 'Creates semgrep report and imports it to DefectDojo'
+
+inputs:
+  host:
+    required: true
+    description: 'DefectDojo url'
+    default: 'https://defectdojo.osome.club'
+  project:
+    required: true
+    description: 'DefectDojo product name'
+  engagement:
+    required: true
+    description: 'DefectDojo engagement name'
+    default: 'semgrep'
+  report:
+    required: true
+    description: 'semgrep report path'
+    default: 'semgrep.json'
+  defectDojoToken:
+    required: true
+    description: 'DefectDojo api key'
+  scanResultFile:
+    required: true
+    description: 'Semgrep scan result file name'
+  ghToken:
+    required: true
+    description: 'Github token'
+  ref:
+    required: true
+    description: 'Github ref'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        ref: ${{ inputs.ref }}
+        token: ${{ inputs.ghToken }}
+
+    - name: semgrep scan
+      run: |
+        semgrep --config "p/nodejsscan" --json --output ./semgrep.json
+      shell: bash
+
+    - name: copy scripts
+      run: |
+        cp $GITHUB_ACTION_PATH/*.py ./
+      shell: bash
+
+    - name: create engagement if not exists
+      run: |
+        python3 ddojo_engagement_ulility.py --host ${{ inputs.host }} --project ${{ inputs.project }} --token ${{ inputs.defectDojoToken }}
+      shell: bash
+
+    - name: import semgrep repport
+      run: |
+        python3 import_semgrep_to_defect_dojo.py --host ${{ inputs.host }}  --product ${{ inputs.project }}  --engagement ${{ inputs.engagement }} --report semgrep.json token ${{ inputs.defectDojoToken }}
+      shell: bash
