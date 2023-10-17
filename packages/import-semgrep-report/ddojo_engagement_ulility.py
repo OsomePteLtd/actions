@@ -2,6 +2,7 @@ import requests
 import json
 import sys
 
+
 def create_engagements(project, id, headers):
     json_data = {
         "tags": [
@@ -19,20 +20,23 @@ def create_engagements(project, id, headers):
     }
     try:
         print(f"Going to create engagement for {project}")
-        r = requests.post(url + "engagements/", headers=headers, verify=True, json=json_data)
+        r = requests.post(url + "engagements/", headers=headers,
+                          verify=True, json=json_data)
         print(r.status_code)
     except requests.exceptions.RequestException as e:
         print(e)
     if r.status_code == 201:
         data = json.loads(r.text)
         engegement_id = data['id']
-        print(f'Engagement for product {project} has been successfully created')
+        print(
+            f'Engagement for product {project} has been successfully created')
         print(project, engegement_id)
+
 
 def get_product_id(url, project, headers):
     try:
         r = requests.get(url + f"products/?name={project}",
-                        headers=headers, verify=True)
+                         headers=headers, verify=True)
     except requests.exceptions.RequestException as e:
         print(e)
         print(r.status_code)
@@ -42,10 +46,11 @@ def get_product_id(url, project, headers):
             id = i['id']
             return id
 
+
 def check_engagement_exists(url, project, headers):
     try:
         r = requests.get(url + f"engagements/?tag={project}",
-                        headers=headers, verify=True)
+                         headers=headers, verify=True)
     except requests.exceptions.RequestException as e:
         print(e)
     if r.status_code == 200:
@@ -60,6 +65,7 @@ def check_engagement_exists(url, project, headers):
         else:
             return False
 
+
 if __name__ == "__main__":
     if len(sys.argv) == 7:
         endpoint = "/api/v2/"
@@ -70,7 +76,7 @@ if __name__ == "__main__":
             'accept': 'application/json',
             'Content-Type': 'application/json',
             'Authorization': f'Token {token}',
-            }
+        }
         if check_engagement_exists(url, project, headers):
             print(f"{project} product already has semgrep engagement")
         else:
@@ -79,4 +85,4 @@ if __name__ == "__main__":
             create_engagements(project, id, headers)
     else:
         print(
-            'Usage: python3 ddojo_create_engagement.py --host DOJO_URL --project PRODUCT_NAME --token TOKEN' )
+            'Usage: python3 ddojo_create_engagement.py --host DOJO_URL --project PRODUCT_NAME --token TOKEN')

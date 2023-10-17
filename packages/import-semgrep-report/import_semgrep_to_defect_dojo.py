@@ -1,6 +1,7 @@
 import requests
 import sys
 
+
 def uploadToDefectDojo(token, url, product_name, engagement_name, filename):
     multipart_form_data = {
         'file': (filename, open(filename, 'rb')),
@@ -8,8 +9,7 @@ def uploadToDefectDojo(token, url, product_name, engagement_name, filename):
         'product_name': (None, product_name),
         'engagement_name': (None, engagement_name),
     }
-    # endpoint = '/api/v2/import-scan/' if is_new_import else '/api/v2/reimport-scan/'
-    endpoint= '/api/v2/reimport-scan/'
+    endpoint = '/api/v2/reimport-scan/'
     r = requests.post(
         url + endpoint,
         files=multipart_form_data,
@@ -17,21 +17,19 @@ def uploadToDefectDojo(token, url, product_name, engagement_name, filename):
             'Authorization': 'Token ' + token,
         }
     )
-    print(r.status_code)
     if r.status_code == 400:
-        endpoint= '/api/v2/import-scan/'
+        endpoint = '/api/v2/import-scan/'
         r = requests.post(
-        url + endpoint,
-        files=multipart_form_data,
-        headers={
-            'Authorization': 'Token ' + token,
-        }
-    )
+            url + endpoint,
+            files=multipart_form_data,
+            headers={
+                'Authorization': 'Token ' + token,
+            }
+        )
     statuses = [201, 400]
     if r.status_code not in statuses:
         sys.exit(f'Post failed: {r.text}')
     print(f"{filename} for {product_name} successfully uploded to DefectDojo")
-
 
 
 if __name__ == "__main__":
