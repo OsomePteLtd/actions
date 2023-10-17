@@ -5,7 +5,6 @@
 - creates semgrep report
 - check target engagement in DefectDojo if does not exist creates it
 - uploads report to DefectDojo
-  |
 
 ### Usage
 
