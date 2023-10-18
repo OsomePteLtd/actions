@@ -50,11 +50,6 @@ runs:
         cp $GITHUB_ACTION_PATH/*.py ./
       shell: bash
 
-    - name: create engagement if not exists
-      run: |
-        python3 ddojo_engagement_ulility.py --host ${{ inputs.host }} --project ${{ inputs.project }} --token ${{ inputs.defectDojoToken }}
-      shell: bash
-
     - name: import semgrep repport
       run: |
         python3 import_semgrep_to_defect_dojo.py --host ${{ inputs.host }}  --product ${{ inputs.project }}  --engagement ${{ inputs.engagement }} --report semgrep.json token ${{ inputs.defectDojoToken }}

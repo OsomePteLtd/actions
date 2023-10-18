@@ -25,7 +25,6 @@ jobs:
         password: ${{ secrets.OSOME_BOT_TOKEN }}
     steps:
       - name: Generate semgrep report and upload to DefectDojo
-        id: riskscoreFromDT
         uses: osomepteltd/actions/packages/import-semgrep-report@master
         with:
           project: '${{ github.event.repository.name }}'
