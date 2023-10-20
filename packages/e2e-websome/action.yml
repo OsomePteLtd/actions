@@ -9,6 +9,9 @@ inputs:
   envName:
     required: true
     description: 'Current environment'
+  qase_auth_token:
+    required: true
+    description: 'Qase Auth Token'
 
 runs:
   using: 'composite'
@@ -43,6 +46,13 @@ runs:
       if: steps.pw-cache.outputs.cache-hit != 'true'
       run: npm run pw:install-browsers
       shell: bash
+
+    - name: Set Qase env variables
+      run: |
+        TIMESTAMP=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+        echo "QASE_AUTH_TOKEN=${{ inputs.qase_auth_token }}" >> $GITHUB_ENV
+        echo "QASE_RUN_NAME=E2E tests run ${{ github.run_id }} $TIMESTAMP" >> $GITHUB_ENV
+        echo "QASE_RUN_DESCRIPTION=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_ENV
 
     - name: Print stages
       run: |
