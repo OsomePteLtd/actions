@@ -53,6 +53,7 @@ runs:
         echo "QASE_AUTH_TOKEN=${{ inputs.qase_auth_token }}" >> $GITHUB_ENV
         echo "QASE_RUN_NAME=E2E tests run ${{ github.run_id }} $TIMESTAMP" >> $GITHUB_ENV
         echo "QASE_RUN_DESCRIPTION=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_ENV
+      shell: bash
 
     - name: Print stages
       run: |
