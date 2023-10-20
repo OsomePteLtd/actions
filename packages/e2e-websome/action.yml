@@ -44,13 +44,6 @@ runs:
       run: npm run pw:install-browsers
       shell: bash
 
-    - name: Set Qase env variables
-      run: |
-        TIMESTAMP=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-        echo "QASE_AUTH_TOKEN=${{ secrets.QASE_AUTH_TOKEN }}" >> $GITHUB_ENV
-        echo "QASE_RUN_NAME=E2E tests run ${{ github.run_id }} $TIMESTAMP" >> $GITHUB_ENV
-        echo "QASE_RUN_DESCRIPTION=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_ENV
-
     - name: Print stages
       run: |
         export ENVIRONMENT=${{ inputs.envName }}
