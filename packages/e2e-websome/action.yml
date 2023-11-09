@@ -54,6 +54,7 @@ runs:
       shell: bash
 
     - name: Set Qase env variables
+      shell: bash
       run: |
         TIMESTAMP=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
         echo "QASE_AUTH_TOKEN=${{ inputs.qaseAuthToken }}" >> $GITHUB_ENV
