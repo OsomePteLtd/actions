@@ -12,12 +12,6 @@ inputs:
   qaseAuthToken:
     required: true
     description: 'Qase auth token'
-  # qaseRunName:
-  #   required: true
-  #   description: 'Generated Qase run name'
-  # qaseRunDescription:
-  #   required: true
-  #   description: 'Qase run description, may be link to github action run or PR'
 
 runs:
   using: 'composite'
