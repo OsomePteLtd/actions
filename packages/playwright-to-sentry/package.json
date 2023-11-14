@@ -1,0 +1,28 @@
+{
+  "name": "@osomepteltd/playwright-to-sentry",
+  "version": "1.0.0",
+  "description": "Sends errors from Playwright log to Sentry",
+  "author": "Vladimir Kiyko <vladimir.kiyko@osome.com>",
+  "homepage": "https://github.com/OsomePteLtd/actions#readme",
+  "license": "UNLICENSED",
+  "main": "index.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OsomePteLtd/actions.git"
+  },
+  "scripts": {
+    "precommit": "ncc build src/index.ts -o dist -m && git add dist",
+    "test": "echo \"No tests found\""
+  },
+  "dependencies": {
+    "@actions/core": "^1.2.6",
+    "@actions/exec": "^1.0.4",
+    "@actions/github": "^4.0.0",
+    "@sentry/node": "^7.80.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.9.0",
+    "@vercel/ncc": "^0.36.1",
+    "typescript": "^5.2.2"
+  }
+}
