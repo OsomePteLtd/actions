@@ -13,5 +13,5 @@ inputs:
     required: false
     default: 'test-results.json'
 runs:
-  using: 'node18'
+  using: 'node20'
   main: './dist/index.js'
