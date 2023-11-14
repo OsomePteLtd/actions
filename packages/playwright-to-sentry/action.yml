@@ -1,0 +1,17 @@
+name: 'Playwright to Sentry'
+description: 'Sends errors from Playwright log to Sentry'
+inputs:
+  dsn:
+    description: 'Sentry DSN'
+    required: true
+  environment:
+    description: 'Sentry environment'
+    required: false
+    default: 'e2e'
+  logfile:
+    description: 'Playwright json log location'
+    required: false
+    default: 'test-results.json'
+runs:
+  using: 'node18'
+  main: './dist/index.js'
