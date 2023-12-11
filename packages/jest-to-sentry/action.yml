@@ -1,0 +1,17 @@
+name: 'Jest to Sentry'
+description: 'Sends errors from Jest tests to Sentry'
+inputs:
+  dsn:
+    description: 'Sentry DSN'
+    required: true
+  environment:
+    description: 'Sentry environment'
+    required: false
+    default: 'e2e'
+  logfile:
+    description: 'Jest json output location'
+    required: false
+    default: 'test-results.json'
+runs:
+  using: 'node20'
+  main: './dist/index.js'
