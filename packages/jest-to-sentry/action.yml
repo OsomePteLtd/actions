@@ -7,7 +7,7 @@ inputs:
   environment:
     description: 'Sentry environment'
     required: false
-    default: 'e2e'
+    default: 'test'
   logfile:
     description: 'Jest json output location'
     required: false
