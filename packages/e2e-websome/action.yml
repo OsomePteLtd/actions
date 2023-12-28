@@ -35,15 +35,24 @@ runs:
         npm ci
       shell: bash
 
-    - name: Restore cache
-      uses: actions/cache@v3
+    - name: Print Playwright version
+      run: |
+        echo PW_VERSION=$(node -p "require('@playwright/test/package.json').version") >> $GITHUB_ENV
+
+    - name: Restore Playwright cache
+      uses: tespkg/actions-cache@v1
       id: pw-cache
       with:
-        path: '/home/ubuntu/.cache/ms-playwright/**'
-        key: ${{ runner.os }}-pw-cache
+        insecure: false
+        accessKey: ${{ secrets.AWS_DEV_ACCESS_KEY_ID }}
+        secretKey: ${{ secrets.AWS_DEV_SECRET_ACCESS_KEY }}
+        bucket: osome-dev-actions-cache
+        use-fallback: false
+        key: ${{ runner.os }}-pw-cache-chromium-${{ env.PW_VERSION }}
+        path: '~/.cache/ms-playwright/**'
 
     - name: Install Playwright
-      if: steps.pw-cache.outputs.cache-hit != 'true'
+      if: ${{ steps.pw-cache.outputs.cache-hit != 'true' }}
       run: npm run pw:install-browsers
       shell: bash
 
