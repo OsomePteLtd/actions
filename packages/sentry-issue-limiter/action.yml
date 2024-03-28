@@ -6,7 +6,8 @@ inputs:
     required: true
   organizationSlug:
     description: 'The slug of the organization the issues belong to'
-    required: true
+    required: false
+    default: 'osome'
   projectSlug:
     description: 'The slug of the project the issues belong to'
     required: true

@@ -76,9 +76,10 @@ async function checkNewErrors() {
 }
 
 function printIssues(issues: Issue[]) {
-  console.log('Current issues:\n');
+  console.log(`Number of issues: ${issues.length}`);
+  console.log('Current issues:');
   issues.forEach((issue) => {
-    console.log(issue.title);
+    console.log(`- ${issue.title}`);
   });
 }
 
