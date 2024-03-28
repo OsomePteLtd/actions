@@ -1,0 +1,32 @@
+name: 'Sentry issue limiter'
+description: 'Check the number of sentry project issues'
+inputs:
+  sentryApiToken:
+    description: 'Sentry Api token'
+    required: true
+  organizationSlug:
+    description: 'The slug of the organization the issues belong to'
+    required: false
+    default: 'osome'
+  projectSlug:
+    description: 'The slug of the project the issues belong to'
+    required: true
+  threshold:
+    description: 'Threshold number of Sentry issues'
+    required: false
+    default: 0
+  statsPeriod:
+    description: 'An optional stat period (can be one of "24h", "14d", and "")'
+    required: false
+    default: '24h'
+  environment:
+    description: 'Environment name'
+    required: false
+    default: 'stage'
+  query:
+    description: 'An optional Sentry structured search query'
+    required: false
+    default: 'is:unresolved !is:archived'
+runs:
+  using: 'node20'
+  main: './dist/index.js'
