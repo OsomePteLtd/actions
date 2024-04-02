@@ -5,7 +5,7 @@ type StatTimestamp = number;
 type StatCount = number;
 type Stat = [StatTimestamp, StatCount];
 type Issue = {
-  title: string,
+  title: string;
   stats: Record<StatsPeriod, Stat[]>;
 };
 
@@ -57,10 +57,18 @@ function getCountOfIssueEvents(issue: Issue): number {
   return issue.stats[statsPeriod]?.reduce(addStatValue, 0);
 }
 
-function isEveythingGood(issues: Issue[]): boolean {
+function filterIssues(issues: Issue[]): Issue[] {
+  return issues.filter((issue) => getCountOfIssueEvents(issue) > 0);
+}
+
+function checkIssueNumber(issues: Issue[]) {
+  const filteredIssues = filterIssues(issues);
   const threshold = parseInt(thresholdStr || '', 10);
-  const issuesbyPeriod = issues.filter((issue) => getCountOfIssueEvents(issue) > 0);
-  return issuesbyPeriod.length <= threshold;
+  console.log(`The project has ${filteredIssues.length} issues. Threshold is ${threshold}.`);
+  if (filteredIssues.length > threshold) {
+    printIssues(filteredIssues);
+    core.setFailed(`The unresolved issue limit has been lifted. Please, resolve all issues in project.`);
+  }
 }
 
 async function checkNewErrors() {
@@ -69,14 +77,10 @@ async function checkNewErrors() {
     core.setFailed('Failed to fetch issues. Please check your Sentry credentials and try again.');
     return;
   }
-  if (!isEveythingGood(issues)) {
-    printIssues(issues);
-    core.setFailed(`The unresolved issue limit has been lifted. Please, resolve all issues in project.`);
-  }
+  checkIssueNumber(issues);
 }
 
 function printIssues(issues: Issue[]) {
-  console.log(`Number of issues: ${issues.length}`);
   console.log('Current issues:');
   issues.forEach((issue) => {
     console.log(`- ${issue.title}`);
