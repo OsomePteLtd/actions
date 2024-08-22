@@ -65,6 +65,7 @@ runs:
         export ENVIRONMENT=${{ inputs.envName }}
         export CIRCUIT_NAME=$(echo ${ENVIRONMENT##*:})
         echo $CIRCUIT_NAME
+        echo "PLAYWRIGHT_WL_BASE_URL=https://"$CIRCUIT_NAME"-juliatest.corpagent.info" >> $GITHUB_ENV
         echo "PLAYWRIGHT_BASE_URL=https://"$CIRCUIT_NAME".my.osome.club" >> $GITHUB_ENV
         echo "PLAYWRIGHT_API_URL="https://"$CIRCUIT_NAME".my.osome.club"" >> $GITHUB_ENV
       shell: bash
