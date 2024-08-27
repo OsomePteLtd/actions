@@ -51,7 +51,7 @@ runs:
         packages=(
           '@osome/chatsome'
           '@osome/client-ui-kit'
-          '@osome/server-toolkit'
+      #    '@osome/server-toolkit'
           '@osome/ui-kit'
           '@osomepteltd/accounting-aggregations'
           '@osomepteltd/accounting-mapping'
