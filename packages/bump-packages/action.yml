@@ -63,7 +63,7 @@ runs:
           '@osomepteltd/coolkit'
           '@osomepteltd/sdk'
           '@osomepteltd/structure-lint'
-          '@osomepteltd/websome-kit'          
+          '@osomepteltd/websome-kit'
           )
         dependencies=$(jq -r '.dependencies | keys[]' package.json | grep '@osome')
         devDependencies=$(jq -r '.devDependencies | keys[]' package.json | grep '@osome')
