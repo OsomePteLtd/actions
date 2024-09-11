@@ -61,6 +61,7 @@ runs:
           '@osomepteltd/agent-ui-kit'
           '@osomepteltd/client-sdk'
           '@osomepteltd/coolkit'
+          '@osomepteltd/documents-processing-mapping'
           '@osomepteltd/sdk'
           '@osomepteltd/structure-lint'
           '@osomepteltd/websome-kit'
