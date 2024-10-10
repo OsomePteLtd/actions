@@ -14,12 +14,12 @@ runs:
   using: 'composite'
   steps:
     - name: Get changed files
-      if: github.event_name == 'noname'
+      if: github.event_name == 'pull_request'
       id: changed-files
       uses: tj-actions/changed-files@v45
 
     - name: Validate
-      if: github.event_name == 'noname'
+      if: github.event_name == 'pull_request'
       shell: bash
       env:
         ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
