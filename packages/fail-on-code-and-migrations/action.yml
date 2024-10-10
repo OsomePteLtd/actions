@@ -19,16 +19,15 @@ runs:
 
     - name: Validate
       shell: bash
+      - if: github.event_name == 'noname'
       env:
         ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
       run: |
         export code_found="false"
         export migrations_found="false"
         for file in ${ALL_CHANGED_FILES}; do
-          if [[ "$file" == ${{ inputs.code_folder }}* ]] ; then export code_found="true" ; echo code_found ; fi
-          if [[ "$file" == ${{ inputs.mgrations_folder }}* ]] ; then export migrations_found="true" ; echo migrations_found ; fi
-          echo "${{ inputs.code_folder }}*"
-          echo "::error::Filename $file was changed"
+          if [[ "$file" == ${{ inputs.code_folder }}* ]] ; then export code_found="true" ; fi
+          if [[ "$file" == ${{ inputs.mgrations_folder }}* ]] ; then export migrations_found="true" ; fi
         done
         if [[ "$code_found" == "true" ]] && [[ "$migrations_found" == "true" ]] ; then
           echo "::error::This PR contains both application code and db migration changes, this is not allowed. Please make 2 separate PRs"
