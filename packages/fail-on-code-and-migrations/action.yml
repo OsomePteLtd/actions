@@ -1,0 +1,34 @@
+# action.yml
+name: 'Fail code+migration'
+description: 'Fails when PR contains both code and db migration changes'
+
+inputs:
+  code_folder:
+    required: false
+    default: 'src/'
+  mgrations_folder:
+    required: false
+    default: 'db/migrations/'
+
+runs:
+  using: 'composite'
+    steps:
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v45
+
+      - name: Validate
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+        run: |
+          export code_found="false"
+          export migrations_found="false"
+          for file in ${ALL_CHANGED_FILES}; do
+            if [[ "$file" == ${{ inputs.code_folder }}* ]] ; then export code_found="true" ; fi
+            if [[ "$file" == ${{ inputs.mgrations_folder }}* ]] ; then export migrations_found="true" ; fi
+            echo "::error::Filename $file was changed"
+          done
+          if [[ "$code_found" == "true" ]] && [[ "$migrations_found" == "true" ]] ; then
+            echo "::error::This PR contains both application code and db migration changes, this is not allowed. Please make 2 separate PRs"
+            exit 1
+          fi
