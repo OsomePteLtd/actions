@@ -27,6 +27,7 @@ runs:
         for file in ${ALL_CHANGED_FILES}; do
           if [[ "$file" == ${{ inputs.code_folder }}* ]] ; then export code_found="true" ; echo code_found ; fi
           if [[ "$file" == ${{ inputs.mgrations_folder }}* ]] ; then export migrations_found="true" ; echo migrations_found ; fi
+          echo "${{ inputs.code_folder }}*"
           echo "::error::Filename $file was changed"
         done
         if [[ "$code_found" == "true" ]] && [[ "$migrations_found" == "true" ]] ; then
