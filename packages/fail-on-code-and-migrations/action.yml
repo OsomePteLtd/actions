@@ -18,6 +18,7 @@ runs:
       uses: tj-actions/changed-files@v45
 
     - name: Validate
+      shell: bash
       env:
         ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
       run: |
