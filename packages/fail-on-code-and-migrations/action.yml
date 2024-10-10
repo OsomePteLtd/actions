@@ -14,12 +14,13 @@ runs:
   using: 'composite'
   steps:
     - name: Get changed files
+      if: github.event_name == 'noname'
       id: changed-files
       uses: tj-actions/changed-files@v45
 
     - name: Validate
+      if: github.event_name == 'noname'
       shell: bash
-      - if: github.event_name == 'noname'
       env:
         ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
       run: |
