@@ -49,7 +49,7 @@ runs:
 
     - name: cancelling
       if: ${{ env.cancel == 'true' }}
-      uses: andymckay/cancel-action@0.3
+      uses: andymckay/cancel-action@b9280e3f8986d7a8e91c7462efc0fa318010c8b1 # 0.3
       with:
         token: ${{ inputs.token }}
 

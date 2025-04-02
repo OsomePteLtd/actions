@@ -115,7 +115,7 @@ runs:
     - name: Create Pull Request
       id: cpr
       if: ${{ env.UPDATED_PACKAGES != '' }}
-      uses: peter-evans/create-pull-request@v5
+      uses: peter-evans/create-pull-request@4e1beaa7521e8b457b572c090b25bd3db56bf1c5 # v5
       with:
         token: ${{ inputs.token }}
         commit-message: Bump package to the latest version
@@ -152,7 +152,7 @@ runs:
 
     - name: cancelling
       if: ${{ env.UPDATED_PACKAGES == '' }}
-      uses: andymckay/cancel-action@0.3
+      uses: andymckay/cancel-action@b9280e3f8986d7a8e91c7462efc0fa318010c8b1 # 0.3
       with:
         token: ${{ inputs.token }}
 
