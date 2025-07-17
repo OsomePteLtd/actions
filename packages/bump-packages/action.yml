@@ -6,6 +6,9 @@ inputs:
   token:
     required: true
     description: 'Github Token'
+  npmjsToken:
+    required: true
+    description: 'Token for npmjs.com repository'
   prToken:
     required: true
     description: 'token for approving pull request'
@@ -45,7 +48,7 @@ runs:
     - name: Set auth token
       run: |
         echo "//npm.pkg.github.com/:_authToken=${{ inputs.token }}" >> ~/.npmrc
-        echo "//registry.npmjs.org/:_authToken=${{ secrets.NPMJS_KEY_READ_ONLY }}" >> ~/.npmrc
+        echo "//registry.npmjs.org/:_authToken=${{ inputs.npmjsToken }}" >> ~/.npmrc
       shell: bash
 
     - name: Install last version
