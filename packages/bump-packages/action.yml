@@ -43,7 +43,9 @@ runs:
       shell: bash
 
     - name: Set auth token
-      run: echo "//npm.pkg.github.com/:_authToken=${{ inputs.token }}" >> ~/.npmrc
+      run: |
+        echo "//npm.pkg.github.com/:_authToken=${{ inputs.token }}" >> ~/.npmrc
+        echo "//registry.npmjs.org/:_authToken=${{ secrets.NPMJS_KEY_READ_ONLY }}" >> ~/.npmrc
       shell: bash
 
     - name: Install last version
@@ -75,7 +77,7 @@ runs:
             installedVersion=$(cat package.json | grep ${i} | awk -F^ '{ print $2}' | sed 's/\"\,//')
             latestVersion=$(npm view  ${i} version)
             echo "latestVersion -> ${latestVersion}"
-            echo "installedVersion -> ${installedVersion}" 
+            echo "installedVersion -> ${installedVersion}"
             if [ "$installedVersion" == "$latestVersion" ]; then
               echo "The latest version of ${i} is already installed"
             else
@@ -90,7 +92,7 @@ runs:
             installedVersion=$(cat package.json | grep ${i} | awk -F^ '{ print $2}' | sed 's/\"\,//')
             latestVersion=$(npm view  ${i} version)
             echo "latestVersion -> ${latestVersion}"
-            echo "installedVersion -> ${installedVersion}" 
+            echo "installedVersion -> ${installedVersion}"
             if [ "$installedVersion" == "$latestVersion" ]; then
               echo "The latest version of ${i} is already installed"
             else
