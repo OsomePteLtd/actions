@@ -68,6 +68,10 @@ inputs:
     description: 'Enable to replace line breaks in exported translations with \n.'
     required: false
     default: 'false'
+  async:
+    description: 'Enable asynchronous file download (download link active for 24 hours, ignoring json-only flag when active).'
+    required: false
+    default: 'true'
 
 runs:
   using: 'composite'
@@ -99,4 +103,5 @@ runs:
             ${{ inputs.directory-prefix }} \
             ${{ inputs.json-unescaped-slashes }} \
             ${{ inputs.replace-breaks }}
+            ${{ inputs.async }}
       shell: bash
