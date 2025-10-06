@@ -1,6 +1,6 @@
 set -e
 
-echo " Going to start lokalise download with the folloeing args:\n
+echo " Going to start lokalise download with the following args:\n
         project-id -> $2
         unzip-to -> $3
         format -> $4
@@ -17,6 +17,7 @@ echo " Going to start lokalise download with the folloeing args:\n
         directory-prefix -> ${15}
         json-unescaped-slashes -> ${16}
         replace-breaks -> ${17}
+        async -> ${18}
      "
 
 lokalise2 \
@@ -37,4 +38,5 @@ lokalise2 \
     --original-filenames=${14} \
     --directory-prefix=${15} \
     --json-unescaped-slashes=${16} \
-    --replace-breaks=${17}
+    --replace-breaks=${17} \
+    --async=${18}
