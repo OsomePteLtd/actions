@@ -102,6 +102,6 @@ runs:
             ${{ inputs.original-filename }} \
             ${{ inputs.directory-prefix }} \
             ${{ inputs.json-unescaped-slashes }} \
-            ${{ inputs.replace-breaks }}
+            ${{ inputs.replace-breaks }} \
             ${{ inputs.async }}
       shell: bash

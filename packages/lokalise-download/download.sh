@@ -1,6 +1,6 @@
 set -e
 
-echo " Going to start lokalise download with the folloeing args:\n
+echo " Going to start lokalise download with the following args:\n
         project-id -> $2
         unzip-to -> $3
         format -> $4
