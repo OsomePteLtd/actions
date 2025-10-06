@@ -39,4 +39,4 @@ lokalise2 \
     --directory-prefix=${15} \
     --json-unescaped-slashes=${16} \
     --replace-breaks=${17} \
-    --async==${18}
+    --async=${18}
