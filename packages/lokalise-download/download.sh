@@ -17,6 +17,7 @@ echo " Going to start lokalise download with the folloeing args:\n
         directory-prefix -> ${15}
         json-unescaped-slashes -> ${16}
         replace-breaks -> ${17}
+        async -> $18
      "
 
 lokalise2 \
@@ -38,3 +39,4 @@ lokalise2 \
     --directory-prefix=${15} \
     --json-unescaped-slashes=${16} \
     --replace-breaks=${17}
+    --async=$18
