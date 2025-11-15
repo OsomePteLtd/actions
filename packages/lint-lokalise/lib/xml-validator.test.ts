@@ -4,6 +4,7 @@ describe('isValidXML', () => {
   describe('valid cases', () => {
     it.each([
       ['plain text without tags', 'hello world'],
+      ['bare ampersand character', 'hello & world'],
       ['simple valid tag', '<b>bold</b>'],
       ['text with valid tags', 'hello <b>world</b>'],
       ['properly nested tags', '<outer><inner>nested</inner></outer>'],
@@ -21,14 +22,14 @@ describe('isValidXML', () => {
       ['unclosed tag', '<b>unclosed'],
       ['closing tag without opening', '</b>no opening'],
       ['mismatched tags', '<b><i>mismatched</b></i>'],
-      ['ampersand character', 'hello & world'],
+      ['entity', 'hello &amp; world'],
       ['backslash character', 'hello \\ world'],
       ['malformed tag (no closing bracket)', '<b unclosed'],
       ['empty tag name', '<>content</>'],
       ['tag with spaces in name', '<b old>content</bold>'],
       ['nested mismatched tags', '<div><p>content</div></p>'],
       ['multiple unmatched closing tags', 'content</p></div>'],
-      ['mixed valid and invalid', '<p>valid</p> & invalid'],
+      ['mixed valid and invalid', '<p>valid</p> &amp; invalid'],
     ])('should return false for %s', (_, input) => {
       expect(isValidXML(input)).toBe(false);
     });

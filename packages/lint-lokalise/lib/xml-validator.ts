@@ -1,5 +1,5 @@
 export function isValidXML(input: string): boolean {
-  if (!input.length || /[\\&]/.test(input)) return false;
+  if (!input.length || /(?:\\|&[^\s])/.test(input)) return false;
 
   const stack: string[] = [];
   let position = 0;
