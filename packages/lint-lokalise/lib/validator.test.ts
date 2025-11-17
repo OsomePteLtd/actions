@@ -1,6 +1,6 @@
-import { isValidXML } from './xml-validator.ts';
+import { isValidReactTransString } from './validator.ts';
 
-describe('isValidXML', () => {
+describe('isValidReactTransString', () => {
   describe('valid cases', () => {
     it.each([
       ['plain text without tags', 'hello world'],
@@ -12,7 +12,7 @@ describe('isValidXML', () => {
       ['self-closing style (treated as regular)', '<br></br>'],
       ['complex nesting', '<div><p>Text with <span>nested <em>emphasis</em></span> content</p></div>'],
     ])('should return true for %s', (_, input) => {
-      expect(isValidXML(input)).toBe(true);
+      expect(isValidReactTransString(input)).toBe(true);
     });
   });
 
@@ -31,7 +31,7 @@ describe('isValidXML', () => {
       ['multiple unmatched closing tags', 'content</p></div>'],
       ['mixed valid and invalid', '<p>valid</p> &amp; invalid'],
     ])('should return false for %s', (_, input) => {
-      expect(isValidXML(input)).toBe(false);
+      expect(isValidReactTransString(input)).toBe(false);
     });
   });
 });

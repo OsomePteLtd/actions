@@ -1,9 +1,9 @@
 import { readFileSync, globSync } from 'fs';
-import { isValidXML } from './lib/xml-validator.ts';
+import { isValidReactTransString } from './lib/validator.ts';
 
 function processValue(value: any, path = ''): Array<{ path: string; value: string; valid: boolean }> {
   if (typeof value === 'string') {
-    return [{ path, value, valid: isValidXML(value) }];
+    return [{ path, value, valid: isValidReactTransString(value) }];
   }
   if (typeof value === 'object') {
     return Object.entries(value)

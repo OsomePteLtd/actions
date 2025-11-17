@@ -1,4 +1,4 @@
-export function isValidXML(input: string): boolean {
+export function isValidReactTransString(input: string): boolean {
   if (!input.length || /(?:\\|&[^\s])/.test(input)) return false;
 
   const stack: string[] = [];
