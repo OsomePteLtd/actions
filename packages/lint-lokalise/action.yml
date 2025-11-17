@@ -1,0 +1,17 @@
+name: 'i18next XML Validator'
+description: 'Validates XML syntax in JSON string values for i18next translations'
+author: 'Alexander Pushkov <alexander.pushkov@osome.com>'
+
+inputs:
+  path:
+    description: 'Path to scan for JSON files'
+    required: false
+    default: './src/locales'
+
+runs:
+  using: 'node24'
+  main: 'index.ts'
+
+branding:
+  icon: 'check-circle'
+  color: 'green'
