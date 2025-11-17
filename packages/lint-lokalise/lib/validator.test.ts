@@ -11,7 +11,7 @@ describe('isValidReactTransString', () => {
       ['properly nested tags', '<outer><inner>nested</inner></outer>'],
       ['multiple tags', '<p>Hello <strong>world</strong> and <em>universe</em></p>'],
       ['self-closing tags', 'hi<br/>there<br />'],
-      ['complex nesting', '<div><p>Text with <span>nested <em>emphasis</em></span> content</p></div>'],
+      ['complex nesting', '<div><p>Text with <span>nested <em>emphasis</em></span><br /> content</p></div>'],
     ])('should return true for %s', (_, input) => {
       expect(isValidReactTransString(input)).toBe(true);
     });
