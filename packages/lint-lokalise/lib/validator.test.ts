@@ -7,9 +7,10 @@ describe('isValidReactTransString', () => {
       ['bare ampersand character', 'hello & world'],
       ['simple valid tag', '<b>bold</b>'],
       ['text with valid tags', 'hello <b>world</b>'],
+      ['text with numeric tags', 'hello <1>world</1>'],
       ['properly nested tags', '<outer><inner>nested</inner></outer>'],
       ['multiple tags', '<p>Hello <strong>world</strong> and <em>universe</em></p>'],
-      ['self-closing style (treated as regular)', '<br></br>'],
+      ['self-closing tags', 'hi<br/>there<br />'],
       ['complex nesting', '<div><p>Text with <span>nested <em>emphasis</em></span> content</p></div>'],
     ])('should return true for %s', (_, input) => {
       expect(isValidReactTransString(input)).toBe(true);
@@ -26,7 +27,7 @@ describe('isValidReactTransString', () => {
       ['backslash character', 'hello \\ world'],
       ['malformed tag (no closing bracket)', '<b unclosed'],
       ['empty tag name', '<>content</>'],
-      ['tag with spaces in name', '<b old>content</bold>'],
+      ['tag with parameters', '<b style="foo">content</b>'],
       ['nested mismatched tags', '<div><p>content</div></p>'],
       ['multiple unmatched closing tags', 'content</p></div>'],
       ['mixed valid and invalid', '<p>valid</p> &amp; invalid'],

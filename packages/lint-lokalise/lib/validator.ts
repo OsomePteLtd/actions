@@ -17,6 +17,9 @@ export function isValidReactTransString(input: string): boolean {
     const tagName = input.slice(position, tagEnd);
     position = tagEnd + 1;
 
+    const isSelfClosing = tagName.endsWith('/');
+    if (isSelfClosing) continue;
+
     if (isClosing) {
       if (!stack.length || stack.pop() !== tagName) return false;
     } else {
