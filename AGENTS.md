@@ -102,3 +102,31 @@ Each action has its own test suite using Jest.
 - Update **action.yml** for input/output changes
 - Consider backwards compatibility
 - Actions run in GitHub's hosted runners
+
+## Ecosystem Context
+
+### Consumer Repositories
+
+| Action               | Used By                         |
+| -------------------- | ------------------------------- |
+| bump-version         | All backend services, frontends |
+| playwright-to-sentry | All frontends with E2E tests    |
+| jest-to-sentry       | All repos with Jest tests       |
+| lint-lokalise        | All i18n-enabled frontends      |
+| dependabot-combine   | sdk, server-toolkit             |
+
+### Integration Services
+
+| Service    | Actions Using                        |
+| ---------- | ------------------------------------ |
+| Sentry     | playwright-to-sentry, jest-to-sentry |
+| Lokalise   | lint-lokalise, lokalise-download     |
+| DefectDojo | import-semgrep-report                |
+
+### Related Repositories
+
+| Category       | Repositories                                  |
+| -------------- | --------------------------------------------- |
+| All Repos      | ~138 repositories use actions                 |
+| Infrastructure | infra, grafana                                |
+| ESLint         | eslint-config-frontend, eslint-config-backend |
