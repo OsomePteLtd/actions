@@ -125,15 +125,19 @@ runs:
       env:
         OSOME_BOT_TOKEN: ${{ inputs.osome-bot-token }}
         LOCK_REPO: ${{ inputs.lock-repo }}
+        RUN_ID: ${{ github.run_id }}
+        GITHUB_REPO: ${{ github.repository }}
+        PR_NUM: ${{ github.event.pull_request.number }}
+        GITHUB_SHA_REF: ${{ github.sha }}
       run: |
         set -euo pipefail
 
         LOCK_BRANCH="lock-${CLAIMED_ENV}"
         OWNER_JSON=$(jq -n \
-          --arg run_id "${{ github.run_id }}" \
-          --arg repo "${{ github.repository }}" \
-          --arg pr "${{ github.event.pull_request.number }}" \
-          --arg sha "${{ github.sha }}" \
+          --arg run_id "$RUN_ID" \
+          --arg repo "$GITHUB_REPO" \
+          --arg pr "$PR_NUM" \
+          --arg sha "$GITHUB_SHA_REF" \
           --arg claimed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
           '{run_id: $run_id, repo: $repo, pr: $pr, sha: $sha, claimed_at: $claimed_at}')
 
@@ -155,17 +159,19 @@ runs:
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
+        GITHUB_REPO: ${{ github.repository }}
+        GITHUB_SHA_REF: ${{ github.sha }}
       run: |
         set -euo pipefail
 
-        echo "Creating deployment for ${{ github.repository }}@${{ github.sha }} to ${CLAIMED_ENV}"
+        echo "Creating deployment for ${GITHUB_REPO}@${GITHUB_SHA_REF} to ${CLAIMED_ENV}"
 
         # Create deployment
         DEPLOY_RESPONSE=$(gh api \
           -X POST \
-          "/repos/${{ github.repository }}/deployments" \
+          "/repos/${GITHUB_REPO}/deployments" \
           -f environment="${CLAIMED_ENV}" \
-          -f ref="${{ github.sha }}" \
+          -f ref="${GITHUB_SHA_REF}" \
           -F auto_merge=false \
           -f required_contexts='[]')
 
@@ -183,7 +189,7 @@ runs:
           sleep "$POLL_INTERVAL"
           ELAPSED=$((ELAPSED + POLL_INTERVAL))
 
-          STATUS_RESPONSE=$(gh api "/repos/${{ github.repository }}/deployments/${DEPLOY_ID}/statuses" --jq '.[0].state // "pending"')
+          STATUS_RESPONSE=$(gh api "/repos/${GITHUB_REPO}/deployments/${DEPLOY_ID}/statuses" --jq '.[0].state // "pending"')
           echo "Deployment status: $STATUS_RESPONSE (${ELAPSED}s elapsed)"
 
           case "$STATUS_RESPONSE" in
@@ -242,6 +248,7 @@ runs:
         USE_ALLURE: 'true'
         TEST_TAGS: ${{ inputs.tags }}
         CI: 'true'
+        SECRETS_JSON: ${{ inputs.secrets-json }}
       run: |
         set +e
 
@@ -250,7 +257,7 @@ runs:
         SMOKE_ENV_FILE=$(mktemp)
         trap 'rm -f "$SMOKE_ENV_FILE"' EXIT
 
-        echo '${{ inputs.secrets-json }}' | jq -r '
+        echo "$SECRETS_JSON" | jq -r '
           to_entries[]
           | select(.key | startswith("SMOKE_"))
           | "export \(.key)=\(.value | @sh)"
@@ -292,14 +299,14 @@ runs:
       if: always()
       shell: bash
       working-directory: e2e
+      env:
+        SERVICE: ${{ inputs.service }}
+        PR_NUM: ${{ github.event.pull_request.number }}
       run: |
         if [ ! -d "allure-report" ]; then
           echo "No allure-report found, skipping S3 upload"
           exit 0
         fi
-
-        SERVICE="${{ inputs.service }}"
-        PR_NUM="${{ github.event.pull_request.number }}"
 
         echo "Publishing Allure report for ${SERVICE} PR-${PR_NUM}..."
 
@@ -325,16 +332,20 @@ runs:
     - name: Comment on PR
       if: always() && github.event.pull_request.number
       uses: actions/github-script@v7
+      env:
+        SERVICE: ${{ inputs.service }}
+        PR_ENV: ${{ steps.claim.outputs.env }}
+        EXIT_CODE: ${{ steps.smoke.outputs.exit }}
       with:
         github-token: ${{ inputs.github-token }}
         script: |
           const fs = require('fs');
           const path = require('path');
 
-          const service = '${{ inputs.service }}';
+          const service = process.env.SERVICE;
           const prNum = context.payload.pull_request?.number;
-          const env = '${{ steps.claim.outputs.env }}';
-          const exitCode = parseInt('${{ steps.smoke.outputs.exit }}' || '1');
+          const env = process.env.PR_ENV;
+          const exitCode = parseInt(process.env.EXIT_CODE || '1');
 
           // Try to read results.json for detailed stats
           let stats = { passed: 0, failed: 0, skipped: 0, duration: 0 };
@@ -404,6 +415,7 @@ runs:
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.osome-bot-token }}
+        LOCK_REPO: ${{ inputs.lock-repo }}
       run: |
         if [ -z "${CLAIMED_ENV:-}" ]; then
           echo "No environment was claimed, nothing to release"
@@ -415,7 +427,7 @@ runs:
 
         gh api \
           -X DELETE \
-          "/repos/${{ inputs.lock-repo }}/git/refs/heads/${LOCK_BRANCH}" \
+          "/repos/${LOCK_REPO}/git/refs/heads/${LOCK_BRANCH}" \
           || echo "Lock branch may already be deleted"
 
         echo "Lock released for ${CLAIMED_ENV}"
@@ -423,8 +435,9 @@ runs:
     # Step 10: Surface Playwright exit code
     - name: Check smoke test result
       shell: bash
+      env:
+        EXIT_CODE: ${{ steps.smoke.outputs.exit }}
       run: |
-        EXIT_CODE="${{ steps.smoke.outputs.exit }}"
         if [ -z "$EXIT_CODE" ]; then
           echo "::error::Smoke test step did not produce an exit code"
           exit 1
