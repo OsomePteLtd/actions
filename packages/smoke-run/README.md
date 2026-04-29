@@ -4,18 +4,20 @@ Composite GitHub Action that claims a test environment, deploys a PR, runs Playw
 
 ## Overview
 
-This action implements a 10-step smoke test lifecycle:
+This action implements a 12-step smoke test lifecycle:
 
 1. **Claim environment** - Atomic lock acquisition via orphan git branch
 2. **Write owner.json** - Record who holds the lock
 3. **Deploy PR** - Trigger deployment via GitHub Deployments API
 4. **Checkout e2e-testing** - Fetch the test repository
 5. **Install dependencies** - pnpm + Playwright browsers
-6. **Run smoke tests** - Execute `--project=smoke` tests
-7. **Publish Allure report** - Upload to S3 bucket
-8. **Comment on PR** - Upsert results summary with report link
-9. **Release lock** - Delete the lock branch (always runs)
-10. **Surface exit code** - Fail the workflow if tests failed
+6. **Configure AWS credentials** - OIDC authentication for SSM + S3
+7. **Fetch smoke credentials** - Load admin credentials from SSM Parameter Store
+8. **Run smoke tests** - Execute `--project=smoke` tests
+9. **Generate Allure report** - Build HTML report from results
+10. **Publish Allure report** - Upload to S3 bucket
+11. **Comment on PR** - Upsert results summary with report link
+12. **Release lock** - Delete the lock branch (always runs)
 
 ## Usage
 
@@ -26,16 +28,13 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
-permissions:
-  id-token: write      # Required for AWS OIDC
-  pull-requests: write # Required for PR comments
-  contents: read       # Required for checkout
-  deployments: write   # Required for Deployments API
-
 jobs:
   smoke:
     runs-on: arc-runner-heavy
-    environment: smoke
+    permissions:
+      pull-requests: write
+      contents: read
+      id-token: write   # for AWS OIDC (SSM + S3)
     steps:
       - uses: actions/checkout@v4
 
@@ -45,7 +44,6 @@ jobs:
           service: ${{ github.event.repository.name }}
           osome-bot-token: ${{ secrets.OSOME_BOT_TOKEN }}
           github-token: ${{ github.token }}
-          secrets-json: ${{ toJSON(secrets) }}
           tags: '@smoke @core'
 ```
 
@@ -58,7 +56,6 @@ jobs:
 | `lock-repo` | No | `OsomePteLtd/e2e-testing` | Repository hosting lock branches |
 | `osome-bot-token` | Yes | - | Token with `contents:write` on lock-repo |
 | `github-token` | Yes | - | Caller's `${{ github.token }}` for Deployments API |
-| `secrets-json` | Yes | - | `${{ toJSON(secrets) }}` - SMOKE_* keys exported to Playwright |
 | `tags` | No | `''` | Test tags exported as `TEST_TAGS` env var |
 | `retry-interval-seconds` | No | `45` | Seconds between lock acquisition retries |
 | `retry-timeout-seconds` | No | `900` | Total seconds to wait for lock |
@@ -77,10 +74,23 @@ The calling repository must have access to these secrets:
 | Secret | Purpose |
 |--------|---------|
 | `OSOME_BOT_TOKEN` | Cross-repo access for lock management |
-| `SMOKE_AGENT_EMAIL` | Test user email for smoke tests |
-| `SMOKE_AGENT_PASSWORD` | Test user password for smoke tests |
 
-All secrets prefixed with `SMOKE_` are automatically exported as environment variables to the Playwright process.
+## Infrastructure Prerequisites
+
+The action assumes the following AWS resources exist in account `664258603548` (us-east-1):
+
+### SSM Parameters
+
+- `/smoke/agent/email` (String) — admin user email used by the Playwright fixture
+- `/smoke/agent/password` (SecureString) — admin user password (KMS-encrypted)
+
+Anyone with AWS console access can rotate these via Parameter Store.
+
+### IAM Role: `github-deployer-nokms` (already exists)
+
+Smoke-run uses the existing org-standard role (`arn:aws:iam::664258603548:role/github-deployer-nokms`) — same role used by every OSOME service's `default.yml` and `deploy.yml` for GitHub Actions → AWS auth. The role's trust policy is `repo:OsomePteLtd/*`, so any OSOME repo can assume it via OIDC; new smoke-onboarded services need **zero** infra changes.
+
+The role's policy already grants `ssm:Get*` and `s3:*`, which covers everything smoke-run needs (SSM fetch + Allure upload).
 
 ## AWS Configuration
 
@@ -91,7 +101,7 @@ permissions:
   id-token: write
 ```
 
-The action assumes the role `arn:aws:iam::664258603548:role/allure-uploader` to upload reports to S3.
+The action assumes the role `arn:aws:iam::664258603548:role/github-deployer-nokms` — the org-standard role for GitHub Actions → AWS auth.
 
 ## Concurrency and Queueing
 
@@ -146,9 +156,9 @@ If a workflow is cancelled mid-run, the lock may not be released.
 **Symptoms:** `An error occurred (AccessDenied) when calling the PutObject operation`
 
 **Resolution:**
-1. Verify the `allure-uploader` role has `s3:PutObject` on `osome-allure-reports` bucket
+1. Verify the `github-deployer-nokms` role has `s3:PutObject` on `osome-allure-reports` bucket
 2. Check bucket policy allows the role
-3. Verify the role trust policy is correct for OIDC
+3. Verify the role trust policy includes `repo:OsomePteLtd/*`
 
 ### Deployment stuck in pending
 
