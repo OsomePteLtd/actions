@@ -79,25 +79,18 @@ The calling repository must have access to these secrets:
 
 The action assumes the following AWS resources exist in account `664258603548` (us-east-1):
 
-### SSM Parameters (SecureString)
+### SSM Parameters
 
-| Parameter | Description |
-|-----------|-------------|
-| `/smoke/agent/email` | Admin user email used by the Playwright fixture |
-| `/smoke/agent/password` | Admin user password (KMS-encrypted) |
+- `/smoke/agent/email` (String) — admin user email used by the Playwright fixture
+- `/smoke/agent/password` (SecureString) — admin user password (KMS-encrypted)
 
 Anyone with AWS console access can rotate these via Parameter Store.
 
-### IAM Role: `allure-uploader`
+### IAM Role: `github-deployer-nokms` (already exists)
 
-The role's policy must include:
+Smoke-run uses the existing org-standard role (`arn:aws:iam::664258603548:role/github-deployer-nokms`) — same role used by every OSOME service's `default.yml` and `deploy.yml` for GitHub Actions → AWS auth. The role's trust policy is `repo:OsomePteLtd/*`, so any OSOME repo can assume it via OIDC; new smoke-onboarded services need **zero** infra changes.
 
-| Permission | Resource | Purpose |
-|------------|----------|---------|
-| `s3:PutObject`, `s3:PutObjectTagging`, `s3:DeleteObject` | `arn:aws:s3:::osome-allure-reports/smoke/*` | Allure report publishing |
-| `ssm:GetParameter` | `arn:aws:ssm:us-east-1:664258603548:parameter/smoke/agent/*` | Credential fetch |
-
-Trust policy: GitHub OIDC subject `repo:OsomePteLtd/*:environment:smoke` is the recommended pattern; current pilot scope is `repo:OsomePteLtd/billy` while we shake the action down.
+The role's policy already grants `ssm:Get*` and `s3:*`, which covers everything smoke-run needs (SSM fetch + Allure upload).
 
 ## AWS Configuration
 
@@ -108,7 +101,7 @@ permissions:
   id-token: write
 ```
 
-The action assumes the role `arn:aws:iam::664258603548:role/allure-uploader` to upload reports to S3.
+The action assumes the role `arn:aws:iam::664258603548:role/github-deployer-nokms` — the org-standard role for GitHub Actions → AWS auth.
 
 ## Concurrency and Queueing
 
@@ -163,9 +156,9 @@ If a workflow is cancelled mid-run, the lock may not be released.
 **Symptoms:** `An error occurred (AccessDenied) when calling the PutObject operation`
 
 **Resolution:**
-1. Verify the `allure-uploader` role has `s3:PutObject` on `osome-allure-reports` bucket
+1. Verify the `github-deployer-nokms` role has `s3:PutObject` on `osome-allure-reports` bucket
 2. Check bucket policy allows the role
-3. Verify the role trust policy is correct for OIDC
+3. Verify the role trust policy includes `repo:OsomePteLtd/*`
 
 ### Deployment stuck in pending
 

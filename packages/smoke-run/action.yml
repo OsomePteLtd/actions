@@ -239,7 +239,7 @@ runs:
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
       with:
-        role-to-assume: arn:aws:iam::664258603548:role/allure-uploader
+        role-to-assume: arn:aws:iam::664258603548:role/github-deployer-nokms
         aws-region: us-east-1
 
     # Step 7: Fetch smoke credentials from SSM
