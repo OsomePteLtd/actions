@@ -20,9 +20,6 @@ inputs:
   github-token:
     description: 'Caller repository token for Deployments API and PR comments'
     required: true
-  secrets-json:
-    description: 'JSON object of secrets; SMOKE_* keys exported to Playwright'
-    required: true
   tags:
     description: 'Test tags exported as TEST_TAGS env var'
     required: false
@@ -238,7 +235,31 @@ runs:
       working-directory: e2e
       run: pnpm exec playwright install --with-deps chromium
 
-    # Step 6: Run smoke tests
+    # Step 6: Configure AWS credentials (for SSM fetch + S3 publish)
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+      with:
+        role-to-assume: arn:aws:iam::664258603548:role/allure-uploader
+        aws-region: us-east-1
+
+    # Step 7: Fetch smoke credentials from SSM
+    - name: Fetch smoke credentials from SSM
+      shell: bash
+      run: |
+        set -euo pipefail
+        EMAIL=$(aws ssm get-parameter \
+          --name /smoke/agent/email \
+          --with-decryption \
+          --query 'Parameter.Value' --output text)
+        PASS=$(aws ssm get-parameter \
+          --name /smoke/agent/password \
+          --with-decryption \
+          --query 'Parameter.Value' --output text)
+        echo "::add-mask::$PASS"
+        echo "SMOKE_AGENT_EMAIL=$EMAIL" >> "$GITHUB_ENV"
+        echo "SMOKE_AGENT_PASSWORD=$PASS" >> "$GITHUB_ENV"
+
+    # Step 8: Run smoke tests
     - name: Run smoke tests
       id: smoke
       shell: bash
@@ -248,35 +269,16 @@ runs:
         USE_ALLURE: 'true'
         TEST_TAGS: ${{ inputs.tags }}
         CI: 'true'
-        SECRETS_JSON: ${{ inputs.secrets-json }}
       run: |
         set +e
-
-        # Export SMOKE_* secrets to a tmp file with export prefixes
-        # Note: $GITHUB_ENV is only processed AFTER the step ends, so we use a tmp file
-        SMOKE_ENV_FILE=$(mktemp)
-        trap 'rm -f "$SMOKE_ENV_FILE"' EXIT
-
-        echo "$SECRETS_JSON" | jq -r '
-          to_entries[]
-          | select(.key | startswith("SMOKE_"))
-          | "export \(.key)=\(.value | @sh)"
-        ' > "$SMOKE_ENV_FILE"
-
-        # shellcheck disable=SC1090
-        source "$SMOKE_ENV_FILE"
-
         echo "Running smoke tests against ${TEST_ENV}..."
         pnpm exec playwright test --project=smoke
         EXIT_CODE=$?
-
         echo "exit=${EXIT_CODE}" >> "$GITHUB_OUTPUT"
         echo "Playwright exited with code: $EXIT_CODE"
-
-        # Always exit 0 here; we surface the real exit code in step 10
         exit 0
 
-    # Step 7: Generate Allure report and publish to S3
+    # Step 9: Generate Allure report and publish to S3
     - name: Generate Allure report
       if: always()
       shell: bash
@@ -287,13 +289,6 @@ runs:
         else
           echo "No allure-results found, skipping report generation"
         fi
-
-    - name: Configure AWS credentials
-      if: always()
-      uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
-      with:
-        role-to-assume: arn:aws:iam::664258603548:role/allure-uploader
-        aws-region: us-east-1
 
     - name: Publish Allure report to S3
       if: always()
@@ -328,7 +323,7 @@ runs:
 
         echo "Report published to: https://allure.osome.club/smoke/${SERVICE}/PR-${PR_NUM}/"
 
-    # Step 8: Comment on PR with results
+    # Step 10: Comment on PR with results
     - name: Comment on PR
       if: always() && github.event.pull_request.number
       uses: actions/github-script@v7
@@ -409,7 +404,7 @@ runs:
             });
           }
 
-    # Step 9: Release lock (always runs)
+    # Step 11: Release lock (always runs)
     - name: Release environment lock
       if: always()
       shell: bash
@@ -432,7 +427,7 @@ runs:
 
         echo "Lock released for ${CLAIMED_ENV}"
 
-    # Step 10: Surface Playwright exit code
+    # Step 12: Surface Playwright exit code
     - name: Check smoke test result
       shell: bash
       env:
