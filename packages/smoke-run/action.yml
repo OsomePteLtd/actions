@@ -164,13 +164,11 @@ runs:
         echo "Creating deployment for ${GITHUB_REPO}@${GITHUB_SHA_REF} to ${CLAIMED_ENV}"
 
         # Create deployment
-        DEPLOY_RESPONSE=$(gh api \
-          -X POST \
-          "/repos/${GITHUB_REPO}/deployments" \
-          -f environment="${CLAIMED_ENV}" \
-          -f ref="${GITHUB_SHA_REF}" \
-          -F auto_merge=false \
-          -f required_contexts='[]')
+        DEPLOY_RESPONSE=$(jq -nc \
+          --arg env "${CLAIMED_ENV}" \
+          --arg ref "${GITHUB_SHA_REF}" \
+          '{ref: $ref, environment: $env, auto_merge: false, required_contexts: []}' \
+          | gh api -X POST "/repos/${GITHUB_REPO}/deployments" --input -)
 
         DEPLOY_ID=$(echo "$DEPLOY_RESPONSE" | jq -r '.id')
         echo "Created deployment ID: $DEPLOY_ID"
