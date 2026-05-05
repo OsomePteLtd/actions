@@ -1,0 +1,20 @@
+name: 'Jest coverage'
+description: 'Checking coverage against jest thresholds'
+inputs:
+  coverage-directory:
+    description: 'Directory with jest coverage reports'
+    required: true
+  coverage-file-pattern:
+    description: 'pattern for jest coverage reports'
+    default: '\d+\.json'
+    required: false
+  summary-destination:
+    description: 'Destination with summary of coverage'
+    required: true
+  jest-config-path:
+    description: 'Path to jest config file'
+    default: './jest.config.js'
+    required: false
+runs:
+  using: 'node16'
+  main: './dist/index.js'

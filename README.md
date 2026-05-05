@@ -1,5 +1,7 @@
 ## Osome GitHub Actions
 
+[![slack](https://img.shields.io/badge/slack-platform-brightgreen.svg?logo=slack)](https://ooosome.slack.com/archives/CEK7WGGB0)
+
 This repository provides a set of GitHub Actions to make common tasks easier.
 
 ## Packages

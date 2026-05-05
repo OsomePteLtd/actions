@@ -1,0 +1,82 @@
+# action.yml
+name: 'E2E Websome'
+description: 'E2E for Websome'
+
+inputs:
+  token:
+    required: true
+    description: 'Github Token'
+  envName:
+    required: true
+    description: 'Current environment'
+  qaseAuthToken:
+    required: true
+    description: 'Qase auth token'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Load websome
+      uses: actions/checkout@v3
+      with:
+        repository: 'OsomePteLtd/websome'
+        token: ${{ inputs.token }}
+        fetch-depth: 0
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        check-latest: true
+        node-version-file: .nvmrc
+
+    - name: Install dependencies
+      run: |
+        echo "//npm.pkg.github.com/:_authToken=${{ inputs.token }}" >> ~/.npmrc
+        npm ci
+      shell: bash
+
+    - name: Print Playwright version
+      shell: bash
+      run: |
+        echo PW_VERSION=$(node -p "require('@playwright/test/package.json').version") >> $GITHUB_ENV
+
+    - name: Restore cache
+      uses: actions/cache@v3
+      id: pw-cache
+      with:
+        path: '/home/ubuntu/.cache/ms-playwright/**'
+        key: ${{ runner.os }}-pw-cache-chromium-${{ env.PW_VERSION }}
+
+    - name: Install Playwright
+      if: steps.pw-cache.outputs.cache-hit != 'true'
+      run: npm run pw:install-browsers
+      shell: bash
+
+    - name: Set Qase env variables
+      shell: bash
+      run: |
+        TIMESTAMP=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+        echo "QASE_AUTH_TOKEN=${{ inputs.qaseAuthToken }}" >> $GITHUB_ENV
+        echo "QASE_RUN_NAME=E2E tests run ${{ github.run_id }} $TIMESTAMP" >> $GITHUB_ENV
+        echo "QASE_RUN_DESCRIPTION=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_ENV
+
+    - name: Print stages
+      run: |
+        export ENVIRONMENT=${{ inputs.envName }}
+        export CIRCUIT_NAME=$(echo ${ENVIRONMENT##*:})
+        echo $CIRCUIT_NAME
+        echo "PLAYWRIGHT_WL_BASE_URL=https://"$CIRCUIT_NAME"-juliatest.corpagent.info" >> $GITHUB_ENV
+        echo "PLAYWRIGHT_BASE_URL=https://"$CIRCUIT_NAME".my.osome.club" >> $GITHUB_ENV
+        echo "PLAYWRIGHT_API_URL="https://"$CIRCUIT_NAME".my.osome.club"" >> $GITHUB_ENV
+      shell: bash
+
+    - name: Run Playwright tests
+      run: npm run test:e2e:stable
+      shell: bash
+
+    - uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: playwright-e2e-report
+        path: |
+          test-results/

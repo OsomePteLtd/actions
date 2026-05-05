@@ -1,0 +1,18 @@
+# action.yml
+name: 'Check iam wildcards'
+description: 'Checks wildcards in Resources field for iamRoleStatement'
+
+inputs:
+  project_name:
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check Iam wildcards
+      run: |
+        export PROJECT=${{ inputs.project_name }}
+        echo $PROJECT
+        cp $GITHUB_ACTION_PATH/checkAsterisks.ts ./checkAsterisks.ts
+        npx ts-node checkAsterisks.ts 
+      shell: bash
