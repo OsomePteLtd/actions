@@ -15,10 +15,7 @@ inputs:
     required: false
     default: 'OsomePteLtd/e2e-testing'
   osome-bot-token:
-    description: 'Token with contents:write on lock-repo'
-    required: true
-  github-token:
-    description: 'Caller repository token for Deployments API and PR comments'
+    description: 'PAT with contents:write on lock-repo AND deployments:write + pull-requests:write on the caller repo. Must NOT be the workflow GITHUB_TOKEN — deployments created with GITHUB_TOKEN do not trigger downstream on:deployment workflows.'
     required: true
   tags:
     description: 'Test tags exported as TEST_TAGS env var'
@@ -155,7 +152,7 @@ runs:
       id: deploy
       shell: bash
       env:
-        GH_TOKEN: ${{ inputs.github-token }}
+        GH_TOKEN: ${{ inputs.osome-bot-token }}
         GITHUB_REPO: ${{ github.repository }}
         GITHUB_SHA_REF: ${{ github.sha }}
       run: |
@@ -330,7 +327,7 @@ runs:
         PR_ENV: ${{ steps.claim.outputs.env }}
         EXIT_CODE: ${{ steps.smoke.outputs.exit }}
       with:
-        github-token: ${{ inputs.github-token }}
+        github-token: ${{ inputs.osome-bot-token }}
         script: |
           const fs = require('fs');
           const path = require('path');

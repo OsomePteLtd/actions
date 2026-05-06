@@ -43,7 +43,6 @@ jobs:
         with:
           service: ${{ github.event.repository.name }}
           osome-bot-token: ${{ secrets.OSOME_BOT_TOKEN }}
-          github-token: ${{ github.token }}
           tags: '@smoke @core'
 ```
 
@@ -54,8 +53,7 @@ jobs:
 | `service` | Yes | - | Caller repository name (e.g., `billy`, `pablo`) |
 | `pool` | No | `test-3` | Comma-separated environment candidates |
 | `lock-repo` | No | `OsomePteLtd/e2e-testing` | Repository hosting lock branches |
-| `osome-bot-token` | Yes | - | Token with `contents:write` on lock-repo |
-| `github-token` | Yes | - | Caller's `${{ github.token }}` for Deployments API |
+| `osome-bot-token` | Yes | - | **Must be a PAT** (e.g., `${{ secrets.OSOME_BOT_TOKEN }}`) with `contents:write` on lock-repo AND `deployments:write` + `pull-requests:write` on the caller repo. Do NOT pass `${{ secrets.GITHUB_TOKEN }}` — deployments created with `GITHUB_TOKEN` are silently ignored by GitHub and will never trigger `deploy.yml`. |
 | `tags` | No | `''` | Test tags exported as `TEST_TAGS` env var |
 | `retry-interval-seconds` | No | `45` | Seconds between lock acquisition retries |
 | `retry-timeout-seconds` | No | `900` | Total seconds to wait for lock |
@@ -162,12 +160,18 @@ If a workflow is cancelled mid-run, the lock may not be released.
 
 ### Deployment stuck in pending
 
-**Symptoms:** Smoke run times out waiting for deployment
+**Symptoms:** Smoke run logs `Deployment status: pending` repeatedly, then fails with `Deployment timed out after 600s`. The deployment object in GitHub's Deployments API shows state `queued` permanently.
 
-**Resolution:**
-1. Check the service's Deploy workflow for errors
-2. Verify the service supports `on: deployment:` trigger
-3. Check if another deployment is blocking
+**Most common cause — `osome-bot-token` is the workflow `GITHUB_TOKEN` instead of a PAT.**
+
+GitHub silently drops `deployment` events created with the auto-generated `GITHUB_TOKEN`. The consumer's `deploy.yml` never receives the event, never runs, and never posts a status update. Smoke-run polls for 10 minutes and times out.
+
+**Fix:** Pass `${{ secrets.OSOME_BOT_TOKEN }}` (a PAT) for `osome-bot-token`, not `${{ github.token }}` or `${{ secrets.GITHUB_TOKEN }}`. Note that with `GITHUB_TOKEN` the action will actually fail much earlier at the lock-claim step (HTTP 403 against the e2e-testing repo), so this exact symptom only arises if a PAT lacks `deployments:write` on the caller repo.
+
+**Other possible causes (once token is confirmed correct):**
+1. The service's `deploy.yml` doesn't handle the environment name smoke-run claimed (e.g., `test-3`). Verify `on: deployment:` triggers a job that processes `test-N` envs.
+2. `deploy.yml` runs but errors before posting a status — check Deploy workflow logs for the PR's SHA.
+3. Self-hosted runners are exhausted — check runner pool availability in the org's Actions settings.
 
 ## S3 Report Structure
 
