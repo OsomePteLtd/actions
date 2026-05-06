@@ -122,7 +122,7 @@ runs:
         RUN_ID: ${{ github.run_id }}
         GITHUB_REPO: ${{ github.repository }}
         PR_NUM: ${{ github.event.pull_request.number }}
-        GITHUB_SHA_REF: ${{ github.sha }}
+        GITHUB_SHA_REF: ${{ github.event.pull_request.head.sha || github.sha }}
       run: |
         set -euo pipefail
 
@@ -154,7 +154,13 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.osome-bot-token }}
         GITHUB_REPO: ${{ github.repository }}
-        GITHUB_SHA_REF: ${{ github.sha }}
+        # Use the PR head SHA on pull_request events (a real commit reachable
+        # from the source branch). github.sha alone resolves to the synthetic
+        # merge commit (refs/pull/N/merge), which is unreachable from any
+        # branch — GitHub silently drops `on: deployment` events for
+        # unreachable refs, so deploy.yml never fires. Falls back to
+        # github.sha on push / workflow_dispatch / schedule triggers.
+        GITHUB_SHA_REF: ${{ github.event.pull_request.head.sha || github.sha }}
       run: |
         set -euo pipefail
 
