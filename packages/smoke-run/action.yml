@@ -15,10 +15,7 @@ inputs:
     required: false
     default: 'OsomePteLtd/e2e-testing'
   osome-bot-token:
-    description: 'Token with contents:write on lock-repo'
-    required: true
-  github-token:
-    description: 'Caller repository token for Deployments API and PR comments'
+    description: 'PAT with contents:write on lock-repo AND deployments:write + pull-requests:write on the caller repo. Must NOT be the workflow GITHUB_TOKEN — deployments created with GITHUB_TOKEN do not trigger downstream on:deployment workflows.'
     required: true
   tags:
     description: 'Test tags exported as TEST_TAGS env var'
@@ -125,7 +122,7 @@ runs:
         RUN_ID: ${{ github.run_id }}
         GITHUB_REPO: ${{ github.repository }}
         PR_NUM: ${{ github.event.pull_request.number }}
-        GITHUB_SHA_REF: ${{ github.sha }}
+        GITHUB_SHA_REF: ${{ github.event.pull_request.head.sha || github.sha }}
       run: |
         set -euo pipefail
 
@@ -155,9 +152,15 @@ runs:
       id: deploy
       shell: bash
       env:
-        GH_TOKEN: ${{ inputs.github-token }}
+        GH_TOKEN: ${{ inputs.osome-bot-token }}
         GITHUB_REPO: ${{ github.repository }}
-        GITHUB_SHA_REF: ${{ github.sha }}
+        # Use the PR head SHA on pull_request events (a real commit reachable
+        # from the source branch). github.sha alone resolves to the synthetic
+        # merge commit (refs/pull/N/merge), which is unreachable from any
+        # branch — GitHub silently drops `on: deployment` events for
+        # unreachable refs, so deploy.yml never fires. Falls back to
+        # github.sha on push / workflow_dispatch / schedule triggers.
+        GITHUB_SHA_REF: ${{ github.event.pull_request.head.sha || github.sha }}
       run: |
         set -euo pipefail
 
@@ -304,10 +307,32 @@ runs:
         echo "Publishing Allure report for ${SERVICE} PR-${PR_NUM}..."
 
         # Upload PR-specific report
-        aws s3 sync ./allure-report "s3://osome-allure-reports/smoke/${SERVICE}/PR-${PR_NUM}/" \
+        PREFIX="smoke/${SERVICE}/PR-${PR_NUM}"
+
+        # Sync report tree (--tagging is not supported on s3 sync by the AWS CLI
+        # version installed on the ARC runner; apply tags separately via s3api below)
+        aws s3 sync ./allure-report "s3://osome-allure-reports/${PREFIX}/" \
           --delete \
-          --metadata-directive REPLACE \
-          --tagging "lifecycle=ephemeral"
+          --metadata-directive REPLACE
+
+        # Apply lifecycle=ephemeral tag to every uploaded object via s3api.
+        # s3api put-object-tagging is supported on all AWS CLI versions that
+        # include s3api (i.e. all of them), so this avoids the version constraint.
+        # list-objects-v2 auto-paginates and returns tab-separated keys per page;
+        # tr converts tabs to newlines so the while-loop processes one key at a time.
+        aws s3api list-objects-v2 \
+          --bucket osome-allure-reports \
+          --prefix "${PREFIX}/" \
+          --query 'Contents[].Key' \
+          --output text \
+          | tr '\t' '\n' \
+          | while IFS= read -r key; do
+              [ -z "$key" ] && continue
+              aws s3api put-object-tagging \
+                --bucket osome-allure-reports \
+                --key "$key" \
+                --tagging 'TagSet=[{Key=lifecycle,Value=ephemeral}]'
+            done
 
         # Update latest report
         aws s3 sync ./allure-report "s3://osome-allure-reports/smoke/${SERVICE}/latest/" \
@@ -330,7 +355,7 @@ runs:
         PR_ENV: ${{ steps.claim.outputs.env }}
         EXIT_CODE: ${{ steps.smoke.outputs.exit }}
       with:
-        github-token: ${{ inputs.github-token }}
+        github-token: ${{ inputs.osome-bot-token }}
         script: |
           const fs = require('fs');
           const path = require('path');
