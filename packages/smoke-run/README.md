@@ -169,9 +169,15 @@ GitHub silently drops `deployment` events created with the auto-generated `GITHU
 **Fix:** Pass `${{ secrets.OSOME_BOT_TOKEN }}` (a PAT) for `osome-bot-token`, not `${{ github.token }}` or `${{ secrets.GITHUB_TOKEN }}`. Note that with `GITHUB_TOKEN` the action will actually fail much earlier at the lock-claim step (HTTP 403 against the e2e-testing repo), so this exact symptom only arises if a PAT lacks `deployments:write` on the caller repo.
 
 **Other possible causes (once token is confirmed correct):**
-1. The service's `deploy.yml` doesn't handle the environment name smoke-run claimed (e.g., `test-3`). Verify `on: deployment:` triggers a job that processes `test-N` envs.
-2. `deploy.yml` runs but errors before posting a status — check Deploy workflow logs for the PR's SHA.
-3. Self-hosted runners are exhausted — check runner pool availability in the org's Actions settings.
+1. **Deployment ref is an unreachable merge SHA.** On `pull_request` events, `github.sha` resolves to the synthetic merge commit (`refs/pull/N/merge`), which is not reachable from any branch or tag. GitHub silently drops `on: deployment` events whose ref is unreachable, so `deploy.yml` never fires. Smoke-run uses `github.event.pull_request.head.sha || github.sha` to avoid this, but if you are wiring up a new service and pass `github.sha` directly to the Deployments API, you will hit this. Confirm with:
+   ```bash
+   gh api /repos/ORG/REPO/commits/<deployment-ref> --jq '{parents_count: (.parents | length), message: .commit.message}'
+   # If parents_count == 2 and message starts with "Merge ...", the ref is a merge SHA.
+   ```
+   Fix: pass `${{ github.event.pull_request.head.sha || github.sha }}` as the deployment `ref`.
+2. The service's `deploy.yml` doesn't handle the environment name smoke-run claimed (e.g., `test-3`). Verify `on: deployment:` triggers a job that processes `test-N` envs.
+3. `deploy.yml` runs but errors before posting a status — check Deploy workflow logs for the PR's SHA.
+4. Self-hosted runners are exhausted — check runner pool availability in the org's Actions settings.
 
 ## S3 Report Structure
 
