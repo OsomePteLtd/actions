@@ -307,10 +307,32 @@ runs:
         echo "Publishing Allure report for ${SERVICE} PR-${PR_NUM}..."
 
         # Upload PR-specific report
-        aws s3 sync ./allure-report "s3://osome-allure-reports/smoke/${SERVICE}/PR-${PR_NUM}/" \
+        PREFIX="smoke/${SERVICE}/PR-${PR_NUM}"
+
+        # Sync report tree (--tagging is not supported on s3 sync by the AWS CLI
+        # version installed on the ARC runner; apply tags separately via s3api below)
+        aws s3 sync ./allure-report "s3://osome-allure-reports/${PREFIX}/" \
           --delete \
-          --metadata-directive REPLACE \
-          --tagging "lifecycle=ephemeral"
+          --metadata-directive REPLACE
+
+        # Apply lifecycle=ephemeral tag to every uploaded object via s3api.
+        # s3api put-object-tagging is supported on all AWS CLI versions that
+        # include s3api (i.e. all of them), so this avoids the version constraint.
+        # list-objects-v2 auto-paginates and returns tab-separated keys per page;
+        # tr converts tabs to newlines so the while-loop processes one key at a time.
+        aws s3api list-objects-v2 \
+          --bucket osome-allure-reports \
+          --prefix "${PREFIX}/" \
+          --query 'Contents[].Key' \
+          --output text \
+          | tr '\t' '\n' \
+          | while IFS= read -r key; do
+              [ -z "$key" ] && continue
+              aws s3api put-object-tagging \
+                --bucket osome-allure-reports \
+                --key "$key" \
+                --tagging 'TagSet=[{Key=lifecycle,Value=ephemeral}]'
+            done
 
         # Update latest report
         aws s3 sync ./allure-report "s3://osome-allure-reports/smoke/${SERVICE}/latest/" \
