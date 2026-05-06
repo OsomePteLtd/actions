@@ -58,6 +58,7 @@ runs:
           '@osome/client-ui-kit'
           '@osome/server-toolkit'
           '@osome/ui-kit'
+          '@osomepteltd/belka'
           '@osomepteltd/accounting-aggregations'
           '@osomepteltd/accounting-mapping'
           '@osomepteltd/accounting-number'
@@ -71,8 +72,8 @@ runs:
           '@osomepteltd/structure-lint'
           '@osomepteltd/websome-kit'
           )
-        dependencies=$(jq -r '.dependencies | keys[]' package.json | grep '@osome')
-        devDependencies=$(jq -r '.devDependencies | keys[]' package.json | grep '@osome')
+        dependencies=$(jq -r '(.dependencies // {}) | keys[]' package.json | grep '@osome' || true)
+        devDependencies=$(jq -r '(.devDependencies // {}) | keys[]' package.json | grep '@osome' || true)
         updatedPackages=()
         for i in ${dependencies}; do
           if [[ " ${packages[*]} " =~ " ${i} " ]]; then
