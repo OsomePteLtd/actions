@@ -1,0 +1,469 @@
+# action.yml
+name: 'Smoke Run'
+description: 'Claim a test env, deploy caller PR, run smoke tests, publish Allure report, release lock'
+
+inputs:
+  service:
+    description: 'Caller repo name (e.g., billy, pablo)'
+    required: true
+  pool:
+    description: 'Comma-separated environment pool (e.g., test-3,test-4)'
+    required: false
+    default: 'test-3'
+  lock-repo:
+    description: 'Repository for environment locks'
+    required: false
+    default: 'OsomePteLtd/e2e-testing'
+  osome-bot-token:
+    description: 'PAT with contents:write on lock-repo AND deployments:write + pull-requests:write on the caller repo. Must NOT be the workflow GITHUB_TOKEN — deployments created with GITHUB_TOKEN do not trigger downstream on:deployment workflows.'
+    required: true
+  tags:
+    description: 'Test tags exported as TEST_TAGS env var'
+    required: false
+    default: ''
+  retry-interval-seconds:
+    description: 'Seconds between lock acquisition retries'
+    required: false
+    default: '45'
+  retry-timeout-seconds:
+    description: 'Total seconds to wait for lock acquisition'
+    required: false
+    default: '900'
+
+outputs:
+  claimed-env:
+    description: 'Environment that was claimed'
+    value: ${{ steps.claim.outputs.env }}
+  smoke-exit-code:
+    description: 'Playwright exit code'
+    value: ${{ steps.smoke.outputs.exit }}
+
+runs:
+  using: 'composite'
+  steps:
+    # Step 1: Claim environment from pool via atomic git push
+    - name: Claim environment
+      id: claim
+      shell: bash
+      env:
+        OSOME_BOT_TOKEN: ${{ inputs.osome-bot-token }}
+        LOCK_REPO: ${{ inputs.lock-repo }}
+        POOL: ${{ inputs.pool }}
+        RETRY_INTERVAL: ${{ inputs.retry-interval-seconds }}
+        RETRY_TIMEOUT: ${{ inputs.retry-timeout-seconds }}
+      run: |
+        set -euo pipefail
+
+        IFS=',' read -ra ENVS <<< "$POOL"
+        START_TIME=$(date +%s)
+        CLAIMED_ENV=""
+
+        # Fetch lock-repo's main HEAD SHA once (caller's git rev-parse HEAD won't exist in lock-repo)
+        LOCK_REPO_HEAD_SHA=$(curl -s \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer ${OSOME_BOT_TOKEN}" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          "https://api.github.com/repos/${LOCK_REPO}/git/refs/heads/main" | jq -r '.object.sha')
+
+        if [ -z "$LOCK_REPO_HEAD_SHA" ] || [ "$LOCK_REPO_HEAD_SHA" = "null" ]; then
+          echo "::error::Failed to fetch ${LOCK_REPO} main HEAD SHA"
+          exit 1
+        fi
+
+        echo "Using lock-repo HEAD SHA: ${LOCK_REPO_HEAD_SHA}"
+        echo "Attempting to claim environment from pool: ${ENVS[*]}"
+
+        while true; do
+          for ENV in "${ENVS[@]}"; do
+            LOCK_BRANCH="lock-${ENV}"
+            echo "Trying to claim $ENV..."
+
+            # Attempt atomic creation of orphan lock branch
+            # 422 = branch exists (already locked), which is expected
+            HTTP_CODE=$(curl -s -o /tmp/lock-response.json -w "%{http_code}" \
+              -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${OSOME_BOT_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${LOCK_REPO}/git/refs" \
+              -d "{\"ref\":\"refs/heads/${LOCK_BRANCH}\",\"sha\":\"${LOCK_REPO_HEAD_SHA}\"}")
+
+            if [ "$HTTP_CODE" = "201" ]; then
+              echo "Successfully claimed $ENV"
+              CLAIMED_ENV="$ENV"
+              break 2
+            elif [ "$HTTP_CODE" = "422" ]; then
+              echo "Environment $ENV is locked, trying next..."
+            else
+              echo "Unexpected response ($HTTP_CODE) for $ENV:"
+              cat /tmp/lock-response.json
+            fi
+          done
+
+          ELAPSED=$(($(date +%s) - START_TIME))
+          if [ "$ELAPSED" -ge "$RETRY_TIMEOUT" ]; then
+            echo "::error::Timeout waiting for environment after ${RETRY_TIMEOUT}s"
+            exit 1
+          fi
+
+          echo "All environments locked. Retrying in ${RETRY_INTERVAL}s... (${ELAPSED}s elapsed)"
+          sleep "$RETRY_INTERVAL"
+        done
+
+        echo "env=${CLAIMED_ENV}" >> "$GITHUB_OUTPUT"
+        echo "CLAIMED_ENV=${CLAIMED_ENV}" >> "$GITHUB_ENV"
+
+    # Step 2: Write owner.json to lock branch
+    - name: Write owner.json
+      shell: bash
+      env:
+        OSOME_BOT_TOKEN: ${{ inputs.osome-bot-token }}
+        LOCK_REPO: ${{ inputs.lock-repo }}
+        RUN_ID: ${{ github.run_id }}
+        GITHUB_REPO: ${{ github.repository }}
+        PR_NUM: ${{ github.event.pull_request.number }}
+        GITHUB_SHA_REF: ${{ github.event.pull_request.head.sha || github.sha }}
+      run: |
+        set -euo pipefail
+
+        LOCK_BRANCH="lock-${CLAIMED_ENV}"
+        OWNER_JSON=$(jq -n \
+          --arg run_id "$RUN_ID" \
+          --arg repo "$GITHUB_REPO" \
+          --arg pr "$PR_NUM" \
+          --arg sha "$GITHUB_SHA_REF" \
+          --arg claimed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          '{run_id: $run_id, repo: $repo, pr: $pr, sha: $sha, claimed_at: $claimed_at}')
+
+        # Base64 encode the content
+        CONTENT_B64=$(echo "$OWNER_JSON" | base64 -w 0 2>/dev/null || echo "$OWNER_JSON" | base64)
+
+        # Create or update owner.json on the lock branch
+        curl -s -X PUT \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer ${OSOME_BOT_TOKEN}" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          "https://api.github.com/repos/${LOCK_REPO}/contents/owner.json" \
+          -d "{\"message\":\"Update lock owner\",\"content\":\"${CONTENT_B64}\",\"branch\":\"${LOCK_BRANCH}\"}" \
+          || echo "Note: owner.json update is best-effort"
+
+    # Step 3: Deploy caller PR to claimed environment via Deployments API
+    - name: Deploy to test environment
+      id: deploy
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.osome-bot-token }}
+        GITHUB_REPO: ${{ github.repository }}
+        # Use the PR head SHA on pull_request events (a real commit reachable
+        # from the source branch). github.sha alone resolves to the synthetic
+        # merge commit (refs/pull/N/merge), which is unreachable from any
+        # branch — GitHub silently drops `on: deployment` events for
+        # unreachable refs, so deploy.yml never fires. Falls back to
+        # github.sha on push / workflow_dispatch / schedule triggers.
+        GITHUB_SHA_REF: ${{ github.event.pull_request.head.sha || github.sha }}
+      run: |
+        set -euo pipefail
+
+        echo "Creating deployment for ${GITHUB_REPO}@${GITHUB_SHA_REF} to ${CLAIMED_ENV}"
+
+        # Create deployment
+        DEPLOY_RESPONSE=$(jq -nc \
+          --arg env "${CLAIMED_ENV}" \
+          --arg ref "${GITHUB_SHA_REF}" \
+          '{ref: $ref, environment: $env, auto_merge: false, required_contexts: []}' \
+          | gh api -X POST "/repos/${GITHUB_REPO}/deployments" --input -)
+
+        DEPLOY_ID=$(echo "$DEPLOY_RESPONSE" | jq -r '.id')
+        echo "Created deployment ID: $DEPLOY_ID"
+        echo "deploy_id=${DEPLOY_ID}" >> "$GITHUB_OUTPUT"
+
+        # Poll for deployment status
+        echo "Waiting for deployment to complete..."
+        MAX_WAIT=600
+        POLL_INTERVAL=15
+        ELAPSED=0
+
+        while [ "$ELAPSED" -lt "$MAX_WAIT" ]; do
+          sleep "$POLL_INTERVAL"
+          ELAPSED=$((ELAPSED + POLL_INTERVAL))
+
+          STATUS_RESPONSE=$(gh api "/repos/${GITHUB_REPO}/deployments/${DEPLOY_ID}/statuses" --jq '.[0].state // "pending"')
+          echo "Deployment status: $STATUS_RESPONSE (${ELAPSED}s elapsed)"
+
+          case "$STATUS_RESPONSE" in
+            success)
+              echo "Deployment succeeded"
+              exit 0
+              ;;
+            failure|error)
+              echo "::error::Deployment failed with status: $STATUS_RESPONSE"
+              exit 1
+              ;;
+          esac
+        done
+
+        echo "::error::Deployment timed out after ${MAX_WAIT}s"
+        exit 1
+
+    # Step 4: Checkout e2e-testing repository
+    - name: Checkout e2e-testing
+      uses: actions/checkout@v4
+      with:
+        repository: OsomePteLtd/e2e-testing
+        token: ${{ inputs.osome-bot-token }}
+        path: e2e
+
+    # Step 5: Install dependencies
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        package_json_file: e2e/package.json
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: e2e/.nvmrc
+        cache: 'pnpm'
+        cache-dependency-path: e2e/pnpm-lock.yaml
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: e2e
+      run: pnpm install --frozen-lockfile
+
+    - name: Install Playwright browsers
+      shell: bash
+      working-directory: e2e
+      run: pnpm exec playwright install --with-deps chromium
+
+    # Step 6: Configure AWS credentials (for SSM fetch + S3 publish)
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+      with:
+        role-to-assume: arn:aws:iam::664258603548:role/github-deployer-nokms
+        aws-region: us-east-1
+
+    # Step 7: Fetch smoke credentials from SSM
+    - name: Fetch smoke credentials from SSM
+      shell: bash
+      run: |
+        set -euo pipefail
+        EMAIL=$(aws ssm get-parameter \
+          --name /smoke/agent/email \
+          --with-decryption \
+          --query 'Parameter.Value' --output text)
+        PASS=$(aws ssm get-parameter \
+          --name /smoke/agent/password \
+          --with-decryption \
+          --query 'Parameter.Value' --output text)
+        echo "::add-mask::$PASS"
+        echo "SMOKE_AGENT_EMAIL=$EMAIL" >> "$GITHUB_ENV"
+        echo "SMOKE_AGENT_PASSWORD=$PASS" >> "$GITHUB_ENV"
+
+    # Step 8: Run smoke tests
+    - name: Run smoke tests
+      id: smoke
+      shell: bash
+      working-directory: e2e
+      env:
+        TEST_ENV: ${{ steps.claim.outputs.env }}
+        USE_ALLURE: 'true'
+        TEST_TAGS: ${{ inputs.tags }}
+        CI: 'true'
+      run: |
+        set +e
+        echo "Running smoke tests against ${TEST_ENV}..."
+        pnpm exec playwright test --project=smoke
+        EXIT_CODE=$?
+        echo "exit=${EXIT_CODE}" >> "$GITHUB_OUTPUT"
+        echo "Playwright exited with code: $EXIT_CODE"
+        exit 0
+
+    # Step 9: Release lock (always runs)
+    - name: Release environment lock
+      if: always()
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.osome-bot-token }}
+        LOCK_REPO: ${{ inputs.lock-repo }}
+      run: |
+        if [ -z "${CLAIMED_ENV:-}" ]; then
+          echo "No environment was claimed, nothing to release"
+          exit 0
+        fi
+
+        LOCK_BRANCH="lock-${CLAIMED_ENV}"
+        echo "Releasing lock on ${CLAIMED_ENV}..."
+
+        gh api \
+          -X DELETE \
+          "/repos/${LOCK_REPO}/git/refs/heads/${LOCK_BRANCH}" \
+          || echo "Lock branch may already be deleted"
+
+        echo "Lock released for ${CLAIMED_ENV}"
+
+    # Step 10: Generate Allure report and publish to S3
+    - name: Generate Allure report
+      if: always()
+      shell: bash
+      working-directory: e2e
+      run: |
+        if [ -d "allure-results" ]; then
+          pnpm exec allure generate ./allure-results --output allure-report
+        else
+          echo "No allure-results found, skipping report generation"
+        fi
+
+    - name: Publish Allure report to S3
+      if: always()
+      shell: bash
+      working-directory: e2e
+      env:
+        SERVICE: ${{ inputs.service }}
+        PR_NUM: ${{ github.event.pull_request.number }}
+      run: |
+        if [ ! -d "allure-report" ]; then
+          echo "No allure-report found, skipping S3 upload"
+          exit 0
+        fi
+
+        echo "Publishing Allure report for ${SERVICE} PR-${PR_NUM}..."
+
+        # Upload PR-specific report
+        PREFIX="smoke/${SERVICE}/PR-${PR_NUM}"
+
+        # Sync report tree (--tagging is not supported on s3 sync by the AWS CLI
+        # version installed on the ARC runner; apply tags separately via s3api below)
+        aws s3 sync ./allure-report "s3://osome-allure-reports/${PREFIX}/" \
+          --delete \
+          --metadata-directive REPLACE
+
+        # Apply lifecycle=ephemeral tag to every uploaded object via s3api.
+        # s3api put-object-tagging is supported on all AWS CLI versions that
+        # include s3api (i.e. all of them), so this avoids the version constraint.
+        # list-objects-v2 auto-paginates and returns tab-separated keys per page;
+        # tr converts tabs to newlines so the while-loop processes one key at a time.
+        aws s3api list-objects-v2 \
+          --bucket osome-allure-reports \
+          --prefix "${PREFIX}/" \
+          --query 'Contents[].Key' \
+          --output text \
+          | tr '\t' '\n' \
+          | while IFS= read -r key; do
+              [ -z "$key" ] && continue
+              aws s3api put-object-tagging \
+                --bucket osome-allure-reports \
+                --key "$key" \
+                --tagging 'TagSet=[{Key=lifecycle,Value=ephemeral}]'
+            done
+
+        # Update latest report
+        aws s3 sync ./allure-report "s3://osome-allure-reports/smoke/${SERVICE}/latest/" \
+          --delete
+
+        # Preserve history
+        if [ -f "./allure-report/history/history.jsonl" ]; then
+          aws s3 cp ./allure-report/history/history.jsonl \
+            "s3://osome-allure-reports/smoke/${SERVICE}/history.jsonl"
+        fi
+
+        echo "Report published to: https://allure.osome.club/smoke/${SERVICE}/PR-${PR_NUM}/"
+
+    # Step 11: Comment on PR with results
+    - name: Comment on PR
+      if: always() && github.event.pull_request.number
+      uses: actions/github-script@v7
+      env:
+        SERVICE: ${{ inputs.service }}
+        PR_ENV: ${{ steps.claim.outputs.env }}
+        EXIT_CODE: ${{ steps.smoke.outputs.exit }}
+      with:
+        github-token: ${{ inputs.osome-bot-token }}
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+
+          const service = process.env.SERVICE;
+          const prNum = context.payload.pull_request?.number;
+          const env = process.env.PR_ENV;
+          const exitCode = parseInt(process.env.EXIT_CODE || '1');
+
+          // Try to read results.json for detailed stats
+          let stats = { passed: 0, failed: 0, skipped: 0, duration: 0 };
+          try {
+            const resultsPath = path.join(process.cwd(), 'e2e', 'results.json');
+            if (fs.existsSync(resultsPath)) {
+              const results = JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
+              stats.passed = (results.stats?.expected ?? 0) + (results.stats?.flaky ?? 0);
+              stats.failed = results.stats?.unexpected ?? 0;
+              stats.skipped = results.stats?.skipped ?? 0;
+              stats.duration = Math.round((results.stats?.duration || 0) / 1000);
+            }
+          } catch (e) {
+            console.log('Could not parse results.json:', e.message);
+          }
+
+          const status = exitCode === 0 ? 'passed' : 'failed';
+          const statusEmoji = exitCode === 0 ? ':white_check_mark:' : ':x:';
+          const syncTime = new Date().toISOString().slice(11, 16);
+
+          const reportUrl = `https://allure.osome.club/smoke/${service}/PR-${prNum}/`;
+
+          const body = `<!-- smoke-run -->
+          ## Smoke Test Results ${statusEmoji}
+
+          | Metric | Value |
+          |--------|-------|
+          | Status | **${status}** |
+          | Passed | ${stats.passed} |
+          | Failed | ${stats.failed} |
+          | Skipped | ${stats.skipped} |
+          | Duration | ${stats.duration}s |
+          | Environment | ${env} |
+
+          **[View Allure Report](${reportUrl})**
+
+          > **Note:** ${env} syncs twice daily (02:00 + 12:00 SGT). Data may be up to 12h stale.
+          `.trim().replace(/^          /gm, '');
+
+          // Find existing comment
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: prNum,
+          });
+
+          const marker = '<!-- smoke-run -->';
+          const existing = comments.find(c => c.body?.includes(marker));
+
+          if (existing) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existing.id,
+              body,
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNum,
+              body,
+            });
+          }
+
+    # Step 12: Surface Playwright exit code
+    - name: Check smoke test result
+      shell: bash
+      env:
+        EXIT_CODE: ${{ steps.smoke.outputs.exit }}
+      run: |
+        if [ -z "$EXIT_CODE" ]; then
+          echo "::error::Smoke test step did not produce an exit code"
+          exit 1
+        fi
+        if [ "$EXIT_CODE" != "0" ]; then
+          echo "::error::Smoke tests failed with exit code $EXIT_CODE"
+          exit "$EXIT_CODE"
+        fi
+        echo "Smoke tests passed"

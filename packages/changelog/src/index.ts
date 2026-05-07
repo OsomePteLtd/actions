@@ -190,7 +190,7 @@ async function sendChangelogToSlack(changelog: Changelog) {
       elements: [
         {
           type: 'plain_text',
-          text: `By the way, :green_book: are stories, :closed_book: are bugfixes, :blue_book: are subtasks and :orange_book: are all other issue types.`,
+          text: `By the way, :green_book: are stories, :closed_book: are bugfixes, :blue_book: are tasks, :notebook: are epics, and :orange_book: are other issue types.`,
         },
       ],
     },
