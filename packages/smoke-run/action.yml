@@ -279,7 +279,30 @@ runs:
         echo "Playwright exited with code: $EXIT_CODE"
         exit 0
 
-    # Step 9: Generate Allure report and publish to S3
+    # Step 9: Release lock (always runs)
+    - name: Release environment lock
+      if: always()
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.osome-bot-token }}
+        LOCK_REPO: ${{ inputs.lock-repo }}
+      run: |
+        if [ -z "${CLAIMED_ENV:-}" ]; then
+          echo "No environment was claimed, nothing to release"
+          exit 0
+        fi
+
+        LOCK_BRANCH="lock-${CLAIMED_ENV}"
+        echo "Releasing lock on ${CLAIMED_ENV}..."
+
+        gh api \
+          -X DELETE \
+          "/repos/${LOCK_REPO}/git/refs/heads/${LOCK_BRANCH}" \
+          || echo "Lock branch may already be deleted"
+
+        echo "Lock released for ${CLAIMED_ENV}"
+
+    # Step 10: Generate Allure report and publish to S3
     - name: Generate Allure report
       if: always()
       shell: bash
@@ -346,7 +369,7 @@ runs:
 
         echo "Report published to: https://allure.osome.club/smoke/${SERVICE}/PR-${PR_NUM}/"
 
-    # Step 10: Comment on PR with results
+    # Step 11: Comment on PR with results
     - name: Comment on PR
       if: always() && github.event.pull_request.number
       uses: actions/github-script@v7
@@ -428,29 +451,6 @@ runs:
               body,
             });
           }
-
-    # Step 11: Release lock (always runs)
-    - name: Release environment lock
-      if: always()
-      shell: bash
-      env:
-        GH_TOKEN: ${{ inputs.osome-bot-token }}
-        LOCK_REPO: ${{ inputs.lock-repo }}
-      run: |
-        if [ -z "${CLAIMED_ENV:-}" ]; then
-          echo "No environment was claimed, nothing to release"
-          exit 0
-        fi
-
-        LOCK_BRANCH="lock-${CLAIMED_ENV}"
-        echo "Releasing lock on ${CLAIMED_ENV}..."
-
-        gh api \
-          -X DELETE \
-          "/repos/${LOCK_REPO}/git/refs/heads/${LOCK_BRANCH}" \
-          || echo "Lock branch may already be deleted"
-
-        echo "Lock released for ${CLAIMED_ENV}"
 
     # Step 12: Surface Playwright exit code
     - name: Check smoke test result
