@@ -44,10 +44,17 @@ export const getIcon = (type: string) => {
     case 'Story':
       return '📗';
     case 'Task':
+    case 'Sub-task':
     case 'Subtask':
+    case 'Agent Task':
       return '📘';
     case 'Bug':
       return '📕';
+    case 'Epic':
+    case 'Initiative':
+      return '📓';
+    case 'Spike':
+      return '📔';
     default:
       return '📙';
   }
