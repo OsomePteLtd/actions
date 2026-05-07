@@ -371,8 +371,9 @@ runs:
             const resultsPath = path.join(process.cwd(), 'e2e', 'results.json');
             if (fs.existsSync(resultsPath)) {
               const results = JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
-              stats.passed = results.suites?.reduce((acc, s) => acc + (s.specs?.filter(spec => spec.ok).length || 0), 0) || 0;
-              stats.failed = results.suites?.reduce((acc, s) => acc + (s.specs?.filter(spec => !spec.ok).length || 0), 0) || 0;
+              stats.passed = (results.stats?.expected ?? 0) + (results.stats?.flaky ?? 0);
+              stats.failed = results.stats?.unexpected ?? 0;
+              stats.skipped = results.stats?.skipped ?? 0;
               stats.duration = Math.round((results.stats?.duration || 0) / 1000);
             }
           } catch (e) {
@@ -393,6 +394,7 @@ runs:
           | Status | **${status}** |
           | Passed | ${stats.passed} |
           | Failed | ${stats.failed} |
+          | Skipped | ${stats.skipped} |
           | Duration | ${stats.duration}s |
           | Environment | ${env} |
 
