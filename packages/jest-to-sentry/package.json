@@ -21,7 +21,7 @@
     "@sentry/node": "^7.80.1"
   },
   "devDependencies": {
-    "@types/node": "^20.9.0",
+    "@types/node": "^24.0.0",
     "@vercel/ncc": "^0.36.1",
     "typescript": "^5.2.2"
   }
