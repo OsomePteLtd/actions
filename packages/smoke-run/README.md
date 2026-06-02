@@ -57,6 +57,7 @@ jobs:
 | `tags` | No | `''` | Test tags exported as `TEST_TAGS` env var |
 | `retry-interval-seconds` | No | `45` | Seconds between lock acquisition retries |
 | `retry-timeout-seconds` | No | `900` | Total seconds to wait for lock |
+| `deploy-timeout-seconds` | No | `900` | Total seconds to wait for the deployment to reach a terminal status |
 
 ## Outputs
 
@@ -103,16 +104,19 @@ The action assumes the role `arn:aws:iam::664258603548:role/github-deployer-nokm
 
 ## Concurrency and Queueing
 
-**Current limitation (v1):** With `pool=test-3` (single environment), only one smoke run executes at a time.
+Locks are **per-service per-environment** (`lock-${ENV}-${SERVICE}`), so different services
+can smoke-test the same environment concurrently — each service deploys only its own code to
+the shared env and runs only its domain-tagged specs.
 
-- The first PR to claim the environment runs immediately
-- Subsequent PRs retry every 45 seconds for up to 15 minutes
-- If the timeout expires, the workflow fails with a clear error
+- Two PRs of the **same** service serialize on `lock-${ENV}-${SERVICE}`: the first claims it
+  immediately, the rest retry every 45 seconds for up to 15 minutes.
+- Two PRs of **different** services do NOT block each other (distinct lock branches).
+- If the lock-wait timeout expires, the workflow fails with a clear error.
 
 **Implications:**
-- In high-traffic periods, some PRs may fail their smoke check due to timeout
-- Consider expanding the pool (e.g., `pool: test-3,test-4`) when more envs are available
-- See PF-1763 for the reaper that cleans up stale locks
+- Same-service high-traffic periods may still time out; expand the pool
+  (e.g., `pool: test-3,test-4`) when more envs are available.
+- See PF-1763 for the reaper that cleans up stale locks.
 
 ## Test Environment Staleness
 
@@ -131,12 +135,12 @@ Test environments (`test-3`, etc.) sync from `main` **twice daily** at:
 
 If a workflow is cancelled mid-run, the lock may not be released.
 
-**Symptoms:** All smoke runs timeout waiting for the same environment.
+**Symptoms:** All smoke runs for the affected service timeout waiting for its environment lock.
 
 **Resolution:**
-1. Check for stale locks: `gh api /repos/OsomePteLtd/e2e-testing/git/refs/heads/lock-test-3`
+1. Check for stale locks: `gh api /repos/OsomePteLtd/e2e-testing/git/refs/heads/lock-test-3-<service>`
 2. Read `owner.json` to identify the stale run
-3. Manually delete: `gh api -X DELETE /repos/OsomePteLtd/e2e-testing/git/refs/heads/lock-test-3`
+3. Manually delete: `gh api -X DELETE /repos/OsomePteLtd/e2e-testing/git/refs/heads/lock-test-3-<service>`
 
 **Long-term:** PF-1763 will implement an automatic reaper for stale locks.
 
@@ -160,11 +164,11 @@ If a workflow is cancelled mid-run, the lock may not be released.
 
 ### Deployment stuck in pending
 
-**Symptoms:** Smoke run logs `Deployment status: pending` repeatedly, then fails with `Deployment timed out after 600s`. The deployment object in GitHub's Deployments API shows state `queued` permanently.
+**Symptoms:** Smoke run logs `Deployment status: pending` repeatedly, then fails with `Deployment timed out after <deploy-timeout-seconds>s` (default 900). The deployment object in GitHub's Deployments API shows state `queued` permanently.
 
 **Most common cause — `osome-bot-token` is the workflow `GITHUB_TOKEN` instead of a PAT.**
 
-GitHub silently drops `deployment` events created with the auto-generated `GITHUB_TOKEN`. The consumer's `deploy.yml` never receives the event, never runs, and never posts a status update. Smoke-run polls for 10 minutes and times out.
+GitHub silently drops `deployment` events created with the auto-generated `GITHUB_TOKEN`. The consumer's `deploy.yml` never receives the event, never runs, and never posts a status update. Smoke-run polls until `deploy-timeout-seconds` (default 900s) elapses, then times out.
 
 **Fix:** Pass `${{ secrets.OSOME_BOT_TOKEN }}` (a PAT) for `osome-bot-token`, not `${{ github.token }}` or `${{ secrets.GITHUB_TOKEN }}`. Note that with `GITHUB_TOKEN` the action will actually fail much earlier at the lock-claim step (HTTP 403 against the e2e-testing repo), so this exact symptom only arises if a PAT lacks `deployments:write` on the caller repo.
 

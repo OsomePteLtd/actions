@@ -29,6 +29,10 @@ inputs:
     description: 'Total seconds to wait for lock acquisition'
     required: false
     default: '900'
+  deploy-timeout-seconds:
+    description: 'Total seconds to wait for the deployment to reach a terminal status'
+    required: false
+    default: '900'
 
 outputs:
   claimed-env:
@@ -49,6 +53,7 @@ runs:
         OSOME_BOT_TOKEN: ${{ inputs.osome-bot-token }}
         LOCK_REPO: ${{ inputs.lock-repo }}
         POOL: ${{ inputs.pool }}
+        SERVICE: ${{ inputs.service }}
         RETRY_INTERVAL: ${{ inputs.retry-interval-seconds }}
         RETRY_TIMEOUT: ${{ inputs.retry-timeout-seconds }}
       run: |
@@ -75,7 +80,7 @@ runs:
 
         while true; do
           for ENV in "${ENVS[@]}"; do
-            LOCK_BRANCH="lock-${ENV}"
+            LOCK_BRANCH="lock-${ENV}-${SERVICE}"
             echo "Trying to claim $ENV..."
 
             # Attempt atomic creation of orphan lock branch
@@ -119,6 +124,7 @@ runs:
       env:
         OSOME_BOT_TOKEN: ${{ inputs.osome-bot-token }}
         LOCK_REPO: ${{ inputs.lock-repo }}
+        SERVICE: ${{ inputs.service }}
         RUN_ID: ${{ github.run_id }}
         GITHUB_REPO: ${{ github.repository }}
         PR_NUM: ${{ github.event.pull_request.number }}
@@ -126,7 +132,7 @@ runs:
       run: |
         set -euo pipefail
 
-        LOCK_BRANCH="lock-${CLAIMED_ENV}"
+        LOCK_BRANCH="lock-${CLAIMED_ENV}-${SERVICE}"
         OWNER_JSON=$(jq -n \
           --arg run_id "$RUN_ID" \
           --arg repo "$GITHUB_REPO" \
@@ -154,6 +160,7 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.osome-bot-token }}
         GITHUB_REPO: ${{ github.repository }}
+        DEPLOY_TIMEOUT_SECONDS: ${{ inputs.deploy-timeout-seconds }}
         # Use the PR head SHA on pull_request events (a real commit reachable
         # from the source branch). github.sha alone resolves to the synthetic
         # merge commit (refs/pull/N/merge), which is unreachable from any
@@ -179,7 +186,7 @@ runs:
 
         # Poll for deployment status
         echo "Waiting for deployment to complete..."
-        MAX_WAIT=600
+        MAX_WAIT="${DEPLOY_TIMEOUT_SECONDS}"
         POLL_INTERVAL=15
         ELAPSED=0
 
@@ -286,13 +293,14 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.osome-bot-token }}
         LOCK_REPO: ${{ inputs.lock-repo }}
+        SERVICE: ${{ inputs.service }}
       run: |
         if [ -z "${CLAIMED_ENV:-}" ]; then
           echo "No environment was claimed, nothing to release"
           exit 0
         fi
 
-        LOCK_BRANCH="lock-${CLAIMED_ENV}"
+        LOCK_BRANCH="lock-${CLAIMED_ENV}-${SERVICE}"
         echo "Releasing lock on ${CLAIMED_ENV}..."
 
         gh api \
