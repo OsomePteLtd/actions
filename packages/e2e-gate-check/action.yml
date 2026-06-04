@@ -3,9 +3,12 @@ name: 'e2e-gate-check'
 description: 'Consult per-tag GitHub commit statuses on OsomePteLtd/e2e-testing to gate production deployment. Verifies state == success AND deploying SHA is ancestor of the snapshot SHA captured at e2e-time.'
 
 inputs:
-  tag:
+  execution_tag:
     required: true
-    description: 'Primary gate tag the caller service is gated on, e.g. @billing. The status context consulted is e2e/<tag>.'
+    description: 'Execution scope tag, e.g. @e2e. Combined with domain_tag to form the primary status context e2e/<execution_tag>+<domain_tag>. Also used as the bare umbrella fallback context e2e/<execution_tag>.'
+  domain_tag:
+    required: true
+    description: 'Domain gate tag the caller service is gated on, e.g. @billing. Combined with execution_tag to form the primary status context.'
   service:
     required: true
     description: 'Service key used to look up the snapshot SHA in the status description payload at versions.<service>, e.g. billy.'
@@ -23,10 +26,6 @@ inputs:
     required: false
     default: 'e2e-latest'
     description: 'Lightweight tag name on e2e_repo whose target SHA carries the per-tag statuses.'
-  fallback_tag:
-    required: false
-    default: '@e2e'
-    description: 'Fallback gate tag consulted when the primary tag has no status on the anchor SHA.'
 
 outputs:
   anchor_sha:
@@ -36,7 +35,7 @@ outputs:
     description: 'Snapshot SHA of the caller service captured at e2e-time, parsed from the selected status description at versions.<service>.'
     value: ${{ steps.set-outputs.outputs.snapshot_sha }}
   tag_used:
-    description: 'The status tag that was actually consulted: either the primary tag or fallback_tag.'
+    description: 'Tag identifier actually consulted: domain_tag value on the primary path, or the literal "umbrella" on the fallback path.'
     value: ${{ steps.set-outputs.outputs.tag_used }}
   gate_decision:
     description: 'One of: pass | fail-state | fail-stale | fail-missing.'
@@ -123,20 +122,20 @@ runs:
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.token }}
-        INPUT_TAG: ${{ inputs.tag }}
+        INPUT_EXECUTION_TAG: ${{ inputs.execution_tag }}
+        INPUT_DOMAIN_TAG: ${{ inputs.domain_tag }}
       run: |
         set -euo pipefail
         STATUSES_PATH="$RUNNER_TEMP/e2e-gate/statuses.json"
         SELECTED_PATH="$RUNNER_TEMP/e2e-gate/selected_status.json"
         TAG_USED_PATH="$RUNNER_TEMP/e2e-gate/tag_used.txt"
-        PRIMARY_CONTEXT="e2e/${INPUT_TAG}"
+        PRIMARY_CONTEXT="e2e/${INPUT_EXECUTION_TAG}+${INPUT_DOMAIN_TAG}"
 
-        # GitHub commit-statuses endpoint returns most recent first; pick the first match.
         MATCH=$(jq -c --arg ctx "$PRIMARY_CONTEXT" '[.[] | select(.context == $ctx)] | first // empty' "$STATUSES_PATH")
 
         if [ -n "$MATCH" ] && [ "$MATCH" != "null" ]; then
           echo "$MATCH" > "$SELECTED_PATH"
-          echo "$INPUT_TAG" > "$TAG_USED_PATH"
+          echo "$INPUT_DOMAIN_TAG" > "$TAG_USED_PATH"
           echo "Primary status found for context ${PRIMARY_CONTEXT}"
         else
           echo "No status found for primary context ${PRIMARY_CONTEXT}; will try fallback"
@@ -147,8 +146,8 @@ runs:
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.token }}
-        INPUT_TAG: ${{ inputs.tag }}
-        FALLBACK_TAG: ${{ inputs.fallback_tag }}
+        INPUT_EXECUTION_TAG: ${{ inputs.execution_tag }}
+        INPUT_DOMAIN_TAG: ${{ inputs.domain_tag }}
         E2E_REPO: ${{ inputs.e2e_repo }}
         ANCHOR_SHA: ${{ steps.resolve-anchor.outputs.anchor_sha }}
       run: |
@@ -156,7 +155,7 @@ runs:
         STATUSES_PATH="$RUNNER_TEMP/e2e-gate/statuses.json"
         SELECTED_PATH="$RUNNER_TEMP/e2e-gate/selected_status.json"
         TAG_USED_PATH="$RUNNER_TEMP/e2e-gate/tag_used.txt"
-        FALLBACK_CONTEXT="e2e/${FALLBACK_TAG}"
+        FALLBACK_CONTEXT="e2e/${INPUT_EXECUTION_TAG}"
 
         if [ -s "$SELECTED_PATH" ]; then
           echo "Primary status already selected; skipping fallback"
@@ -167,17 +166,17 @@ runs:
 
         if [ -n "$MATCH" ] && [ "$MATCH" != "null" ]; then
           echo "$MATCH" > "$SELECTED_PATH"
-          echo "$FALLBACK_TAG" > "$TAG_USED_PATH"
+          echo "umbrella" > "$TAG_USED_PATH"
           echo "Fallback status found for context ${FALLBACK_CONTEXT}"
         else
           {
-            echo "## ❌ Gate: No status for primary or fallback tag"
+            echo "## ❌ Gate: No status for primary or fallback context"
             echo ""
             echo "- Anchor SHA: \`${ANCHOR_SHA}\` on \`${E2E_REPO}\`"
-            echo "- Primary context: \`e2e/${INPUT_TAG}\` — not found"
+            echo "- Primary context: \`e2e/${INPUT_EXECUTION_TAG}+${INPUT_DOMAIN_TAG}\` — not found"
             echo "- Fallback context: \`${FALLBACK_CONTEXT}\` — not found"
             echo ""
-            echo "The e2e-testing repo has not yet posted a status for this tag on the current anchor SHA."
+            echo "The e2e-testing repo has not yet posted a status for this (execution, domain) pair on the current anchor SHA."
           } >> "$GITHUB_STEP_SUMMARY"
           echo "fail-missing" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
           exit 1

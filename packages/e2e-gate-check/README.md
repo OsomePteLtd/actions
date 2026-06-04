@@ -16,15 +16,15 @@ as an input.
 
 ## Inputs
 
-| Name            | Required | Default                 | Description                                                                                                                       |
-| --------------- | -------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `tag`           | yes      | —                       | Primary gate tag (e.g. `@billing`). The status context consulted is `e2e/<tag>`. The leading `@` is part of the context name.     |
-| `service`       | yes      | —                       | Service key used to look up the snapshot SHA in the status description payload at `versions.<service>` (e.g. `billy`).            |
-| `deploying_sha` | yes      | —                       | SHA being deployed, typically `${{ github.sha }}`. Used as the first argument to `git merge-base --is-ancestor`.                  |
-| `token`         | yes      | —                       | GitHub token with read access on `e2e_repo`. Exposed only as `GH_TOKEN` env to internal steps; never echoed.                      |
-| `e2e_repo`      | no       | `OsomePteLtd/e2e-testing` | Repository that owns the per-tag statuses and the anchor tag.                                                                   |
-| `anchor_ref`    | no       | `e2e-latest`            | Lightweight tag name on `e2e_repo` whose target SHA carries the statuses.                                                          |
-| `fallback_tag`  | no       | `@e2e`                  | Fallback gate tag consulted when the primary tag has no status on the anchor SHA.                                                 |
+| Name            | Required | Default                   | Description                                                                                                                                                                              |
+| --------------- | -------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `execution_tag` | yes      | —                         | Execution scope tag (e.g. `@e2e`). Combined with `domain_tag` to form the primary context `e2e/<execution_tag>+<domain_tag>`. Also used as the bare umbrella fallback `e2e/<execution_tag>`. |
+| `domain_tag`    | yes      | —                         | Domain gate tag (e.g. `@billing`). Combined with `execution_tag` to form the primary context.                                                                                            |
+| `service`       | yes      | —                         | Service key for snapshot SHA lookup at `versions.<service>` (e.g. `billy`).                                                                                                              |
+| `deploying_sha` | yes      | —                         | SHA being deployed; typically `${{ github.sha }}`. Used as first arg to `git merge-base --is-ancestor`.                                                                                  |
+| `token`         | yes      | —                         | GitHub token with read access on `e2e_repo`.                                                                                                                                             |
+| `e2e_repo`      | no       | `OsomePteLtd/e2e-testing` | Repository that owns the per-tag statuses and anchor tag.                                                                                                                                |
+| `anchor_ref`    | no       | `e2e-latest`              | Lightweight tag whose target SHA carries the statuses.                                                                                                                                   |
 
 ## Outputs
 
@@ -32,7 +32,7 @@ as an input.
 | --------------- | ------------------------------------------------------------------------------------------------------------ |
 | `anchor_sha`    | SHA on `e2e_repo` that the consulted statuses were attached to (the SHA `anchor_ref` points to).             |
 | `snapshot_sha`  | Snapshot SHA of the caller service captured at e2e-time, parsed from the selected status description.        |
-| `tag_used`      | The status tag actually consulted — either the primary `tag` or `fallback_tag`.                              |
+| `tag_used`      | Tag identifier actually consulted: the `domain_tag` value on the primary path, or the literal `umbrella` on the fallback path. |
 | `gate_decision` | One of: `pass`, `fail-state`, `fail-stale`, `fail-missing`.                                                  |
 
 All outputs are populated even on failure (via an `if: always()` final step), so
@@ -57,7 +57,8 @@ jobs:
         id: gate
         uses: OsomePteLtd/actions/packages/e2e-gate-check@master
         with:
-          tag: '@billing'
+          execution_tag: '@e2e'
+          domain_tag: '@billing'
           service: billy
           deploying_sha: ${{ github.sha }}
           token: ${{ secrets.OSOME_BOT_TOKEN }}
@@ -65,11 +66,7 @@ jobs:
 
 ## Behavior
 
-- **Missing status**: If `anchor_ref` does not exist on `e2e_repo`, or no
-  status exists for `e2e/<tag>`, the action falls back to `e2e/<fallback_tag>`.
-  If the fallback is also missing, `gate_decision=fail-missing` and the action
-  exits non-zero (RED). The job summary explains how to trigger a manual e2e
-  run.
+- **Missing status**: If `anchor_ref` does not exist on `e2e_repo`, or no status exists for `e2e/<execution_tag>+<domain_tag>`, the action falls back to the bare umbrella `e2e/<execution_tag>`. If the umbrella is also missing, `gate_decision=fail-missing` and the action exits non-zero. The job summary lists both attempted contexts.
 - **Non-success state**: If the selected status has `state` other than
   `success` (`failure`, `pending`, `error`), `gate_decision=fail-state` and
   the action exits non-zero. The summary links to the e2e run via
