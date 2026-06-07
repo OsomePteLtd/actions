@@ -33,10 +33,27 @@ inputs:
     description: 'Total seconds to wait for the deployment to reach a terminal status'
     required: false
     default: '900'
+  target-url:
+    description: |
+      Pre-deployed transient environment URL (e.g. https://<branch>.my.osome.club).
+      When set, skips the lock-claim / owner.json / deploy / release steps and points
+      the smoke tests directly at this URL. The stage agent API is used as the backend
+      so company creation and login remain on the same backend.
+      When empty (default), the normal test-N pool-lock flow runs unchanged.
+    required: false
+    default: ''
+  pr-number:
+    description: |
+      PR number to post the smoke result comment and Allure report on.
+      Required when running in target-url mode from an on:deployment workflow (which has
+      no native pull_request context). When empty, falls back to
+      github.event.pull_request.number (normal on:pull_request flow).
+    required: false
+    default: ''
 
 outputs:
   claimed-env:
-    description: 'Environment that was claimed'
+    description: 'Environment that was claimed (empty when target-url is set)'
     value: ${{ steps.claim.outputs.env }}
   smoke-exit-code:
     description: 'Playwright exit code'
@@ -46,8 +63,10 @@ runs:
   using: 'composite'
   steps:
     # Step 1: Claim environment from pool via atomic git push
+    # Skipped in target-url mode — the transient env is already deployed.
     - name: Claim environment
       id: claim
+      if: inputs.target-url == ''
       shell: bash
       env:
         OSOME_BOT_TOKEN: ${{ inputs.osome-bot-token }}
@@ -119,7 +138,9 @@ runs:
         echo "CLAIMED_ENV=${CLAIMED_ENV}" >> "$GITHUB_ENV"
 
     # Step 2: Write owner.json to lock branch
+    # Skipped in target-url mode — no lock branch exists.
     - name: Write owner.json
+      if: inputs.target-url == ''
       shell: bash
       env:
         OSOME_BOT_TOKEN: ${{ inputs.osome-bot-token }}
@@ -154,8 +175,10 @@ runs:
           || echo "Note: owner.json update is best-effort"
 
     # Step 3: Deploy caller PR to claimed environment via Deployments API
+    # Skipped in target-url mode — the transient env is already deployed by the MFE's own CI.
     - name: Deploy to test environment
       id: deploy
+      if: inputs.target-url == ''
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.osome-bot-token }}
@@ -268,12 +291,15 @@ runs:
         echo "SMOKE_AGENT_PASSWORD=$PASS" >> "$GITHUB_ENV"
 
     # Step 8: Run smoke tests
+    # In target-url mode: TEST_ENV receives the transient URL directly so
+    # resolveSmokeEnv picks up the "transient" path in environments.ts.
+    # In normal mode: TEST_ENV is the claimed test-N name (e.g. "test-3").
     - name: Run smoke tests
       id: smoke
       shell: bash
       working-directory: e2e
       env:
-        TEST_ENV: ${{ steps.claim.outputs.env }}
+        TEST_ENV: ${{ inputs.target-url != '' && inputs.target-url || steps.claim.outputs.env }}
         USE_ALLURE: 'true'
         TEST_TAGS: ${{ inputs.tags }}
         CI: 'true'
@@ -286,9 +312,9 @@ runs:
         echo "Playwright exited with code: $EXIT_CODE"
         exit 0
 
-    # Step 9: Release lock (always runs)
+    # Step 9: Release lock (always runs in normal mode; skipped in target-url mode)
     - name: Release environment lock
-      if: always()
+      if: always() && inputs.target-url == ''
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.osome-bot-token }}
@@ -328,7 +354,7 @@ runs:
       working-directory: e2e
       env:
         SERVICE: ${{ inputs.service }}
-        PR_NUM: ${{ github.event.pull_request.number }}
+        PR_NUM: ${{ inputs.pr-number != '' && inputs.pr-number || github.event.pull_request.number }}
       run: |
         if [ ! -d "allure-report" ]; then
           echo "No allure-report found, skipping S3 upload"
@@ -379,12 +405,15 @@ runs:
 
     # Step 11: Comment on PR with results
     - name: Comment on PR
-      if: always() && github.event.pull_request.number
+      if: >-
+        always() &&
+        (inputs.pr-number != '' || github.event.pull_request.number != '')
       uses: actions/github-script@v7
       env:
         SERVICE: ${{ inputs.service }}
-        PR_ENV: ${{ steps.claim.outputs.env }}
+        PR_ENV: ${{ inputs.target-url != '' && inputs.target-url || steps.claim.outputs.env }}
         EXIT_CODE: ${{ steps.smoke.outputs.exit }}
+        PR_NUMBER: ${{ inputs.pr-number != '' && inputs.pr-number || github.event.pull_request.number }}
       with:
         github-token: ${{ inputs.osome-bot-token }}
         script: |
@@ -392,9 +421,10 @@ runs:
           const path = require('path');
 
           const service = process.env.SERVICE;
-          const prNum = context.payload.pull_request?.number;
+          const prNum = parseInt(process.env.PR_NUMBER || '0', 10);
           const env = process.env.PR_ENV;
           const exitCode = parseInt(process.env.EXIT_CODE || '1');
+          const isTransient = env?.startsWith('https://');
 
           // Try to read results.json for detailed stats
           let stats = { passed: 0, failed: 0, skipped: 0, duration: 0 };
@@ -431,7 +461,7 @@ runs:
 
           **[View Allure Report](${reportUrl})**
 
-          > **Note:** ${env} syncs twice daily (02:00 + 12:00 SGT). Data may be up to 12h stale.
+          > **Note:** ${isTransient ? `Ran against transient env ${env} (stage backend).` : `${env} syncs twice daily (02:00 + 12:00 SGT). Data may be up to 12h stale.`}
           `.trim().replace(/^          /gm, '');
 
           // Find existing comment
