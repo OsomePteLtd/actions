@@ -58,12 +58,59 @@ jobs:
 | `retry-interval-seconds` | No | `45` | Seconds between lock acquisition retries |
 | `retry-timeout-seconds` | No | `900` | Total seconds to wait for lock |
 | `deploy-timeout-seconds` | No | `900` | Total seconds to wait for the deployment to reach a terminal status |
+| `target-url` | No | `''` | Pre-deployed transient environment URL (see [Target-URL Mode](#target-url-mode)) |
+| `pr-number` | No | `''` | PR number for the PR comment + Allure bucket when there is no native `pull_request` context, e.g. a `deployment`-triggered caller |
+
+## Target-URL Mode
+
+When `target-url` is set to a non-empty URL (e.g. `https://<branch>.my.osome.club`), smoke-run
+operates in **target-url mode**:
+
+- Steps 1–3 (claim, owner.json, deploy) are **skipped** — the env is already live.
+- Step 9 (release lock) is **skipped** — there is no lock to release.
+- `TEST_ENV` is set to the `target-url` value so `resolveSmokeEnv` in `environments.ts`
+  follows the transient-env path.
+- The stage agent API is used as the backend, so company creation and login remain on the
+  shared stage backend.
+- `claimed-env` output is empty in this mode.
+
+This mode is used by MFE callers (e.g. `websome-reports`) whose per-PR transient environment
+(`https://<sanitized-branch>.my.osome.club`) is deployed by the MFE's own CI pipeline.
+The caller's `pr-smoke.yml` derives the URL from `github.head_ref` and passes it in.
+
+```yaml
+# Caller example (transient-env / MFE workflow — pull_request trigger)
+- uses: osomepteltd/actions/packages/smoke-run@master
+  with:
+    service: websome-reports
+    target-url: https://${{ env.SANITIZED_BRANCH }}.my.osome.club
+    osome-bot-token: ${{ secrets.OSOME_BOT_TOKEN }}
+```
+
+```yaml
+# Caller example (deployment-event trigger — no native pull_request context)
+# The MFE deploy.yml receives a `deployment` event and passes the PR number
+# stored in the deployment payload so smoke-run can comment on the correct PR
+# and route the Allure report to the right PR-{n} bucket.
+jobs:
+  pr-smoke:
+    needs: deploy
+    if: github.event.deployment.environment != 'production' &&
+        github.event.deployment.payload.pr_number != ''
+    uses: osomepteltd/e2e-testing/.github/workflows/pr-smoke.yml@main
+    with:
+      service: websome-reports
+      target-url: ${{ format('https://{0}.my.osome.club', github.event.deployment.environment) }}
+      pr-number: ${{ github.event.deployment.payload.pr_number }}
+    secrets:
+      osome-bot-token: ${{ secrets.OSOME_BOT_TOKEN }}
+```
 
 ## Outputs
 
 | Output | Description |
 |--------|-------------|
-| `claimed-env` | The environment that was claimed |
+| `claimed-env` | The environment that was claimed (empty when `target-url` is set) |
 | `smoke-exit-code` | Playwright process exit code |
 
 ## Required Org-Level Secrets
