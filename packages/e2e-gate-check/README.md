@@ -25,6 +25,7 @@ as an input.
 | `token`         | yes      | —                         | GitHub token with read access on `e2e_repo`.                                                                                                                                             |
 | `e2e_repo`      | no       | `OsomePteLtd/e2e-testing` | Repository that owns the per-tag statuses and anchor tag.                                                                                                                                |
 | `anchor_ref`    | no       | `e2e-latest`              | Lightweight tag whose target SHA carries the statuses.                                                                                                                                   |
+| `gate_mode`     | no       | `block`                   | Enforcement mode: `block` (exits non-zero on gate failure), `report` (always exits 0, logs decision in `gate_decision` output and step summary), or `off` (skips all checks, exits 0). |
 
 ## Outputs
 
