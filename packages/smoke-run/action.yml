@@ -9,7 +9,7 @@ inputs:
   pool:
     description: 'Comma-separated environment pool (e.g., test-3,test-4)'
     required: false
-    default: 'test-3'
+    default: 'test-4'
   lock-repo:
     description: 'Repository for environment locks'
     required: false

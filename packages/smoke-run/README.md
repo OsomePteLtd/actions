@@ -51,7 +51,7 @@ jobs:
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `service` | Yes | - | Caller repository name (e.g., `billy`, `pablo`) |
-| `pool` | No | `test-3` | Comma-separated environment candidates |
+| `pool` | No | `test-4` | Comma-separated environment candidates |
 | `lock-repo` | No | `OsomePteLtd/e2e-testing` | Repository hosting lock branches |
 | `osome-bot-token` | Yes | - | **Must be a PAT** (e.g., `${{ secrets.OSOME_BOT_TOKEN }}`) with `contents:write` on lock-repo AND `deployments:write` + `pull-requests:write` on the caller repo. Do NOT pass `${{ secrets.GITHUB_TOKEN }}` — deployments created with `GITHUB_TOKEN` are silently ignored by GitHub and will never trigger `deploy.yml`. |
 | `tags` | No | `''` | Test tags exported as `TEST_TAGS` env var |
