@@ -155,6 +155,7 @@ runs:
     - name: Find primary tag status
       id: find-primary
       if: ${{ inputs.gate_mode != 'off' }}
+      continue-on-error: ${{ inputs.gate_mode == 'report' }}
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.token }}
