@@ -26,6 +26,10 @@ inputs:
     required: false
     default: 'e2e-latest'
     description: 'Lightweight tag name on e2e_repo whose target SHA carries the per-tag statuses.'
+  gate_mode:
+    description: 'Enforcement mode: block (default, exits non-zero on gate failure) | report (runs full check, always exits 0, logs decision) | off (skips all checks, exits 0)'
+    required: false
+    default: 'block'
 
 outputs:
   anchor_sha:
@@ -48,8 +52,29 @@ runs:
     # directly into `run:` blocks) to prevent shell-injection through caller
     # input values. See:
     # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
+    - name: Validate gate_mode and short-circuit for off
+      shell: bash
+      env:
+        INPUT_GATE_MODE: ${{ inputs.gate_mode }}
+      run: |
+        set -euo pipefail
+        case "$INPUT_GATE_MODE" in
+          block|report|off) ;;
+          *)
+            echo "::error::gate_mode must be block, report, or off. Got: '${INPUT_GATE_MODE}'"
+            exit 1
+            ;;
+        esac
+        if [ "$INPUT_GATE_MODE" = "off" ]; then
+          mkdir -p "$RUNNER_TEMP/e2e-gate"
+          echo "pass" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
+          echo "## ✅ Gate: mode is 'off' — all checks skipped" >> "$GITHUB_STEP_SUMMARY"
+        fi
+
     - name: Resolve anchor SHA
       id: resolve-anchor
+      if: ${{ inputs.gate_mode != 'off' }}
+      continue-on-error: ${{ inputs.gate_mode == 'report' }}
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.token }}
@@ -60,7 +85,7 @@ runs:
         mkdir -p "$RUNNER_TEMP/e2e-gate"
         ANCHOR_PATH="$RUNNER_TEMP/e2e-gate/anchor_sha.txt"
         DECISION_PATH="$RUNNER_TEMP/e2e-gate/gate_decision.txt"
-        echo "" > "$DECISION_PATH"
+        > "$DECISION_PATH"
 
         if ! API_OUT=$(gh api "repos/${E2E_REPO}/git/refs/tags/${ANCHOR_REF}" 2>&1); then
           if echo "$API_OUT" | grep -qE "Not Found|HTTP 404"; then
@@ -75,19 +100,25 @@ runs:
               echo "gh workflow run e2e-dispatch.yml -R ${E2E_REPO}"
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
-            echo "fail-missing" > "$DECISION_PATH"
+            if [ ! -s "$DECISION_PATH" ]; then
+              echo "fail-missing" > "$DECISION_PATH"
+            fi
             echo "anchor_sha=" >> "$GITHUB_OUTPUT"
             exit 1
           fi
           echo "Unexpected error resolving anchor: $API_OUT" >&2
-          echo "fail-missing" > "$DECISION_PATH"
+          if [ ! -s "$DECISION_PATH" ]; then
+            echo "fail-missing" > "$DECISION_PATH"
+          fi
           exit 1
         fi
 
         ANCHOR_SHA=$(echo "$API_OUT" | jq -r '.object.sha')
         if [ -z "$ANCHOR_SHA" ] || [ "$ANCHOR_SHA" = "null" ]; then
           echo "Anchor ref resolved to empty SHA" >&2
-          echo "fail-missing" > "$DECISION_PATH"
+          if [ ! -s "$DECISION_PATH" ]; then
+            echo "fail-missing" > "$DECISION_PATH"
+          fi
           exit 1
         fi
 
@@ -97,6 +128,8 @@ runs:
 
     - name: Fetch statuses on anchor SHA
       id: fetch-statuses
+      if: ${{ inputs.gate_mode != 'off' }}
+      continue-on-error: ${{ inputs.gate_mode == 'report' }}
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.token }}
@@ -108,7 +141,9 @@ runs:
 
         if ! API_OUT=$(gh api --paginate "repos/${E2E_REPO}/commits/${ANCHOR_SHA}/statuses" 2>&1); then
           echo "Failed to fetch statuses for anchor SHA ${ANCHOR_SHA}: $API_OUT" >&2
-          echo "fail-missing" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
+          if [ ! -s "$RUNNER_TEMP/e2e-gate/gate_decision.txt" ]; then
+            echo "fail-missing" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
+          fi
           exit 1
         fi
 
@@ -119,6 +154,8 @@ runs:
 
     - name: Find primary tag status
       id: find-primary
+      if: ${{ inputs.gate_mode != 'off' }}
+      continue-on-error: ${{ inputs.gate_mode == 'report' }}
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.token }}
@@ -143,6 +180,8 @@ runs:
 
     - name: Find fallback tag status
       id: find-fallback
+      if: ${{ inputs.gate_mode != 'off' }}
+      continue-on-error: ${{ inputs.gate_mode == 'report' }}
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.token }}
@@ -178,12 +217,16 @@ runs:
             echo ""
             echo "The e2e-testing repo has not yet posted a status for this (execution, domain) pair on the current anchor SHA."
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "fail-missing" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
+          if [ ! -s "$RUNNER_TEMP/e2e-gate/gate_decision.txt" ]; then
+            echo "fail-missing" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
+          fi
           exit 1
         fi
 
     - name: Verify status state is success
       id: state-check
+      if: ${{ inputs.gate_mode != 'off' }}
+      continue-on-error: ${{ inputs.gate_mode == 'report' }}
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.token }}
@@ -208,12 +251,16 @@ runs:
               echo "- Run: ${TARGET_URL}"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "fail-state" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
+          if [ ! -s "$RUNNER_TEMP/e2e-gate/gate_decision.txt" ]; then
+            echo "fail-state" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
+          fi
           exit 1
         fi
 
     - name: Parse snapshot SHA for service
       id: parse-snapshot
+      if: ${{ inputs.gate_mode != 'off' }}
+      continue-on-error: ${{ inputs.gate_mode == 'report' }}
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.token }}
@@ -237,7 +284,9 @@ runs:
             echo "$DESCRIPTION"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "fail-missing" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
+          if [ ! -s "$RUNNER_TEMP/e2e-gate/gate_decision.txt" ]; then
+            echo "fail-missing" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
+          fi
           exit 1
         fi
 
@@ -246,6 +295,8 @@ runs:
 
     - name: Ancestor check (deploying SHA ⊆ snapshot SHA)
       id: ancestor-check
+      if: ${{ inputs.gate_mode != 'off' }}
+      continue-on-error: ${{ inputs.gate_mode == 'report' }}
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.token }}
@@ -257,14 +308,18 @@ runs:
 
         if [ -z "$DEPLOYING_SHA" ] || [ -z "$SNAPSHOT_SHA" ]; then
           echo "Missing deploying_sha or snapshot_sha for ancestor check" >&2
-          echo "fail-stale" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
+          if [ ! -s "$RUNNER_TEMP/e2e-gate/gate_decision.txt" ]; then
+            echo "fail-stale" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
+          fi
           exit 1
         fi
 
         # Ensure both SHAs are known to the local git object database.
         if ! git cat-file -e "${DEPLOYING_SHA}^{commit}" 2>/dev/null; then
           echo "deploying_sha ${DEPLOYING_SHA} not present locally; caller must check out with fetch-depth: 0" >&2
-          echo "fail-stale" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
+          if [ ! -s "$RUNNER_TEMP/e2e-gate/gate_decision.txt" ]; then
+            echo "fail-stale" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
+          fi
           exit 1
         fi
         if ! git cat-file -e "${SNAPSHOT_SHA}^{commit}" 2>/dev/null; then
@@ -277,7 +332,9 @@ runs:
               echo "- Deploying SHA: \`${DEPLOYING_SHA}\`"
               echo "- Snapshot SHA: \`${SNAPSHOT_SHA}\` (not in origin)"
             } >> "$GITHUB_STEP_SUMMARY"
-            echo "fail-stale" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
+            if [ ! -s "$RUNNER_TEMP/e2e-gate/gate_decision.txt" ]; then
+              echo "fail-stale" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
+            fi
             exit 1
           fi
         fi
@@ -297,12 +354,15 @@ runs:
             echo ""
             echo "The deploying SHA is NOT an ancestor of the e2e-time snapshot SHA, so the green status does not cover this deploy."
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "fail-stale" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
+          if [ ! -s "$RUNNER_TEMP/e2e-gate/gate_decision.txt" ]; then
+            echo "fail-stale" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
+          fi
           exit 1
         fi
 
     - name: Write success summary
       id: success-summary
+      if: ${{ inputs.gate_mode != 'off' }}
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.token }}
@@ -314,10 +374,17 @@ runs:
         SNAPSHOT_SHA: ${{ steps.parse-snapshot.outputs.snapshot_sha }}
       run: |
         set -euo pipefail
+        DECISION_PATH="$RUNNER_TEMP/e2e-gate/gate_decision.txt"
+
+        if [ -s "$DECISION_PATH" ]; then
+          echo "Failure decision already recorded; skipping success summary"
+          exit 0
+        fi
+
         TAG_USED=$(cat "$RUNNER_TEMP/e2e-gate/tag_used.txt")
         TARGET_URL=$(jq -r '.target_url // ""' "$RUNNER_TEMP/e2e-gate/selected_status.json")
 
-        echo "pass" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
+        echo "pass" > "$DECISION_PATH"
 
         {
           echo "## ✅ Gate: e2e status green and snapshot covers deploying SHA"
@@ -339,6 +406,7 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.token }}
         SNAPSHOT_SHA: ${{ steps.parse-snapshot.outputs.snapshot_sha }}
+        INPUT_GATE_MODE: ${{ inputs.gate_mode }}
       run: |
         set -euo pipefail
         GATE_DIR="$RUNNER_TEMP/e2e-gate"
@@ -364,3 +432,13 @@ runs:
         echo "gate_decision=$GATE_DECISION" >> "$GITHUB_OUTPUT"
 
         echo "Outputs: anchor_sha=$ANCHOR_SHA tag_used=$TAG_USED gate_decision=$GATE_DECISION snapshot_sha=$SNAPSHOT_SHA"
+
+        if [ "${INPUT_GATE_MODE:-block}" = "report" ] && [ "${GATE_DECISION:-}" != "pass" ]; then
+          {
+            echo ""
+            echo "## ⚠️ Gate: report mode — gate WOULD block (decision: ${GATE_DECISION})"
+            echo ""
+            echo "This deploy was NOT blocked because \`gate_mode\` is set to \`report\`."
+            echo "Flip to \`gate_mode: block\` once the gate is stable."
+          } >> "$GITHUB_STEP_SUMMARY"
+        fi
