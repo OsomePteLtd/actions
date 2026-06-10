@@ -1,0 +1,225 @@
+# action.yml
+name: 'Smoke Claim Deploy'
+description: 'Claim a test env lock and create a GitHub deployment (no polling). Pair with smoke-test to run the full event-driven smoke flow.'
+
+inputs:
+  service:
+    description: 'Caller repo name (e.g., billy, pablo)'
+    required: true
+  pool:
+    description: 'Comma-separated environment pool (e.g., test-3,test-4)'
+    required: false
+    default: 'test-4'
+  lock-repo:
+    description: 'Repository for environment locks'
+    required: false
+    default: 'OsomePteLtd/e2e-testing'
+  osome-bot-token:
+    description: 'PAT with contents:write on lock-repo AND deployments:write on the caller repo. Must NOT be the workflow GITHUB_TOKEN — deployments created with GITHUB_TOKEN do not trigger downstream on:deployment_status workflows.'
+    required: true
+  pr-number:
+    description: 'PR number. Embedded in the deployment payload so the downstream deployment_status workflow can recover it without native pull_request context.'
+    required: true
+  retry-interval-seconds:
+    description: 'Seconds between lock acquisition retries'
+    required: false
+    default: '45'
+  retry-timeout-seconds:
+    description: 'Total seconds to wait for lock acquisition'
+    required: false
+    default: '900'
+
+outputs:
+  claimed-env:
+    description: 'Environment that was claimed from the pool'
+    value: ${{ steps.claim.outputs.env }}
+  deploy-id:
+    description: 'GitHub deployment ID created for the PR (used by the downstream deployment_status workflow)'
+    value: ${{ steps.deploy.outputs.deploy_id }}
+
+runs:
+  using: 'composite'
+  steps:
+    # Step 0: Validate inputs before touching any shared state
+    - name: Validate inputs
+      shell: bash
+      env:
+        PR_NUM: ${{ inputs.pr-number }}
+      run: |
+        set -euo pipefail
+        if ! [[ "$PR_NUM" =~ ^[0-9]+$ ]]; then
+          echo "::error::pr-number must be a positive integer (got '${PR_NUM}'). Refusing to claim a lock with an invalid PR number."
+          exit 1
+        fi
+
+    # Step 1: Claim environment from pool via atomic git push
+    - name: Claim environment
+      id: claim
+      shell: bash
+      env:
+        OSOME_BOT_TOKEN: ${{ inputs.osome-bot-token }}
+        LOCK_REPO: ${{ inputs.lock-repo }}
+        POOL: ${{ inputs.pool }}
+        SERVICE: ${{ inputs.service }}
+        RETRY_INTERVAL: ${{ inputs.retry-interval-seconds }}
+        RETRY_TIMEOUT: ${{ inputs.retry-timeout-seconds }}
+      run: |
+        set -euo pipefail
+
+        IFS=',' read -ra ENVS <<< "$POOL"
+        START_TIME=$(date +%s)
+        CLAIMED_ENV=""
+
+        # Fetch lock-repo's main HEAD SHA once (caller's git rev-parse HEAD won't exist in lock-repo)
+        LOCK_REPO_HEAD_SHA=$(curl -s \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer ${OSOME_BOT_TOKEN}" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          "https://api.github.com/repos/${LOCK_REPO}/git/refs/heads/main" | jq -r '.object.sha')
+
+        if [ -z "$LOCK_REPO_HEAD_SHA" ] || [ "$LOCK_REPO_HEAD_SHA" = "null" ]; then
+          echo "::error::Failed to fetch ${LOCK_REPO} main HEAD SHA"
+          exit 1
+        fi
+
+        echo "Using lock-repo HEAD SHA: ${LOCK_REPO_HEAD_SHA}"
+        echo "Attempting to claim environment from pool: ${ENVS[*]}"
+
+        while true; do
+          for ENV in "${ENVS[@]}"; do
+            LOCK_BRANCH="lock-${ENV}-${SERVICE}"
+            echo "Trying to claim $ENV..."
+
+            # Attempt atomic creation of orphan lock branch
+            # 422 = branch exists (already locked), which is expected
+            HTTP_CODE=$(curl -s -o /tmp/lock-response.json -w "%{http_code}" \
+              -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${OSOME_BOT_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${LOCK_REPO}/git/refs" \
+              -d "{\"ref\":\"refs/heads/${LOCK_BRANCH}\",\"sha\":\"${LOCK_REPO_HEAD_SHA}\"}")
+
+            if [ "$HTTP_CODE" = "201" ]; then
+              echo "Successfully claimed $ENV"
+              CLAIMED_ENV="$ENV"
+              break 2
+            elif [ "$HTTP_CODE" = "422" ]; then
+              echo "Environment $ENV is locked, trying next..."
+            else
+              echo "Unexpected response ($HTTP_CODE) for $ENV:"
+              cat /tmp/lock-response.json
+            fi
+          done
+
+          ELAPSED=$(($(date +%s) - START_TIME))
+          if [ "$ELAPSED" -ge "$RETRY_TIMEOUT" ]; then
+            echo "::error::Timeout waiting for environment after ${RETRY_TIMEOUT}s"
+            exit 1
+          fi
+
+          echo "All environments locked. Retrying in ${RETRY_INTERVAL}s... (${ELAPSED}s elapsed)"
+          sleep "$RETRY_INTERVAL"
+        done
+
+        echo "env=${CLAIMED_ENV}" >> "$GITHUB_OUTPUT"
+        echo "CLAIMED_ENV=${CLAIMED_ENV}" >> "$GITHUB_ENV"
+
+    # Step 2: Write owner.json to lock branch
+    - name: Write owner.json
+      shell: bash
+      env:
+        OSOME_BOT_TOKEN: ${{ inputs.osome-bot-token }}
+        LOCK_REPO: ${{ inputs.lock-repo }}
+        SERVICE: ${{ inputs.service }}
+        RUN_ID: ${{ github.run_id }}
+        GITHUB_REPO: ${{ github.repository }}
+        PR_NUM: ${{ inputs.pr-number }}
+        # Use the PR head SHA on pull_request events (a real commit reachable
+        # from the source branch). github.sha alone resolves to the synthetic
+        # merge commit (refs/pull/N/merge), which is unreachable from any
+        # branch — GitHub silently drops `on: deployment` events for
+        # unreachable refs, so deploy.yml never fires. Falls back to
+        # github.sha on push / workflow_dispatch / schedule triggers.
+        GITHUB_SHA_REF: ${{ github.event.pull_request.head.sha || github.sha }}
+      run: |
+        set -euo pipefail
+
+        LOCK_BRANCH="lock-${CLAIMED_ENV}-${SERVICE}"
+        OWNER_JSON=$(jq -n \
+          --arg run_id "$RUN_ID" \
+          --arg repo "$GITHUB_REPO" \
+          --arg pr "$PR_NUM" \
+          --arg sha "$GITHUB_SHA_REF" \
+          --arg claimed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          '{run_id: $run_id, repo: $repo, pr: $pr, sha: $sha, claimed_at: $claimed_at}')
+
+        # Base64 encode the content
+        CONTENT_B64=$(echo "$OWNER_JSON" | base64 -w 0 2>/dev/null || echo "$OWNER_JSON" | base64)
+
+        # Create or update owner.json on the lock branch
+        curl -s -X PUT \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer ${OSOME_BOT_TOKEN}" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          "https://api.github.com/repos/${LOCK_REPO}/contents/owner.json" \
+          -d "{\"message\":\"Update lock owner\",\"content\":\"${CONTENT_B64}\",\"branch\":\"${LOCK_BRANCH}\"}" \
+          || echo "Note: owner.json update is best-effort"
+
+    # Step 3: Create deployment (no polling — exits immediately after creation)
+    # The deployment payload includes pr_number so the downstream deployment_status
+    # workflow can recover the PR without a native pull_request context.
+    - name: Create deployment
+      id: deploy
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.osome-bot-token }}
+        GITHUB_REPO: ${{ github.repository }}
+        PR_NUM: ${{ inputs.pr-number }}
+        # Use the PR head SHA on pull_request events (a real commit reachable
+        # from the source branch). github.sha alone resolves to the synthetic
+        # merge commit (refs/pull/N/merge), which is unreachable from any
+        # branch — GitHub silently drops `on: deployment` events for
+        # unreachable refs, so deploy.yml never fires. Falls back to
+        # github.sha on push / workflow_dispatch / schedule triggers.
+        GITHUB_SHA_REF: ${{ github.event.pull_request.head.sha || github.sha }}
+      run: |
+        set -euo pipefail
+
+        echo "Creating deployment for ${GITHUB_REPO}@${GITHUB_SHA_REF} to ${CLAIMED_ENV}"
+
+        # Create deployment with pr_number in payload so the downstream
+        # on:deployment_status workflow can recover the PR number.
+        DEPLOY_RESPONSE=$(jq -nc \
+          --arg env "${CLAIMED_ENV}" \
+          --arg ref "${GITHUB_SHA_REF}" \
+          --argjson pr_number "${PR_NUM}" \
+          '{ref: $ref, environment: $env, auto_merge: false, required_contexts: [], payload: {pr_number: $pr_number}}' \
+          | gh api -X POST "/repos/${GITHUB_REPO}/deployments" --input -)
+
+        DEPLOY_ID=$(echo "$DEPLOY_RESPONSE" | jq -r '.id')
+        echo "Created deployment ID: $DEPLOY_ID"
+        echo "deploy_id=${DEPLOY_ID}" >> "$GITHUB_OUTPUT"
+
+    # Step 4: Release lock on failure (best-effort cleanup)
+    - name: Release lock on failure
+      # Best-effort cleanup so a failure between claim and successful deployment
+      # creation doesn't leak the lock. NOTE: composite-action steps do NOT run
+      # reliably on job CANCELLATION (e.g. cancel-in-progress on a force-push) —
+      # that path is intentionally left to the ghost-lock reaper (PF-1763,
+      # lock-reaper.yml, MAX_AGE 45m), matching the documented recovery design.
+      if: failure()
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.osome-bot-token }}
+        LOCK_REPO: ${{ inputs.lock-repo }}
+        SERVICE: ${{ inputs.service }}
+      run: |
+        if [ -z "${CLAIMED_ENV:-}" ]; then
+          echo "No environment was claimed, nothing to release"
+          exit 0
+        fi
+        LOCK_BRANCH="lock-${CLAIMED_ENV}-${SERVICE}"
+        echo "Releasing lock ${LOCK_BRANCH} after failure..."
+        gh api -X DELETE "/repos/${LOCK_REPO}/git/refs/heads/${LOCK_BRANCH}" \
+          || echo "Lock branch may already be deleted"

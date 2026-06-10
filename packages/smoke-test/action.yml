@@ -1,0 +1,317 @@
+# action.yml
+name: 'Smoke Test'
+description: 'Run smoke tests against an already-claimed, already-deployed env, release the lock, publish Allure report, and comment on PR. Pair with smoke-claim-deploy for the full event-driven smoke flow.'
+
+inputs:
+  service:
+    description: 'Caller repo name (e.g., billy, pablo)'
+    required: true
+  claimed-env:
+    description: 'The test-N environment to run against (from smoke-claim-deploy claimed-env output). Also used as the lock to release when target-url is empty.'
+    required: true
+  target-url:
+    description: |
+      Pre-deployed transient environment URL (e.g. https://<branch>.my.osome.club).
+      When set, TEST_ENV points at this URL instead of claimed-env, and the lock
+      release step is skipped (there is no test-N lock to release in transient mode).
+      When empty (default), claimed-env is used as TEST_ENV and the lock is released
+      after tests complete.
+    required: false
+    default: ''
+  pr-number:
+    description: |
+      PR number used for the PR comment and Allure bucket path.
+      Required when running from an on:deployment_status workflow (which has no
+      native pull_request context). When empty, falls back to
+      github.event.pull_request.number (normal on:pull_request flow).
+    required: true
+  tags:
+    description: 'Test tags exported as TEST_TAGS env var'
+    required: false
+    default: ''
+  osome-bot-token:
+    description: 'PAT with pull-requests:write on the caller repo and contents:write on lock-repo. Must NOT be the workflow GITHUB_TOKEN.'
+    required: true
+  lock-repo:
+    description: 'Repository for environment locks (must match what smoke-claim-deploy used)'
+    required: false
+    default: 'OsomePteLtd/e2e-testing'
+
+outputs:
+  smoke-exit-code:
+    description: 'Playwright exit code'
+    value: ${{ steps.smoke.outputs.exit }}
+
+runs:
+  using: 'composite'
+  steps:
+    # Step 4: Checkout e2e-testing repository
+    - name: Checkout e2e-testing
+      uses: actions/checkout@v4
+      with:
+        repository: OsomePteLtd/e2e-testing
+        token: ${{ inputs.osome-bot-token }}
+        path: e2e
+
+    # Step 5: Install dependencies
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        package_json_file: e2e/package.json
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: e2e/.nvmrc
+        cache: 'pnpm'
+        cache-dependency-path: e2e/pnpm-lock.yaml
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: e2e
+      run: pnpm install --frozen-lockfile
+
+    - name: Install Playwright browsers
+      shell: bash
+      working-directory: e2e
+      run: pnpm exec playwright install --with-deps chromium
+
+    # Step 6: Configure AWS credentials (for SSM fetch + S3 publish)
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+      with:
+        role-to-assume: arn:aws:iam::664258603548:role/github-deployer-nokms
+        aws-region: us-east-1
+
+    # Step 7: Fetch smoke credentials from SSM
+    - name: Fetch smoke credentials from SSM
+      shell: bash
+      run: |
+        set -euo pipefail
+        EMAIL=$(aws ssm get-parameter \
+          --name /smoke/agent/email \
+          --with-decryption \
+          --query 'Parameter.Value' --output text)
+        PASS=$(aws ssm get-parameter \
+          --name /smoke/agent/password \
+          --with-decryption \
+          --query 'Parameter.Value' --output text)
+        echo "::add-mask::$PASS"
+        echo "SMOKE_AGENT_EMAIL=$EMAIL" >> "$GITHUB_ENV"
+        echo "SMOKE_AGENT_PASSWORD=$PASS" >> "$GITHUB_ENV"
+
+    # Step 8: Run smoke tests
+    # In target-url mode: TEST_ENV receives the transient URL directly so
+    # resolveSmokeEnv picks up the "transient" path in environments.ts.
+    # In normal mode: TEST_ENV is the claimed test-N name (e.g. "test-3").
+    - name: Run smoke tests
+      id: smoke
+      shell: bash
+      working-directory: e2e
+      env:
+        TEST_ENV: ${{ inputs.target-url != '' && inputs.target-url || inputs.claimed-env }}
+        USE_ALLURE: 'true'
+        TEST_TAGS: ${{ inputs.tags }}
+        CI: 'true'
+      run: |
+        set +e
+        echo "Running smoke tests against ${TEST_ENV}..."
+        pnpm exec playwright test --project=smoke
+        EXIT_CODE=$?
+        echo "exit=${EXIT_CODE}" >> "$GITHUB_OUTPUT"
+        echo "Playwright exited with code: $EXIT_CODE"
+        exit 0
+
+    # Step 9: Release environment lock
+    # Skipped in target-url mode — no test-N lock was claimed.
+    # Per-repo lock invariant: branch name is lock-${ENV}-${SERVICE}
+    # (e.g. lock-test-4-billy), NOT lock-${ENV}. This keeps different
+    # services from blocking each other on the same test-N environment.
+    - name: Release environment lock
+      if: always() && inputs.target-url == '' && inputs.claimed-env != ''
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.osome-bot-token }}
+        LOCK_REPO: ${{ inputs.lock-repo }}
+        SERVICE: ${{ inputs.service }}
+        CLAIMED_ENV: ${{ inputs.claimed-env }}
+      run: |
+        LOCK_BRANCH="lock-${CLAIMED_ENV}-${SERVICE}"
+        echo "Releasing lock on ${CLAIMED_ENV}..."
+
+        gh api \
+          -X DELETE \
+          "/repos/${LOCK_REPO}/git/refs/heads/${LOCK_BRANCH}" \
+          || echo "Lock branch may already be deleted"
+
+        echo "Lock released for ${CLAIMED_ENV}"
+
+    # Step 10: Generate Allure report and publish to S3
+    - name: Generate Allure report
+      if: always()
+      shell: bash
+      working-directory: e2e
+      run: |
+        if [ -d "allure-results" ]; then
+          pnpm exec allure generate ./allure-results --output allure-report
+        else
+          echo "No allure-results found, skipping report generation"
+        fi
+
+    - name: Publish Allure report to S3
+      if: always()
+      shell: bash
+      working-directory: e2e
+      env:
+        SERVICE: ${{ inputs.service }}
+        PR_NUM: ${{ inputs.pr-number != '' && inputs.pr-number || github.event.pull_request.number }}
+      run: |
+        if [ ! -d "allure-report" ]; then
+          echo "No allure-report found, skipping S3 upload"
+          exit 0
+        fi
+
+        echo "Publishing Allure report for ${SERVICE} PR-${PR_NUM}..."
+
+        # Upload PR-specific report
+        PREFIX="smoke/${SERVICE}/PR-${PR_NUM}"
+
+        # Sync report tree (--tagging is not supported on s3 sync by the AWS CLI
+        # version installed on the ARC runner; apply tags separately via s3api below)
+        aws s3 sync ./allure-report "s3://osome-allure-reports/${PREFIX}/" \
+          --delete \
+          --metadata-directive REPLACE
+
+        # Apply lifecycle=ephemeral tag to every uploaded object via s3api.
+        # s3api put-object-tagging is supported on all AWS CLI versions that
+        # include s3api (i.e. all of them), so this avoids the version constraint.
+        # list-objects-v2 auto-paginates and returns tab-separated keys per page;
+        # tr converts tabs to newlines so the while-loop processes one key at a time.
+        aws s3api list-objects-v2 \
+          --bucket osome-allure-reports \
+          --prefix "${PREFIX}/" \
+          --query 'Contents[].Key' \
+          --output text \
+          | tr '\t' '\n' \
+          | while IFS= read -r key; do
+              [ -z "$key" ] && continue
+              aws s3api put-object-tagging \
+                --bucket osome-allure-reports \
+                --key "$key" \
+                --tagging 'TagSet=[{Key=lifecycle,Value=ephemeral}]'
+            done
+
+        # Update latest report
+        aws s3 sync ./allure-report "s3://osome-allure-reports/smoke/${SERVICE}/latest/" \
+          --delete
+
+        # Preserve history
+        if [ -f "./allure-report/history/history.jsonl" ]; then
+          aws s3 cp ./allure-report/history/history.jsonl \
+            "s3://osome-allure-reports/smoke/${SERVICE}/history.jsonl"
+        fi
+
+        echo "Report published to: https://allure.osome.club/smoke/${SERVICE}/PR-${PR_NUM}/"
+
+    # Step 11: Comment on PR with results
+    - name: Comment on PR
+      if: >-
+        always() &&
+        (inputs.pr-number != '' || github.event.pull_request.number != '')
+      uses: actions/github-script@v7
+      env:
+        SERVICE: ${{ inputs.service }}
+        PR_ENV: ${{ inputs.target-url != '' && inputs.target-url || inputs.claimed-env }}
+        EXIT_CODE: ${{ steps.smoke.outputs.exit }}
+        PR_NUMBER: ${{ inputs.pr-number != '' && inputs.pr-number || github.event.pull_request.number }}
+      with:
+        github-token: ${{ inputs.osome-bot-token }}
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+
+          const service = process.env.SERVICE;
+          const prNum = parseInt(process.env.PR_NUMBER || '0', 10);
+          const env = process.env.PR_ENV;
+          const exitCode = parseInt(process.env.EXIT_CODE || '1');
+          const isTransient = env?.startsWith('https://');
+
+          // Try to read results.json for detailed stats
+          let stats = { passed: 0, failed: 0, skipped: 0, duration: 0 };
+          try {
+            const resultsPath = path.join(process.cwd(), 'e2e', 'results.json');
+            if (fs.existsSync(resultsPath)) {
+              const results = JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
+              stats.passed = (results.stats?.expected ?? 0) + (results.stats?.flaky ?? 0);
+              stats.failed = results.stats?.unexpected ?? 0;
+              stats.skipped = results.stats?.skipped ?? 0;
+              stats.duration = Math.round((results.stats?.duration || 0) / 1000);
+            }
+          } catch (e) {
+            console.log('Could not parse results.json:', e.message);
+          }
+
+          const status = exitCode === 0 ? 'passed' : 'failed';
+          const statusEmoji = exitCode === 0 ? ':white_check_mark:' : ':x:';
+          const syncTime = new Date().toISOString().slice(11, 16);
+
+          const reportUrl = `https://allure.osome.club/smoke/${service}/PR-${prNum}/`;
+
+          const body = `<!-- smoke-run -->
+          ## Smoke Test Results ${statusEmoji}
+
+          | Metric | Value |
+          |--------|-------|
+          | Status | **${status}** |
+          | Passed | ${stats.passed} |
+          | Failed | ${stats.failed} |
+          | Skipped | ${stats.skipped} |
+          | Duration | ${stats.duration}s |
+          | Environment | ${env} |
+
+          **[View Allure Report](${reportUrl})**
+
+          > **Note:** ${isTransient ? `Ran against transient env ${env} (stage backend).` : `${env} syncs twice daily (02:00 + 12:00 SGT). Data may be up to 12h stale.`}
+          `.trim().replace(/^          /gm, '');
+
+          // Find existing comment
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: prNum,
+          });
+
+          const marker = '<!-- smoke-run -->';
+          const existing = comments.find(c => c.body?.includes(marker));
+
+          if (existing) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existing.id,
+              body,
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNum,
+              body,
+            });
+          }
+
+    # Step 12: Surface Playwright exit code
+    - name: Check smoke test result
+      shell: bash
+      env:
+        EXIT_CODE: ${{ steps.smoke.outputs.exit }}
+      run: |
+        if [ -z "$EXIT_CODE" ]; then
+          echo "::error::Smoke test step did not produce an exit code"
+          exit 1
+        fi
+        if [ "$EXIT_CODE" != "0" ]; then
+          echo "::error::Smoke tests failed with exit code $EXIT_CODE"
+          exit "$EXIT_CODE"
+        fi
+        echo "Smoke tests passed"
