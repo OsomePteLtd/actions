@@ -1,17 +1,17 @@
 # action.yml
 name: 'e2e-gate-check'
-description: 'Consult per-tag GitHub commit statuses on OsomePteLtd/e2e-testing to gate production deployment. Verifies state == success AND deploying SHA is ancestor of the snapshot SHA captured at e2e-time.'
+description: 'Consult the per-tag e2e result board (board.json on the e2e-gate-board branch of OsomePteLtd/e2e-testing) to gate production deployment. Verifies the board row state == success AND deploying SHA is ancestor of the snapshot SHA captured at e2e-time.'
 
 inputs:
   execution_tag:
     required: true
-    description: 'Execution scope tag, e.g. @e2e. Combined with domain_tag to form the primary status context e2e/<execution_tag>+<domain_tag>. Also used as the bare umbrella fallback context e2e/<execution_tag>.'
+    description: 'Execution scope tag, e.g. @e2e. Combined with domain_tag to form the primary board key <execution_tag>+<domain_tag>. Also used for the umbrella fallback key <execution_tag>+umbrella.'
   domain_tag:
     required: true
-    description: 'Domain gate tag the caller service is gated on, e.g. @billing. Combined with execution_tag to form the primary status context.'
+    description: 'Domain gate tag the caller service is gated on, e.g. @billing. Combined with execution_tag to form the primary board key.'
   service:
     required: true
-    description: 'Service key used to look up the snapshot SHA in the status description payload at versions.<service>, e.g. billy.'
+    description: 'Service key used to look up the snapshot SHA in the board row at versions.<service>, e.g. billy.'
   deploying_sha:
     required: true
     description: 'SHA being deployed; typically ${{ github.sha }}. Used as the first argument to git merge-base --is-ancestor.'
@@ -21,11 +21,11 @@ inputs:
   e2e_repo:
     required: false
     default: 'OsomePteLtd/e2e-testing'
-    description: 'E2E testing repository that owns the per-tag commit statuses and the anchor tag.'
+    description: 'E2E testing repository that owns the result board (board.json) and the anchor tag.'
   anchor_ref:
     required: false
     default: 'e2e-latest'
-    description: 'Lightweight tag name on e2e_repo whose target SHA carries the per-tag statuses.'
+    description: 'Tag name on e2e_repo pointing at the latest board commit on the e2e-gate-board branch. The producer pushes a lightweight tag; annotated tags are tolerated and dereferenced.'
   gate_mode:
     description: 'Enforcement mode: block (default, exits non-zero on gate failure) | report (runs full check, always exits 0, logs decision) | off (skips all checks, exits 0)'
     required: false
@@ -33,10 +33,10 @@ inputs:
 
 outputs:
   anchor_sha:
-    description: 'SHA on e2e_repo that the consulted statuses were attached to (the e2e_repo SHA anchored by anchor_ref).'
+    description: 'Commit SHA on e2e_repo that the consulted board.json was read from (the board commit anchored by anchor_ref).'
     value: ${{ steps.set-outputs.outputs.anchor_sha }}
   snapshot_sha:
-    description: 'Snapshot SHA of the caller service captured at e2e-time, parsed from the selected status description at versions.<service>.'
+    description: 'Snapshot SHA of the caller service captured at e2e-time, read from the selected board row at versions.<service>.'
     value: ${{ steps.set-outputs.outputs.snapshot_sha }}
   tag_used:
     description: 'Tag identifier actually consulted: domain_tag value on the primary path, or the literal "umbrella" on the fallback path.'
@@ -85,12 +85,12 @@ runs:
         mkdir -p "$RUNNER_TEMP/e2e-gate"
         ANCHOR_PATH="$RUNNER_TEMP/e2e-gate/anchor_sha.txt"
         DECISION_PATH="$RUNNER_TEMP/e2e-gate/gate_decision.txt"
-        > "$DECISION_PATH"
+        : > "$DECISION_PATH"
 
-        if ! API_OUT=$(gh api "repos/${E2E_REPO}/git/refs/tags/${ANCHOR_REF}" 2>&1); then
+        if ! API_OUT=$(gh api "repos/${E2E_REPO}/git/ref/tags/${ANCHOR_REF}" 2>&1); then
           if echo "$API_OUT" | grep -qE "Not Found|HTTP 404"; then
             {
-              echo "## ❌ Gate: Status board not yet populated"
+              echo "## ❌ Gate: Result board not yet populated"
               echo ""
               echo "Anchor tag \`${ANCHOR_REF}\` not found on \`${E2E_REPO}\`."
               echo ""
@@ -113,7 +113,22 @@ runs:
           exit 1
         fi
 
-        ANCHOR_SHA=$(echo "$API_OUT" | jq -r '.object.sha')
+        ANCHOR_SHA=$(echo "$API_OUT" | jq -r '.object.sha // empty')
+        OBJECT_TYPE=$(echo "$API_OUT" | jq -r '.object.type // empty')
+
+        # The producer pushes a lightweight tag (object.type == "commit"), but
+        # tolerate an annotated tag by dereferencing once to its target commit.
+        if [ "$OBJECT_TYPE" = "tag" ] && [ -n "$ANCHOR_SHA" ]; then
+          if ! TAG_OUT=$(gh api "repos/${E2E_REPO}/git/tags/${ANCHOR_SHA}" 2>&1); then
+            echo "Failed to dereference annotated tag ${ANCHOR_REF} (${ANCHOR_SHA}): $TAG_OUT" >&2
+            if [ ! -s "$DECISION_PATH" ]; then
+              echo "fail-missing" > "$DECISION_PATH"
+            fi
+            exit 1
+          fi
+          ANCHOR_SHA=$(echo "$TAG_OUT" | jq -r '.object.sha // empty')
+        fi
+
         if [ -z "$ANCHOR_SHA" ] || [ "$ANCHOR_SHA" = "null" ]; then
           echo "Anchor ref resolved to empty SHA" >&2
           if [ ! -s "$DECISION_PATH" ]; then
@@ -126,8 +141,8 @@ runs:
         echo "anchor_sha=$ANCHOR_SHA" >> "$GITHUB_OUTPUT"
         echo "Anchor SHA: $ANCHOR_SHA"
 
-    - name: Fetch statuses on anchor SHA
-      id: fetch-statuses
+    - name: Fetch board.json at anchor SHA
+      id: fetch-board
       if: ${{ inputs.gate_mode != 'off' }}
       continue-on-error: ${{ inputs.gate_mode == 'report' }}
       shell: bash
@@ -137,85 +152,98 @@ runs:
         ANCHOR_SHA: ${{ steps.resolve-anchor.outputs.anchor_sha }}
       run: |
         set -euo pipefail
-        STATUSES_PATH="$RUNNER_TEMP/e2e-gate/statuses.json"
+        BOARD_PATH="$RUNNER_TEMP/e2e-gate/board.json"
+        DECISION_PATH="$RUNNER_TEMP/e2e-gate/gate_decision.txt"
 
-        if ! API_OUT=$(gh api --paginate "repos/${E2E_REPO}/commits/${ANCHOR_SHA}/statuses" 2>&1); then
-          echo "Failed to fetch statuses for anchor SHA ${ANCHOR_SHA}: $API_OUT" >&2
-          if [ ! -s "$RUNNER_TEMP/e2e-gate/gate_decision.txt" ]; then
-            echo "fail-missing" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
+        if ! BOARD_RAW=$(gh api -H "Accept: application/vnd.github.raw+json" \
+            "repos/${E2E_REPO}/contents/board.json?ref=${ANCHOR_SHA}" 2>&1); then
+          {
+            echo "## ❌ Gate: board.json not found at anchor SHA"
+            echo ""
+            echo "- Anchor SHA: \`${ANCHOR_SHA}\` on \`${E2E_REPO}\`"
+            echo "- \`board.json\` is missing at that commit."
+            echo ""
+            echo "The anchor tag should point at a board commit on the \`e2e-gate-board\` branch. Re-run e2e to repopulate:"
+            echo ""
+            echo '```bash'
+            echo "gh workflow run e2e-dispatch.yml -R ${E2E_REPO}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Failed to fetch board.json at ${ANCHOR_SHA}: $BOARD_RAW" >&2
+          if [ ! -s "$DECISION_PATH" ]; then
+            echo "fail-missing" > "$DECISION_PATH"
           fi
           exit 1
         fi
 
-        # --paginate concatenates pages by replaying the top-level array; jq -s flattens it.
-        echo "$API_OUT" | jq -s 'add // []' > "$STATUSES_PATH"
-        COUNT=$(jq 'length' "$STATUSES_PATH")
-        echo "Fetched ${COUNT} status entries on anchor SHA ${ANCHOR_SHA}"
-
-    - name: Find primary tag status
-      id: find-primary
-      if: ${{ inputs.gate_mode != 'off' }}
-      continue-on-error: ${{ inputs.gate_mode == 'report' }}
-      shell: bash
-      env:
-        GH_TOKEN: ${{ inputs.token }}
-        INPUT_EXECUTION_TAG: ${{ inputs.execution_tag }}
-        INPUT_DOMAIN_TAG: ${{ inputs.domain_tag }}
-      run: |
-        set -euo pipefail
-        STATUSES_PATH="$RUNNER_TEMP/e2e-gate/statuses.json"
-        SELECTED_PATH="$RUNNER_TEMP/e2e-gate/selected_status.json"
-        TAG_USED_PATH="$RUNNER_TEMP/e2e-gate/tag_used.txt"
-        PRIMARY_CONTEXT="e2e/${INPUT_EXECUTION_TAG}+${INPUT_DOMAIN_TAG}"
-
-        MATCH=$(jq -c --arg ctx "$PRIMARY_CONTEXT" '[.[] | select(.context == $ctx)] | first // empty' "$STATUSES_PATH")
-
-        if [ -n "$MATCH" ] && [ "$MATCH" != "null" ]; then
-          echo "$MATCH" > "$SELECTED_PATH"
-          echo "$INPUT_DOMAIN_TAG" > "$TAG_USED_PATH"
-          echo "Primary status found for context ${PRIMARY_CONTEXT}"
-        else
-          echo "No status found for primary context ${PRIMARY_CONTEXT}; will try fallback"
+        if ! echo "$BOARD_RAW" | jq -e 'type == "object"' > /dev/null 2>&1; then
+          {
+            echo "## ❌ Gate: board.json is not valid JSON"
+            echo ""
+            echo "- Anchor SHA: \`${ANCHOR_SHA}\` on \`${E2E_REPO}\`"
+            echo "- \`board.json\` exists but could not be parsed as a JSON object."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "board.json at ${ANCHOR_SHA} is not a parseable JSON object" >&2
+          if [ ! -s "$DECISION_PATH" ]; then
+            echo "fail-missing" > "$DECISION_PATH"
+          fi
+          exit 1
         fi
 
-    - name: Find fallback tag status
-      id: find-fallback
+        echo "$BOARD_RAW" > "$BOARD_PATH"
+        ROW_COUNT=$(jq 'length' "$BOARD_PATH")
+        echo "Fetched board.json with ${ROW_COUNT} row(s) at anchor SHA ${ANCHOR_SHA}"
+
+    - name: Select board row
+      id: select-row
       if: ${{ inputs.gate_mode != 'off' }}
       continue-on-error: ${{ inputs.gate_mode == 'report' }}
       shell: bash
       env:
-        GH_TOKEN: ${{ inputs.token }}
         INPUT_EXECUTION_TAG: ${{ inputs.execution_tag }}
         INPUT_DOMAIN_TAG: ${{ inputs.domain_tag }}
         E2E_REPO: ${{ inputs.e2e_repo }}
         ANCHOR_SHA: ${{ steps.resolve-anchor.outputs.anchor_sha }}
       run: |
         set -euo pipefail
-        STATUSES_PATH="$RUNNER_TEMP/e2e-gate/statuses.json"
-        SELECTED_PATH="$RUNNER_TEMP/e2e-gate/selected_status.json"
+        BOARD_PATH="$RUNNER_TEMP/e2e-gate/board.json"
+        SELECTED_PATH="$RUNNER_TEMP/e2e-gate/selected_row.json"
         TAG_USED_PATH="$RUNNER_TEMP/e2e-gate/tag_used.txt"
-        FALLBACK_CONTEXT="e2e/${INPUT_EXECUTION_TAG}"
+        KEY_USED_PATH="$RUNNER_TEMP/e2e-gate/key_used.txt"
+        PRIMARY_KEY="${INPUT_EXECUTION_TAG}+${INPUT_DOMAIN_TAG}"
+        FALLBACK_KEY="${INPUT_EXECUTION_TAG}+umbrella"
 
-        if [ -s "$SELECTED_PATH" ]; then
-          echo "Primary status already selected; skipping fallback"
+        ROW=$(jq -c --arg k "$PRIMARY_KEY" '.[$k] | select(type == "object")' "$BOARD_PATH")
+
+        if [ -n "$ROW" ]; then
+          echo "$ROW" > "$SELECTED_PATH"
+          echo "$INPUT_DOMAIN_TAG" > "$TAG_USED_PATH"
+          echo "$PRIMARY_KEY" > "$KEY_USED_PATH"
+          echo "Board row found for primary key ${PRIMARY_KEY}"
           exit 0
         fi
+        echo "No board row for primary key ${PRIMARY_KEY}; trying umbrella fallback"
 
-        MATCH=$(jq -c --arg ctx "$FALLBACK_CONTEXT" '[.[] | select(.context == $ctx)] | first // empty' "$STATUSES_PATH")
+        ROW=$(jq -c --arg k "$FALLBACK_KEY" '.[$k] | select(type == "object")' "$BOARD_PATH")
 
-        if [ -n "$MATCH" ] && [ "$MATCH" != "null" ]; then
-          echo "$MATCH" > "$SELECTED_PATH"
+        if [ -n "$ROW" ]; then
+          echo "$ROW" > "$SELECTED_PATH"
           echo "umbrella" > "$TAG_USED_PATH"
-          echo "Fallback status found for context ${FALLBACK_CONTEXT}"
+          echo "$FALLBACK_KEY" > "$KEY_USED_PATH"
+          echo "Board row found for fallback key ${FALLBACK_KEY}"
         else
           {
-            echo "## ❌ Gate: No status for primary or fallback context"
+            echo "## ❌ Gate: No board row for primary or fallback key"
             echo ""
             echo "- Anchor SHA: \`${ANCHOR_SHA}\` on \`${E2E_REPO}\`"
-            echo "- Primary context: \`e2e/${INPUT_EXECUTION_TAG}+${INPUT_DOMAIN_TAG}\` — not found"
-            echo "- Fallback context: \`${FALLBACK_CONTEXT}\` — not found"
+            echo "- Primary key: \`${PRIMARY_KEY}\` — not found"
+            echo "- Fallback key: \`${FALLBACK_KEY}\` — not found"
             echo ""
-            echo "The e2e-testing repo has not yet posted a status for this (execution, domain) pair on the current anchor SHA."
+            echo "The e2e-testing repo has not yet published a board row for this (execution, domain) pair. Re-run e2e with the right tags:"
+            echo ""
+            echo '```bash'
+            echo "gh workflow run e2e-dispatch.yml -R ${E2E_REPO}"
+            echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           if [ ! -s "$RUNNER_TEMP/e2e-gate/gate_decision.txt" ]; then
             echo "fail-missing" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
@@ -223,32 +251,34 @@ runs:
           exit 1
         fi
 
-    - name: Verify status state is success
+    - name: Verify board row state is success
       id: state-check
       if: ${{ inputs.gate_mode != 'off' }}
       continue-on-error: ${{ inputs.gate_mode == 'report' }}
       shell: bash
-      env:
-        GH_TOKEN: ${{ inputs.token }}
       run: |
         set -euo pipefail
-        SELECTED_PATH="$RUNNER_TEMP/e2e-gate/selected_status.json"
+        SELECTED_PATH="$RUNNER_TEMP/e2e-gate/selected_row.json"
         TAG_USED=$(cat "$RUNNER_TEMP/e2e-gate/tag_used.txt")
-        STATE=$(jq -r '.state' "$SELECTED_PATH")
-        TARGET_URL=$(jq -r '.target_url // ""' "$SELECTED_PATH")
-        UPDATED_AT=$(jq -r '.updated_at // ""' "$SELECTED_PATH")
+        KEY_USED=$(cat "$RUNNER_TEMP/e2e-gate/key_used.txt")
+        STATE=$(jq -r '.state // ""' "$SELECTED_PATH")
+        RUN_URL=$(jq -r '.runUrl // ""' "$SELECTED_PATH")
+        RAN_AT=$(jq -r '.ranAt // ""' "$SELECTED_PATH")
+        PASSED=$(jq -r '.passed // ""' "$SELECTED_PATH")
+        FAILED=$(jq -r '.failed // ""' "$SELECTED_PATH")
 
-        echo "State for tag ${TAG_USED}: ${STATE} (updated_at=${UPDATED_AT})"
+        echo "Board row ${KEY_USED}: state=${STATE} passed=${PASSED} failed=${FAILED} ranAt=${RAN_AT}"
 
         if [ "$STATE" != "success" ]; then
           {
-            echo "## ❌ Gate: e2e status state is \`${STATE}\`"
+            echo "## ❌ Gate: e2e board row state is \`${STATE}\`"
             echo ""
-            echo "- Tag consulted: \`${TAG_USED}\`"
-            echo "- Status state: \`${STATE}\` (required: \`success\`)"
-            echo "- Updated at: \`${UPDATED_AT}\`"
-            if [ -n "$TARGET_URL" ]; then
-              echo "- Run: ${TARGET_URL}"
+            echo "- Board key: \`${KEY_USED}\` (tag consulted: \`${TAG_USED}\`)"
+            echo "- Row state: \`${STATE}\` (required: \`success\`)"
+            echo "- Passed/failed: \`${PASSED}\`/\`${FAILED}\`"
+            echo "- Ran at: \`${RAN_AT}\`"
+            if [ -n "$RUN_URL" ]; then
+              echo "- E2E run: ${RUN_URL}"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
           if [ ! -s "$RUNNER_TEMP/e2e-gate/gate_decision.txt" ]; then
@@ -257,31 +287,32 @@ runs:
           exit 1
         fi
 
-    - name: Parse snapshot SHA for service
+    - name: Read snapshot SHA for service
       id: parse-snapshot
       if: ${{ inputs.gate_mode != 'off' }}
       continue-on-error: ${{ inputs.gate_mode == 'report' }}
       shell: bash
       env:
-        GH_TOKEN: ${{ inputs.token }}
         INPUT_SERVICE: ${{ inputs.service }}
       run: |
         set -euo pipefail
-        SELECTED_PATH="$RUNNER_TEMP/e2e-gate/selected_status.json"
+        SELECTED_PATH="$RUNNER_TEMP/e2e-gate/selected_row.json"
         TAG_USED=$(cat "$RUNNER_TEMP/e2e-gate/tag_used.txt")
-        DESCRIPTION=$(jq -r '.description // ""' "$SELECTED_PATH")
+        KEY_USED=$(cat "$RUNNER_TEMP/e2e-gate/key_used.txt")
 
-        SNAPSHOT_SHA=$(echo "$DESCRIPTION" | jq -r --arg svc "$INPUT_SERVICE" '.versions[$svc] // empty')
+        SNAPSHOT_SHA=$(jq -r --arg svc "$INPUT_SERVICE" '.versions[$svc]? // empty' "$SELECTED_PATH")
 
-        if [ -z "$SNAPSHOT_SHA" ] || [ "$SNAPSHOT_SHA" = "null" ]; then
+        if ! printf '%s' "$SNAPSHOT_SHA" | grep -qE '^[0-9a-f]{12,40}$'; then
+          echo "The board row has no usable snapshot SHA for service '${INPUT_SERVICE}' (got: '${SNAPSHOT_SHA}')." >&2
+          echo "The service is likely not onboarded in GATE_SERVICES on the e2e-testing side." >&2
           {
             echo "## ❌ Gate: Snapshot SHA missing for service \`${INPUT_SERVICE}\`"
             echo ""
-            echo "- Tag consulted: \`${TAG_USED}\`"
-            echo "- Status description did not contain \`.versions.${INPUT_SERVICE}\`"
-            echo "- Raw description:"
-            echo '```'
-            echo "$DESCRIPTION"
+            echo "- Board key: \`${KEY_USED}\` (tag consulted: \`${TAG_USED}\`)"
+            echo "- The board row has no valid \`versions.${INPUT_SERVICE}\` entry — the service is likely not onboarded in \`GATE_SERVICES\` on the e2e-testing side."
+            echo "- Row versions:"
+            echo '```json'
+            jq '.versions // {}' "$SELECTED_PATH"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           if [ ! -s "$RUNNER_TEMP/e2e-gate/gate_decision.txt" ]; then
@@ -299,12 +330,13 @@ runs:
       continue-on-error: ${{ inputs.gate_mode == 'report' }}
       shell: bash
       env:
-        GH_TOKEN: ${{ inputs.token }}
         DEPLOYING_SHA: ${{ inputs.deploying_sha }}
         SNAPSHOT_SHA: ${{ steps.parse-snapshot.outputs.snapshot_sha }}
       run: |
         set -euo pipefail
         TAG_USED=$(cat "$RUNNER_TEMP/e2e-gate/tag_used.txt")
+        KEY_USED=$(cat "$RUNNER_TEMP/e2e-gate/key_used.txt")
+        RUN_URL=$(jq -r '.runUrl // ""' "$RUNNER_TEMP/e2e-gate/selected_row.json")
 
         if [ -z "$DEPLOYING_SHA" ] || [ -z "$SNAPSHOT_SHA" ]; then
           echo "Missing deploying_sha or snapshot_sha for ancestor check" >&2
@@ -314,48 +346,50 @@ runs:
           exit 1
         fi
 
-        # Ensure both SHAs are known to the local git object database.
-        if ! git cat-file -e "${DEPLOYING_SHA}^{commit}" 2>/dev/null; then
-          echo "deploying_sha ${DEPLOYING_SHA} not present locally; caller must check out with fetch-depth: 0" >&2
+        # is deploying_sha an ancestor of snapshot_sha?
+        #   exit 0 (yes) => snapshot covers deploying  => PASS
+        #   exit 1 (no)  => snapshot predates deploying => STALE
+        #   exit >1      => a SHA could not be resolved locally => MISSING
+        RC=0
+        git merge-base --is-ancestor "$DEPLOYING_SHA" "$SNAPSHOT_SHA" || RC=$?
+
+        if [ "$RC" -eq 0 ]; then
+          echo "Ancestor check OK: deploying ${DEPLOYING_SHA} ⊆ snapshot ${SNAPSHOT_SHA}"
+        elif [ "$RC" -eq 1 ]; then
+          {
+            echo "## ❌ Gate: Snapshot is stale relative to deploying SHA"
+            echo ""
+            echo "- Board key: \`${KEY_USED}\` (tag consulted: \`${TAG_USED}\`)"
+            echo "- Deploying SHA: \`${DEPLOYING_SHA}\`"
+            echo "- Snapshot SHA: \`${SNAPSHOT_SHA}\`"
+            if [ -n "$RUN_URL" ]; then
+              echo "- E2E run: ${RUN_URL}"
+            fi
+            echo ""
+            echo "The deploying SHA is NOT an ancestor of the e2e-time snapshot SHA, so the green e2e run does not cover this deploy. Re-run e2e to refresh the snapshot:"
+            echo ""
+            echo '```bash'
+            echo "gh workflow run e2e-dispatch.yml -R OsomePteLtd/e2e-testing"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
           if [ ! -s "$RUNNER_TEMP/e2e-gate/gate_decision.txt" ]; then
             echo "fail-stale" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
           fi
           exit 1
-        fi
-        if ! git cat-file -e "${SNAPSHOT_SHA}^{commit}" 2>/dev/null; then
-          if ! git fetch --quiet origin "${SNAPSHOT_SHA}"; then
-            echo "snapshot_sha ${SNAPSHOT_SHA} not reachable from origin; treating as stale" >&2
-            {
-              echo "## ❌ Gate: Snapshot SHA not reachable"
-              echo ""
-              echo "- Tag consulted: \`${TAG_USED}\`"
-              echo "- Deploying SHA: \`${DEPLOYING_SHA}\`"
-              echo "- Snapshot SHA: \`${SNAPSHOT_SHA}\` (not in origin)"
-            } >> "$GITHUB_STEP_SUMMARY"
-            if [ ! -s "$RUNNER_TEMP/e2e-gate/gate_decision.txt" ]; then
-              echo "fail-stale" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
-            fi
-            exit 1
-          fi
-        fi
-
-        # is deploying_sha an ancestor of snapshot_sha?
-        #   exit 0 (yes) => snapshot covers deploying  => PASS
-        #   exit 1 (no)  => snapshot predates deploying => STALE
-        if git merge-base --is-ancestor "$DEPLOYING_SHA" "$SNAPSHOT_SHA"; then
-          echo "Ancestor check OK: deploying ${DEPLOYING_SHA} ⊆ snapshot ${SNAPSHOT_SHA}"
         else
+          echo "git merge-base exited with ${RC}: a SHA could not be resolved in the local checkout." >&2
+          echo "Ensure the caller checks out with fetch-depth: 0 so the short snapshot SHA (${SNAPSHOT_SHA}) and deploying SHA (${DEPLOYING_SHA}) are both resolvable." >&2
           {
-            echo "## ❌ Gate: Snapshot is stale relative to deploying SHA"
+            echo "## ❌ Gate: SHA not resolvable in caller checkout"
             echo ""
-            echo "- Tag consulted: \`${TAG_USED}\`"
+            echo "- Board key: \`${KEY_USED}\` (tag consulted: \`${TAG_USED}\`)"
             echo "- Deploying SHA: \`${DEPLOYING_SHA}\`"
             echo "- Snapshot SHA: \`${SNAPSHOT_SHA}\`"
             echo ""
-            echo "The deploying SHA is NOT an ancestor of the e2e-time snapshot SHA, so the green status does not cover this deploy."
+            echo "\`git merge-base\` could not resolve one of the SHAs (exit ${RC}). The calling workflow must check out the service repo with \`fetch-depth: 0\` so the short snapshot SHA resolves to a local commit."
           } >> "$GITHUB_STEP_SUMMARY"
           if [ ! -s "$RUNNER_TEMP/e2e-gate/gate_decision.txt" ]; then
-            echo "fail-stale" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
+            echo "fail-missing" > "$RUNNER_TEMP/e2e-gate/gate_decision.txt"
           fi
           exit 1
         fi
@@ -365,7 +399,6 @@ runs:
       if: ${{ inputs.gate_mode != 'off' }}
       shell: bash
       env:
-        GH_TOKEN: ${{ inputs.token }}
         INPUT_SERVICE: ${{ inputs.service }}
         INPUT_ANCHOR_REF: ${{ inputs.anchor_ref }}
         E2E_REPO: ${{ inputs.e2e_repo }}
@@ -382,20 +415,23 @@ runs:
         fi
 
         TAG_USED=$(cat "$RUNNER_TEMP/e2e-gate/tag_used.txt")
-        TARGET_URL=$(jq -r '.target_url // ""' "$RUNNER_TEMP/e2e-gate/selected_status.json")
+        KEY_USED=$(cat "$RUNNER_TEMP/e2e-gate/key_used.txt")
+        RUN_URL=$(jq -r '.runUrl // ""' "$RUNNER_TEMP/e2e-gate/selected_row.json")
+        RAN_AT=$(jq -r '.ranAt // ""' "$RUNNER_TEMP/e2e-gate/selected_row.json")
 
         echo "pass" > "$DECISION_PATH"
 
         {
-          echo "## ✅ Gate: e2e status green and snapshot covers deploying SHA"
+          echo "## ✅ Gate: e2e board row green and snapshot covers deploying SHA"
           echo ""
           echo "- Service: \`${INPUT_SERVICE}\`"
-          echo "- Tag consulted: \`${TAG_USED}\`"
+          echo "- Board key: \`${KEY_USED}\` (tag consulted: \`${TAG_USED}\`)"
           echo "- Anchor SHA (\`${INPUT_ANCHOR_REF}\` on \`${E2E_REPO}\`): \`${ANCHOR_SHA}\`"
           echo "- Snapshot SHA (versions.${INPUT_SERVICE}): \`${SNAPSHOT_SHA}\`"
           echo "- Deploying SHA: \`${DEPLOYING_SHA}\`"
-          if [ -n "$TARGET_URL" ]; then
-            echo "- E2E run: ${TARGET_URL}"
+          echo "- Ran at: \`${RAN_AT}\`"
+          if [ -n "$RUN_URL" ]; then
+            echo "- E2E run: ${RUN_URL}"
           fi
         } >> "$GITHUB_STEP_SUMMARY"
 
@@ -404,7 +440,6 @@ runs:
       if: always()
       shell: bash
       env:
-        GH_TOKEN: ${{ inputs.token }}
         SNAPSHOT_SHA: ${{ steps.parse-snapshot.outputs.snapshot_sha }}
         INPUT_GATE_MODE: ${{ inputs.gate_mode }}
       run: |
