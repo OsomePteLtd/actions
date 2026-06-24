@@ -422,7 +422,7 @@ runs:
         echo "pass" > "$DECISION_PATH"
 
         {
-          echo "## ✅ Gate: e2e board row green and snapshot covers deploying SHA"
+          echo "## ✅ Gate: QA approved this deployment with an automated e2e check (board row green, snapshot covers deploying SHA)"
           echo ""
           echo "- Service: \`${INPUT_SERVICE}\`"
           echo "- Board key: \`${KEY_USED}\` (tag consulted: \`${TAG_USED}\`)"
