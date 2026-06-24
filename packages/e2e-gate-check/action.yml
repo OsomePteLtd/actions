@@ -14,7 +14,7 @@ inputs:
     description: 'Service key used to look up the snapshot SHA in the board row at versions.<service>, e.g. billy.'
   deploying_sha:
     required: true
-    description: 'SHA being deployed; typically ${{ github.sha }}. Used as the first argument to git merge-base --is-ancestor.'
+    description: 'SHA being deployed; typically github.sha. Used as the first argument to git merge-base --is-ancestor.'
   token:
     required: true
     description: 'GitHub token with read access on the e2e_repo. The calling workflow is responsible for granting access.'
