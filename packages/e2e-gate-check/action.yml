@@ -418,6 +418,7 @@ runs:
         KEY_USED=$(cat "$RUNNER_TEMP/e2e-gate/key_used.txt")
         RUN_URL=$(jq -r '.runUrl // ""' "$RUNNER_TEMP/e2e-gate/selected_row.json")
         RAN_AT=$(jq -r '.ranAt // ""' "$RUNNER_TEMP/e2e-gate/selected_row.json")
+        ALLURE_URL=$(jq -r '.allureUrl // ""' "$RUNNER_TEMP/e2e-gate/selected_row.json")
 
         echo "pass" > "$DECISION_PATH"
 
@@ -432,6 +433,9 @@ runs:
           echo "- Ran at: \`${RAN_AT}\`"
           if [ -n "$RUN_URL" ]; then
             echo "- E2E run: ${RUN_URL}"
+          fi
+          if [ -n "$ALLURE_URL" ]; then
+            echo "- Allure report: ${ALLURE_URL}"
           fi
         } >> "$GITHUB_STEP_SUMMARY"
 
