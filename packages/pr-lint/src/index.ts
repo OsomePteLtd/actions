@@ -113,6 +113,9 @@ async function run(): Promise<void> {
     const checklistHeading = core.getInput('checklist-section') || 'Checklist';
     const topicPattern = core.getInput('required-checklist-topic-pattern') || '';
     const skipIfNoTemplate = (core.getInput('skip-if-no-template') || 'true').toLowerCase() === 'true';
+    const mode = ((core.getInput('mode') || 'enforce').toLowerCase() === 'warn' ? 'warn' : 'enforce') as
+      | 'warn'
+      | 'enforce';
 
     const floorSections = parseCsvList(floorSectionsInput);
 
@@ -217,7 +220,23 @@ async function run(): Promise<void> {
     }
 
     const summary = failures.map((f) => `❌ [${f.rule}] ${f.details}`).join('\n\n');
-    const message = `pr-lint found ${failures.length} issue(s):\n\n${summary}\n\nFull guide: https://app.notion.com/p/osome/PR-review-checklist-3a094fd5a8ec8019b75acfc88160323f`;
+    const guide =
+      'Full guide: https://app.notion.com/p/osome/PR-review-checklist-3a094fd5a8ec8019b75acfc88160323f';
+    const message = `pr-lint found ${failures.length} issue(s):\n\n${summary}\n\n${guide}`;
+
+    await core.summary
+      .addHeading(`pr-lint — ${failures.length} issue(s) (${mode})`)
+      .addRaw(mode === 'warn' ? '\n> Running in **warn** mode — check will not fail.\n' : '\n')
+      .addList(failures.map((f) => `**${f.rule}**: ${f.details}`))
+      .addRaw(`\n\n${guide}\n`)
+      .write();
+
+    if (mode === 'warn') {
+      for (const f of failures) core.warning(`[${f.rule}] ${f.details}`);
+      core.notice(`pr-lint (warn mode) found ${failures.length} issue(s) — not blocking. Fix before enforce mode is enabled.`);
+      return;
+    }
+
     core.setFailed(message);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

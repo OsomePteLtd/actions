@@ -48,6 +48,7 @@ jobs:
 | `checklist-section`                | No       | `Checklist`                        | Name of the `##` heading treated as the checklist for topic-coverage validation                                          |
 | `required-checklist-topic-pattern` | No       | `doc\|knowledge`                   | Case-insensitive regex; at least one checkbox line inside the checklist section must match. Empty string disables check. |
 | `skip-if-no-template`              | No       | `true`                             | When `true`, exit successfully with a notice if the repo has no PR template. Safe org-wide default. Set to `false` to enforce floor rules even in template-less repos. |
+| `mode`                             | No       | `enforce`                          | `enforce` (fail check on findings, blocking) or `warn` (report findings via warnings + step summary, exit 0 — non-blocking, safe for org-wide dogfood rollout).       |
 
 ## Bypass
 

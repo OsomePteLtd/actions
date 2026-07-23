@@ -33,6 +33,10 @@ inputs:
     description: 'When true, exit successfully with a notice if the repo has no PR template file. Safe default for org-wide rollout. Set to "false" to enforce floor rules (Checklist + doc/knowledge topic) even in template-less repos.'
     required: false
     default: 'true'
+  mode:
+    description: 'enforce | warn. In "warn" mode all findings are reported via warnings and step summary, and the action exits 0 (non-blocking, safe for dogfood rollout). In "enforce" mode findings fail the check.'
+    required: false
+    default: 'enforce'
 runs:
   using: 'node24'
   main: './dist/index.js'
