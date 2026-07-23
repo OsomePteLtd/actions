@@ -13,7 +13,7 @@
   "scripts": {
     "build": "ncc build src/index.ts -o dist -m -t",
     "precommit": "ncc build src/index.ts -o dist -m -t && git add dist",
-    "test": "echo 'no tests yet'"
+    "test": "jest"
   },
   "dependencies": {
     "@actions/core": "^1.11.1",
@@ -26,8 +26,11 @@
     }
   },
   "devDependencies": {
-    "@vercel/ncc": "^0.38.1",
+    "@types/jest": "^29.5.14",
     "@types/node": "^20.11.0",
+    "@vercel/ncc": "^0.38.1",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
     "typescript": "^5.3.3"
   }
 }
