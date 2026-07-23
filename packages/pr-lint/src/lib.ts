@@ -20,8 +20,28 @@ export interface Inputs {
   floorSections: string[];
   checklistHeading: string;
   topicPattern: string;
+  topicRegex: RegExp | null;
   skipIfNoTemplate: boolean;
   mode: 'warn' | 'enforce';
+}
+
+export class ConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConfigError';
+  }
+}
+
+export function compileTopicRegex(pattern: string): RegExp | null {
+  if (!pattern) return null;
+  try {
+    return new RegExp(pattern, 'i');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new ConfigError(
+      `Invalid required-checklist-topic-pattern "${pattern}" — not a valid regex. Fix the workflow input. (${message})`,
+    );
+  }
 }
 
 export const TITLE_REGEX =
@@ -113,13 +133,12 @@ export function lineMatchesTopic(line: string, topicRe: RegExp): boolean {
 export function checklistCoversTopic(
   body: string,
   checklistHeading: string,
-  topicPattern: string,
+  topicRegex: RegExp,
 ): { covered: boolean; sectionPresent: boolean } {
   const section = extractSection(body, checklistHeading);
   if (section === null) return { covered: false, sectionPresent: false };
   const stripped = stripHtmlComments(section);
-  const topicRe = new RegExp(topicPattern, 'i');
-  const covered = stripped.split(/\r?\n/).some((line) => lineMatchesTopic(line, topicRe));
+  const covered = stripped.split(/\r?\n/).some((line) => lineMatchesTopic(line, topicRegex));
   return { covered, sectionPresent: true };
 }
 
@@ -184,9 +203,10 @@ export function validateChecklistTopic(
   body: string,
   checklistHeading: string,
   topicPattern: string,
+  topicRegex: RegExp | null,
 ): Failure | null {
-  if (!topicPattern) return null;
-  const result = checklistCoversTopic(body, checklistHeading, topicPattern);
+  if (!topicRegex) return null;
+  const result = checklistCoversTopic(body, checklistHeading, topicRegex);
   if (!result.sectionPresent) return null;
   if (result.covered) return null;
   return {
@@ -216,6 +236,7 @@ export async function readWorkspaceFile(templatePath: string): Promise<string | 
 
 export function readInputs(): Inputs {
   const modeRaw = (core.getInput('mode') || 'enforce').toLowerCase();
+  const topicPattern = core.getInput('required-checklist-topic-pattern') || '';
   return {
     templatePath: core.getInput('template-path') || '.github/pull_request_template.md',
     bypassLabel: core.getInput('bypass-label') || 'pr-lint-skip',
@@ -224,7 +245,8 @@ export function readInputs(): Inputs {
     ),
     floorSections: parseCsvList(core.getInput('required-sections') || 'Checklist'),
     checklistHeading: core.getInput('checklist-section') || 'Checklist',
-    topicPattern: core.getInput('required-checklist-topic-pattern') || '',
+    topicPattern,
+    topicRegex: compileTopicRegex(topicPattern),
     skipIfNoTemplate: (core.getInput('skip-if-no-template') || 'true').toLowerCase() === 'true',
     mode: modeRaw === 'warn' ? 'warn' : 'enforce',
   };

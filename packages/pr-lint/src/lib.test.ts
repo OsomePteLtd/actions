@@ -1,5 +1,7 @@
 import {
   checklistCoversTopic,
+  compileTopicRegex,
+  ConfigError,
   effectiveRequiredHeadings,
   extractLabelNames,
   extractSection,
@@ -107,14 +109,15 @@ describe('checklistCoversTopic', () => {
 - [ ] Repo skills/memories checked
 - [x] docs updated
 `;
+  const topicRe = /doc|knowledge/i;
   it('matches doc topic via /doc/i on ticked or unticked line', () => {
-    expect(checklistCoversTopic(body, 'Checklist', 'doc|knowledge').covered).toBe(true);
+    expect(checklistCoversTopic(body, 'Checklist', topicRe).covered).toBe(true);
   });
   it('handles uppercase [X] boxes', () => {
-    expect(checklistCoversTopic('## Checklist\n- [X] doc note', 'Checklist', 'doc').covered).toBe(true);
+    expect(checklistCoversTopic('## Checklist\n- [X] doc note', 'Checklist', /doc/i).covered).toBe(true);
   });
   it('reports sectionPresent false when heading missing', () => {
-    expect(checklistCoversTopic('## Other\n- [ ] docs', 'Checklist', 'doc')).toEqual({
+    expect(checklistCoversTopic('## Other\n- [ ] docs', 'Checklist', topicRe)).toEqual({
       covered: false,
       sectionPresent: false,
     });
@@ -167,17 +170,41 @@ describe('effectiveRequiredHeadings + validateSections', () => {
 });
 
 describe('validateChecklistTopic', () => {
-  it('returns null when pattern empty', () => {
-    expect(validateChecklistTopic('any body', 'Checklist', '')).toBeNull();
+  it('returns null when regex is null (empty pattern)', () => {
+    expect(validateChecklistTopic('any body', 'Checklist', '', null)).toBeNull();
   });
   it('null when section missing (avoid duplicate report)', () => {
-    expect(validateChecklistTopic('no headings', 'Checklist', 'doc')).toBeNull();
+    expect(validateChecklistTopic('no headings', 'Checklist', 'doc', /doc/i)).toBeNull();
   });
   it('flags when Checklist present but no matching item', () => {
     const body = '## Checklist\n- [x] unrelated';
-    expect(validateChecklistTopic(body, 'Checklist', 'doc|knowledge')?.rule).toBe(
-      'checklist-topic-missing',
-    );
+    expect(
+      validateChecklistTopic(body, 'Checklist', 'doc|knowledge', /doc|knowledge/i)?.rule,
+    ).toBe('checklist-topic-missing');
+  });
+});
+
+describe('compileTopicRegex', () => {
+  it('returns null for empty pattern', () => {
+    expect(compileTopicRegex('')).toBeNull();
+  });
+  it('compiles valid pattern case-insensitive', () => {
+    const re = compileTopicRegex('doc|knowledge');
+    expect(re).not.toBeNull();
+    expect(re!.test('DOC updated')).toBe(true);
+    expect(re!.test('unrelated')).toBe(false);
+  });
+  it('throws ConfigError with clear message for invalid regex', () => {
+    let error: unknown;
+    try {
+      compileTopicRegex('(unclosed');
+    } catch (e) {
+      error = e;
+    }
+    expect(error).toBeInstanceOf(ConfigError);
+    expect((error as Error).message).toContain('Invalid required-checklist-topic-pattern');
+    expect((error as Error).message).toContain('(unclosed');
+    expect((error as Error).message).toContain('Fix the workflow input');
   });
 });
 
