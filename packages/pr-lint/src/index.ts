@@ -18,6 +18,7 @@ const TITLE_REGEX =
   /^(feat|fix|chore|refactor|test|docs|perf|infra|task|revert)(\([^)]+\))?: .+\s\[[A-Z]+-\d+\]\s*$/;
 const NA_REGEX = /\bn\/?a\b/i;
 const CHECKBOX_UNCHECKED_REGEX = /^(\s*-\s*\[\s\])\s+(.+)$/gm;
+const CHECKBOX_ANY_STATE_REGEX = /^\s*-\s*\[[\sx]\]\s+(.+)$/i;
 const HEADING_REGEX = /^##\s+(.+?)\s*$/;
 
 function stripHtmlComments(md: string): string {
@@ -70,6 +71,30 @@ function findUnresolvedCheckboxes(body: string): string[] {
   return unresolved;
 }
 
+function parseCsvList(input: string): string[] {
+  return input
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+function checklistCoversTopic(
+  body: string,
+  checklistHeading: string,
+  topicPattern: string,
+): { covered: boolean; sectionPresent: boolean } {
+  const section = extractSection(body, checklistHeading);
+  if (section === null) return { covered: false, sectionPresent: false };
+  const stripped = stripHtmlComments(section);
+  const topicRe = new RegExp(topicPattern, 'i');
+  for (const line of stripped.split(/\r?\n/)) {
+    const boxMatch = line.match(CHECKBOX_ANY_STATE_REGEX);
+    if (!boxMatch) continue;
+    if (topicRe.test(boxMatch[1])) return { covered: true, sectionPresent: true };
+  }
+  return { covered: false, sectionPresent: true };
+}
+
 async function readWorkspaceFile(templatePath: string): Promise<string | null> {
   const workspace = process.env.GITHUB_WORKSPACE || '.';
   try {
@@ -84,6 +109,11 @@ async function run(): Promise<void> {
     const templatePath = core.getInput('template-path') || '.github/pull_request_template.md';
     const bypassLabel = core.getInput('bypass-label') || 'pr-lint-skip';
     const minChars = Number.parseInt(core.getInput('min-section-chars') || '20', 10);
+    const floorSectionsInput = core.getInput('required-sections') || 'Checklist';
+    const checklistHeading = core.getInput('checklist-section') || 'Checklist';
+    const topicPattern = core.getInput('required-checklist-topic-pattern') || '';
+
+    const floorSections = parseCsvList(floorSectionsInput);
 
     const pr = github.context.payload.pull_request;
     if (!pr) {
@@ -111,33 +141,59 @@ async function run(): Promise<void> {
     }
 
     const template = await readWorkspaceFile(templatePath);
-    if (!template) {
-      core.warning(
-        `No template found at ${templatePath} in workspace. Consumer must \`actions/checkout\` before running pr-lint. Skipping template-driven checks.`,
-      );
-    } else {
+    const templateHeadings: string[] = [];
+    if (template) {
       const parsed = parseTemplate(template);
+      templateHeadings.push(...parsed.requiredHeadings);
       core.info(
         `Template loaded: ${parsed.requiredHeadings.length} required section(s), ${parsed.optionalHeadings.length} conditional, ${parsed.templateCheckboxCount} template checkboxes.`,
       );
+    } else {
+      core.warning(
+        `No template found at ${templatePath} in workspace. Consumer must \`actions/checkout\` before running pr-lint. Falling back to floor rules only.`,
+      );
+    }
 
-      for (const heading of parsed.requiredHeadings) {
-        const content = extractSection(body, heading);
-        if (content === null) {
-          failures.push({
-            rule: 'missing-section',
-            details: `Required section \`## ${heading}\` is missing from the PR body.`,
-          });
-          continue;
-        }
-        if (!isSubstantive(content, minChars)) {
-          failures.push({
-            rule: 'empty-section',
-            details: `Section \`## ${heading}\` is empty — write ≥${minChars} chars or "n/a — reason".`,
-          });
-        }
+    const effectiveRequired = Array.from(new Set([...templateHeadings, ...floorSections]));
+    core.info(
+      `Effective required sections: ${effectiveRequired.join(', ')} (floor: ${floorSections.join(', ') || '(none)'})`,
+    );
+
+    for (const heading of effectiveRequired) {
+      const content = extractSection(body, heading);
+      if (content === null) {
+        const isFloor = floorSections.includes(heading) && !templateHeadings.includes(heading);
+        failures.push({
+          rule: isFloor ? 'missing-floor-section' : 'missing-section',
+          details: `Required section \`## ${heading}\` is missing from the PR body${
+            isFloor ? ' (org-wide floor requirement)' : ''
+          }.`,
+        });
+        continue;
       }
+      if (!isSubstantive(content, minChars)) {
+        failures.push({
+          rule: 'empty-section',
+          details: `Section \`## ${heading}\` is empty — write ≥${minChars} chars or "n/a — reason".`,
+        });
+      }
+    }
 
+    if (topicPattern) {
+      const topicResult = checklistCoversTopic(body, checklistHeading, topicPattern);
+      if (!topicResult.sectionPresent) {
+        core.info(
+          `Skipping topic-coverage check — \`## ${checklistHeading}\` section is missing (already reported above).`,
+        );
+      } else if (!topicResult.covered) {
+        failures.push({
+          rule: 'checklist-topic-missing',
+          details: `Section \`## ${checklistHeading}\` must contain at least one checkbox line matching \`/${topicPattern}/i\` (e.g. documentation & knowledge maintenance). Add or restore the item.`,
+        });
+      }
+    }
+
+    if (template) {
       const unresolved = findUnresolvedCheckboxes(body);
       if (unresolved.length > 0) {
         failures.push({
