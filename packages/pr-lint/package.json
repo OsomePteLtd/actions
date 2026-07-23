@@ -1,0 +1,27 @@
+{
+  "name": "@osome/pr-lint",
+  "version": "1.0.0",
+  "description": "Validate a PR body against the repository's pull_request_template.md — derive-from-template pattern for the OSOME PR standard (ITG-246)",
+  "author": "Philippe Oscar Castelo <philippeoscar.sanoy@osome.com>",
+  "homepage": "https://github.com/OsomePteLtd/actions#readme",
+  "license": "UNLICENSED",
+  "main": "src/index.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OsomePteLtd/actions.git"
+  },
+  "scripts": {
+    "build": "ncc build src/index.ts -o dist -m -t",
+    "precommit": "ncc build src/index.ts -o dist -m -t && git add dist",
+    "test": "echo 'no tests yet'"
+  },
+  "dependencies": {
+    "@actions/core": "^1.10.1",
+    "@actions/github": "^6.0.0"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.38.1",
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
+  }
+}

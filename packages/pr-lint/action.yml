@@ -1,0 +1,22 @@
+name: 'PR Lint'
+description: 'Validate a pull request body against the consuming repository''s pull_request_template.md'
+inputs:
+  github-token:
+    description: 'GitHub token for reading PR context (defaults to github.token)'
+    required: false
+    default: ${{ github.token }}
+  template-path:
+    description: 'Path to the PR template within the repo'
+    required: false
+    default: '.github/pull_request_template.md'
+  bypass-label:
+    description: 'Label on the PR that bypasses this check'
+    required: false
+    default: 'pr-lint-skip'
+  min-section-chars:
+    description: 'Minimum non-whitespace characters required per template-declared section (or write "n/a")'
+    required: false
+    default: '20'
+runs:
+  using: 'node24'
+  main: './dist/index.js'
