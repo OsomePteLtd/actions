@@ -29,6 +29,10 @@ inputs:
     description: 'Case-insensitive regex; at least one checkbox line inside the checklist section must match this pattern. Empty string disables the check.'
     required: false
     default: 'doc|knowledge'
+  skip-if-no-template:
+    description: 'When true, exit successfully with a notice if the repo has no PR template file. Safe default for org-wide rollout. Set to "false" to enforce floor rules (Checklist + doc/knowledge topic) even in template-less repos.'
+    required: false
+    default: 'true'
 runs:
   using: 'node24'
   main: './dist/index.js'

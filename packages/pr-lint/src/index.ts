@@ -112,6 +112,7 @@ async function run(): Promise<void> {
     const floorSectionsInput = core.getInput('required-sections') || 'Checklist';
     const checklistHeading = core.getInput('checklist-section') || 'Checklist';
     const topicPattern = core.getInput('required-checklist-topic-pattern') || '';
+    const skipIfNoTemplate = (core.getInput('skip-if-no-template') || 'true').toLowerCase() === 'true';
 
     const floorSections = parseCsvList(floorSectionsInput);
 
@@ -148,6 +149,11 @@ async function run(): Promise<void> {
       core.info(
         `Template loaded: ${parsed.requiredHeadings.length} required section(s), ${parsed.optionalHeadings.length} conditional, ${parsed.templateCheckboxCount} template checkboxes.`,
       );
+    } else if (skipIfNoTemplate) {
+      core.notice(
+        `No PR template found at ${templatePath}. Skipping pr-lint (skip-if-no-template=true). Set input to "false" to enforce floor rules (Checklist + doc/knowledge topic) here anyway.`,
+      );
+      return;
     } else {
       core.warning(
         `No template found at ${templatePath} in workspace. Consumer must \`actions/checkout\` before running pr-lint. Falling back to floor rules only.`,

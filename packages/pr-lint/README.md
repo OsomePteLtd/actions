@@ -47,6 +47,7 @@ jobs:
 | `required-sections`                | No       | `Checklist`                        | Comma-separated `##` headings that MUST appear in the PR body regardless of the local template (org-wide floor)          |
 | `checklist-section`                | No       | `Checklist`                        | Name of the `##` heading treated as the checklist for topic-coverage validation                                          |
 | `required-checklist-topic-pattern` | No       | `doc\|knowledge`                   | Case-insensitive regex; at least one checkbox line inside the checklist section must match. Empty string disables check. |
+| `skip-if-no-template`              | No       | `true`                             | When `true`, exit successfully with a notice if the repo has no PR template. Safe org-wide default. Set to `false` to enforce floor rules even in template-less repos. |
 
 ## Bypass
 
