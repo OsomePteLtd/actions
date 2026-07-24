@@ -17,10 +17,50 @@ Conditional sections (`## Conditional: ...`) may be deleted when not applicable 
 
 ## Usage
 
-Add to any repo that has a `.github/pull_request_template.md`:
+This is a JS action (not a reusable workflow), so it's always consumed via `uses:` inside a workflow's steps. What differs is **where the workflow lives**.
+
+### Recommended — org-wide via `OsomePteLtd/.github` + ruleset
+
+Zero per-repo files. The workflow lives once in the org config repo; a Repository Ruleset targets whichever repos should get it.
+
+**One-time setup (org admin):**
+
+1. Add `.github/workflows/pr-lint.yml` in `OsomePteLtd/.github` (see template below).
+2. Org Settings → Repository rulesets → New ruleset → Target: **Selected repositories** (dogfood scope) → Rule: **Require workflows to run before merging** → point at that file `@master`.
+3. Widen the ruleset's target list to add more repos over time — no code changes.
+
+**Workflow file (in `OsomePteLtd/.github`):**
 
 ```yaml
-# .github/workflows/pr-lint.yml
+name: PR Lint (org-required)
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  pr-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: OsomePteLtd/actions/packages/pr-lint@master
+        with:
+          mode: 'warn' # remove after dogfood → enforce
+          # skip-if-no-template: 'false' # flip later to enforce floor rules on template-less repos
+```
+
+`actions/checkout` is required so the action can read the template file from the workspace of the PR being validated.
+
+### Alternative — per-repo file (early adopters, override scenarios)
+
+Only use this when the repo is NOT in the org ruleset scope and you want it enabled locally, or when a repo needs different inputs than the org default.
+
+```yaml
+# .github/workflows/pr-lint.yml in the repo
 name: PR Lint
 on:
   pull_request:
@@ -33,8 +73,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: OsomePteLtd/actions/packages/pr-lint@master
 ```
-
-`actions/checkout` is required so the action can read the template file from the workspace.
 
 ## Inputs
 
