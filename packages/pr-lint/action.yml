@@ -1,0 +1,42 @@
+name: 'PR Lint'
+description: 'Validate a pull request body against the consuming repository''s pull_request_template.md'
+inputs:
+  github-token:
+    description: 'GitHub token for reading PR context (defaults to github.token)'
+    required: false
+    default: ${{ github.token }}
+  template-path:
+    description: 'Path to the PR template within the repo'
+    required: false
+    default: '.github/pull_request_template.md'
+  bypass-label:
+    description: 'Label on the PR that bypasses this check'
+    required: false
+    default: 'pr-lint-skip'
+  min-section-chars:
+    description: 'Minimum non-whitespace characters required per template-declared section (or write "n/a")'
+    required: false
+    default: '20'
+  required-sections:
+    description: 'Comma-separated ## headings that MUST appear in the PR body regardless of what the local template declares (org-wide floor)'
+    required: false
+    default: 'Checklist'
+  checklist-section:
+    description: 'Name of the ## heading treated as the checklist for topic-coverage validation'
+    required: false
+    default: 'Checklist'
+  required-checklist-topic-pattern:
+    description: 'Case-insensitive regex; at least one checkbox line inside the checklist section must match this pattern. Empty string disables the check.'
+    required: false
+    default: 'doc|knowledge'
+  skip-if-no-template:
+    description: 'When true, exit successfully with a notice if the repo has no PR template file. Safe default for org-wide rollout. Set to "false" to enforce floor rules (Checklist + doc/knowledge topic) even in template-less repos.'
+    required: false
+    default: 'true'
+  mode:
+    description: 'enforce | warn. In "warn" mode all findings are reported via warnings and step summary, and the action exits 0 (non-blocking, safe for dogfood rollout). In "enforce" mode findings fail the check.'
+    required: false
+    default: 'enforce'
+runs:
+  using: 'node24'
+  main: './dist/index.js'
