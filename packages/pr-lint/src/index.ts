@@ -1,7 +1,6 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
 import {
-  ConfigError,
   Failure,
   GUIDE_URL,
   Inputs,
@@ -9,7 +8,7 @@ import {
   parseTemplate,
   readInputs,
   readWorkspaceFile,
-  validateChecklistTopic,
+  validateChecklistSubsection,
   validateCheckboxes,
   validateSections,
   validateTitle,
@@ -55,13 +54,12 @@ function collectFailures(body: string, title: string, headings: string[], inputs
   const titleFailure = validateTitle(title);
   if (titleFailure) failures.push(titleFailure);
   failures.push(...validateSections(body, headings, inputs.floorSections, inputs.minChars));
-  const topicFailure = validateChecklistTopic(
+  const subsectionFailure = validateChecklistSubsection(
     body,
     inputs.checklistHeading,
-    inputs.topicPattern,
-    inputs.topicRegex,
+    inputs.requiredSubsection,
   );
-  if (topicFailure) failures.push(topicFailure);
+  if (subsectionFailure) failures.push(subsectionFailure);
   const boxFailure = validateCheckboxes(body);
   if (boxFailure) failures.push(boxFailure);
   return failures;
@@ -116,10 +114,6 @@ async function run(): Promise<void> {
     }
     await runPullRequest(pr, inputs);
   } catch (error) {
-    if (error instanceof ConfigError) {
-      core.setFailed(`pr-lint config error: ${error.message}`);
-      return;
-    }
     const message = error instanceof Error ? error.message : String(error);
     core.setFailed(`pr-lint crashed: ${message}`);
   }

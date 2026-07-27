@@ -19,29 +19,9 @@ export interface Inputs {
   minChars: number;
   floorSections: string[];
   checklistHeading: string;
-  topicPattern: string;
-  topicRegex: RegExp | null;
+  requiredSubsection: string;
   skipIfNoTemplate: boolean;
   mode: 'warn' | 'enforce';
-}
-
-export class ConfigError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ConfigError';
-  }
-}
-
-export function compileTopicRegex(pattern: string): RegExp | null {
-  if (!pattern) return null;
-  try {
-    return new RegExp(pattern, 'i');
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new ConfigError(
-      `Invalid required-checklist-topic-pattern "${pattern}" — not a valid regex. Fix the workflow input. (${message})`,
-    );
-  }
 }
 
 export const TITLE_REGEX =
@@ -50,7 +30,9 @@ export const NA_REGEX = /\bn\/?a\b/i;
 export const CHECKBOX_UNCHECKED_REGEX = /^(\s*-\s*\[\s\])\s+(.+)$/gm;
 export const CHECKBOX_ANY_STATE_REGEX = /^\s*-\s*\[[\sxX]\]\s+(.+)$/;
 export const HEADING_REGEX = /^##\s+(.+?)\s*$/;
+export const SUBSECTION_REGEX = /^(?:\*\*(.+?)\*\*|#{3,6}\s+(.+?))\s*:?\s*$/;
 export const DEFAULT_MIN_CHARS = 20;
+export const DEFAULT_REQUIRED_SUBSECTION = 'Documentation & knowledge maintenance';
 export const GUIDE_URL =
   'https://app.notion.com/p/osome/PR-review-checklist-3a094fd5a8ec8019b75acfc88160323f';
 
@@ -97,7 +79,7 @@ export function parseTemplate(md: string): ParsedTemplate {
 
 export function extractSection(body: string, heading: string): string | null {
   const escaped = heading.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-  const re = new RegExp(`^##\\s+${escaped}\\s*$`, 'm');
+  const re = new RegExp(`^##\\s+${escaped}\\s*$`, 'im');
   const m = re.exec(body);
   if (!m) return null;
   const start = m.index + m[0].length;
@@ -125,21 +107,25 @@ export function findUnresolvedCheckboxes(body: string): string[] {
   return unresolved;
 }
 
-export function lineMatchesTopic(line: string, topicRe: RegExp): boolean {
-  const boxMatch = line.match(CHECKBOX_ANY_STATE_REGEX);
-  return boxMatch !== null && topicRe.test(boxMatch[1]);
+export interface ChecklistSubsection {
+  label: string;
+  items: string[];
 }
 
-export function checklistCoversTopic(
-  body: string,
-  checklistHeading: string,
-  topicRegex: RegExp,
-): { covered: boolean; sectionPresent: boolean } {
-  const section = extractSection(body, checklistHeading);
-  if (section === null) return { covered: false, sectionPresent: false };
-  const stripped = stripHtmlComments(section);
-  const covered = stripped.split(/\r?\n/).some((line) => lineMatchesTopic(line, topicRegex));
-  return { covered, sectionPresent: true };
+export function findChecklistSubsections(section: string): ChecklistSubsection[] {
+  const subsections: ChecklistSubsection[] = [];
+  let current: ChecklistSubsection | null = null;
+  for (const line of stripHtmlComments(section).split(/\r?\n/)) {
+    const heading = line.match(SUBSECTION_REGEX);
+    if (heading) {
+      current = { label: (heading[1] ?? heading[2]).trim(), items: [] };
+      subsections.push(current);
+      continue;
+    }
+    const box = line.match(CHECKBOX_ANY_STATE_REGEX);
+    if (current && box) current.items.push(box[1].trim());
+  }
+  return subsections;
 }
 
 export function validateTitle(title: string): Failure | null {
@@ -199,19 +185,32 @@ export function validateSections(
     .filter((f): f is Failure => f !== null);
 }
 
-export function validateChecklistTopic(
+export function validateChecklistSubsection(
   body: string,
   checklistHeading: string,
-  topicPattern: string,
-  topicRegex: RegExp | null,
+  requiredSubsection: string,
 ): Failure | null {
-  if (!topicRegex) return null;
-  const result = checklistCoversTopic(body, checklistHeading, topicRegex);
-  if (!result.sectionPresent) return null;
-  if (result.covered) return null;
+  if (!requiredSubsection) return null;
+  const section = extractSection(body, checklistHeading);
+  if (section === null) return null;
+  const wanted = requiredSubsection.trim().toLowerCase();
+  const match = findChecklistSubsections(section).find((s) => s.label.toLowerCase() === wanted);
+  if (!match) return subsectionMissingFailure(checklistHeading, requiredSubsection);
+  if (match.items.length === 0) return subsectionEmptyFailure(checklistHeading, requiredSubsection);
+  return null;
+}
+
+function subsectionMissingFailure(checklistHeading: string, required: string): Failure {
   return {
-    rule: 'checklist-topic-missing',
-    details: `Section \`## ${checklistHeading}\` must contain at least one checkbox line matching \`/${topicPattern}/i\` (e.g. documentation & knowledge maintenance). Add or restore the item.`,
+    rule: 'checklist-subsection-missing',
+    details: `Section \`## ${checklistHeading}\` must contain a sub-section headed \`**${required}**\`. Add it with at least one item. Sub-headings are bold lines (\`**${required}**\`) or \`### ${required}\`.`,
+  };
+}
+
+function subsectionEmptyFailure(checklistHeading: string, required: string): Failure {
+  return {
+    rule: 'checklist-subsection-empty',
+    details: `Sub-section \`**${required}**\` under \`## ${checklistHeading}\` has no checklist items. Add at least one.`,
   };
 }
 
@@ -236,7 +235,6 @@ export async function readWorkspaceFile(templatePath: string): Promise<string | 
 
 export function readInputs(): Inputs {
   const modeRaw = (core.getInput('mode') || 'enforce').toLowerCase();
-  const topicPattern = core.getInput('required-checklist-topic-pattern') || '';
   return {
     templatePath: core.getInput('template-path') || '.github/pull_request_template.md',
     bypassLabel: core.getInput('bypass-label') || 'pr-lint-skip',
@@ -245,8 +243,8 @@ export function readInputs(): Inputs {
     ),
     floorSections: parseCsvList(core.getInput('required-sections') || 'Checklist'),
     checklistHeading: core.getInput('checklist-section') || 'Checklist',
-    topicPattern,
-    topicRegex: compileTopicRegex(topicPattern),
+    requiredSubsection:
+      core.getInput('required-checklist-subsection') || DEFAULT_REQUIRED_SUBSECTION,
     skipIfNoTemplate: (core.getInput('skip-if-no-template') || 'true').toLowerCase() === 'true',
     mode: modeRaw === 'warn' ? 'warn' : 'enforce',
   };

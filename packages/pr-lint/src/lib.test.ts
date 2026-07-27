@@ -1,22 +1,21 @@
 import {
-  checklistCoversTopic,
-  compileTopicRegex,
-  ConfigError,
   effectiveRequiredHeadings,
   extractLabelNames,
   extractSection,
+  findChecklistSubsections,
   findUnresolvedCheckboxes,
   isBypassed,
   isSubstantive,
   parseCsvList,
   parseMinChars,
   parseTemplate,
-  validateChecklistTopic,
+  validateChecklistSubsection,
   validateCheckboxes,
   validateSection,
   validateSections,
   validateTitle,
   DEFAULT_MIN_CHARS,
+  DEFAULT_REQUIRED_SUBSECTION,
 } from './lib';
 
 describe('parseCsvList', () => {
@@ -74,6 +73,13 @@ describe('extractSection', () => {
   it('returns null when heading absent', () => {
     expect(extractSection('nothing here', 'What')).toBeNull();
   });
+  it('matches heading case-insensitively', () => {
+    expect(extractSection('## impact\nalpha\n', 'Impact')).toBe('alpha');
+    expect(extractSection('## RISKS & ROLLOUT\nbeta\n', 'Risks & rollout')).toBe('beta');
+  });
+  it('still stops at the next heading regardless of case', () => {
+    expect(extractSection('## what\nalpha\n## WHY\nbeta\n', 'What')).toBe('alpha');
+  });
 });
 
 describe('isSubstantive', () => {
@@ -103,24 +109,36 @@ describe('findUnresolvedCheckboxes', () => {
   });
 });
 
-describe('checklistCoversTopic', () => {
-  const body = `
-## Checklist
-- [ ] Repo skills/memories checked
+describe('findChecklistSubsections', () => {
+  const section = `
+**PR shape**
+
+- [x] one concern
+- [ ] small
+
+**Documentation & knowledge maintenance**
+
 - [x] docs updated
+- [ ] memories refreshed
 `;
-  const topicRe = /doc|knowledge/i;
-  it('matches doc topic via /doc/i on ticked or unticked line', () => {
-    expect(checklistCoversTopic(body, 'Checklist', topicRe).covered).toBe(true);
+  it('groups checkbox items under bold sub-headings', () => {
+    const subs = findChecklistSubsections(section);
+    expect(subs.map((s) => s.label)).toEqual(['PR shape', 'Documentation & knowledge maintenance']);
+    expect(subs[0].items).toHaveLength(2);
+    expect(subs[1].items).toEqual(['docs updated', 'memories refreshed']);
   });
-  it('handles uppercase [X] boxes', () => {
-    expect(checklistCoversTopic('## Checklist\n- [X] doc note', 'Checklist', /doc/i).covered).toBe(true);
+  it('supports ### sub-headings', () => {
+    const subs = findChecklistSubsections('### Docs\n- [x] a\n');
+    expect(subs[0].label).toBe('Docs');
+    expect(subs[0].items).toEqual(['a']);
   });
-  it('reports sectionPresent false when heading missing', () => {
-    expect(checklistCoversTopic('## Other\n- [ ] docs', 'Checklist', topicRe)).toEqual({
-      covered: false,
-      sectionPresent: false,
-    });
+  it('ignores checkbox lines in HTML comments', () => {
+    const subs = findChecklistSubsections('**G**\n<!-- - [ ] hidden -->\n- [x] real\n');
+    expect(subs[0].items).toEqual(['real']);
+  });
+  it('returns a sub-section with no items when the group is empty', () => {
+    const subs = findChecklistSubsections('**Empty group**\n\n**Next**\n- [x] a\n');
+    expect(subs[0].items).toEqual([]);
   });
 });
 
@@ -169,42 +187,41 @@ describe('effectiveRequiredHeadings + validateSections', () => {
   });
 });
 
-describe('validateChecklistTopic', () => {
-  it('returns null when regex is null (empty pattern)', () => {
-    expect(validateChecklistTopic('any body', 'Checklist', '', null)).toBeNull();
+describe('validateChecklistSubsection', () => {
+  const required = DEFAULT_REQUIRED_SUBSECTION;
+  const good = ['## Checklist', '', '**Documentation & knowledge maintenance**', '', '- [x] docs updated', ''].join('\n');
+  it('returns null when no sub-section is required', () => {
+    expect(validateChecklistSubsection('any body', 'Checklist', '')).toBeNull();
   });
-  it('null when section missing (avoid duplicate report)', () => {
-    expect(validateChecklistTopic('no headings', 'Checklist', 'doc', /doc/i)).toBeNull();
+  it('null when the Checklist section is missing (missing-section rule covers it)', () => {
+    expect(validateChecklistSubsection('no headings', 'Checklist', required)).toBeNull();
   });
-  it('flags when Checklist present but no matching item', () => {
-    const body = '## Checklist\n- [x] unrelated';
-    expect(
-      validateChecklistTopic(body, 'Checklist', 'doc|knowledge', /doc|knowledge/i)?.rule,
-    ).toBe('checklist-topic-missing');
+  it('passes when the required sub-section exists with items', () => {
+    expect(validateChecklistSubsection(good, 'Checklist', required)).toBeNull();
   });
-});
-
-describe('compileTopicRegex', () => {
-  it('returns null for empty pattern', () => {
-    expect(compileTopicRegex('')).toBeNull();
+  it('matches the label case-insensitively', () => {
+    const body = '## Checklist\n\n**DOCUMENTATION & KNOWLEDGE MAINTENANCE**\n\n- [x] a\n';
+    expect(validateChecklistSubsection(body, 'Checklist', required)).toBeNull();
   });
-  it('compiles valid pattern case-insensitive', () => {
-    const re = compileTopicRegex('doc|knowledge');
-    expect(re).not.toBeNull();
-    expect(re!.test('DOC updated')).toBe(true);
-    expect(re!.test('unrelated')).toBe(false);
+  it('accepts the ### heading form', () => {
+    const body = '## Checklist\n\n### ' + required + '\n\n- [x] a\n';
+    expect(validateChecklistSubsection(body, 'Checklist', required)).toBeNull();
   });
-  it('throws ConfigError with clear message for invalid regex', () => {
-    let error: unknown;
-    try {
-      compileTopicRegex('(unclosed');
-    } catch (e) {
-      error = e;
-    }
-    expect(error).toBeInstanceOf(ConfigError);
-    expect((error as Error).message).toContain('Invalid required-checklist-topic-pattern');
-    expect((error as Error).message).toContain('(unclosed');
-    expect((error as Error).message).toContain('Fix the workflow input');
+  it('flags when the sub-section is absent', () => {
+    const body = '## Checklist\n\n**Self-review**\n\n- [x] unrelated\n';
+    expect(validateChecklistSubsection(body, 'Checklist', required)?.rule).toBe('checklist-subsection-missing');
+  });
+  it('does NOT accept a stray word inside an unrelated checkbox item', () => {
+    const body = '## Checklist\n\n**Self-review**\n\n- [x] removal condition is documented above\n';
+    expect(validateChecklistSubsection(body, 'Checklist', required)?.rule).toBe('checklist-subsection-missing');
+  });
+  it('does NOT accept a differently-named group', () => {
+    const body = '## Checklist\n\n**Docs**\n\n- [x] docs updated\n';
+    expect(validateChecklistSubsection(body, 'Checklist', required)?.rule).toBe('checklist-subsection-missing');
+  });
+  it('flags the required sub-section when it has no items', () => {
+    const body = '## Checklist\n\n**' + required + '**\n\n**Next**\n- [x] a\n';
+    expect(validateChecklistSubsection(body, 'Checklist', required)?.rule).toBe('checklist-subsection-empty');
   });
 });
 
