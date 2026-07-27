@@ -26,7 +26,7 @@ inputs:
     required: false
     default: 'Checklist'
   required-checklist-topic-pattern:
-    description: 'Case-insensitive regex; at least one checkbox line inside the checklist section must match this pattern. Empty string disables the check.'
+    description: 'Case-insensitive regex matched against sub-section headings inside the checklist section (bold `**Label**` lines or `###` headings). A matching sub-section must exist and carry at least one checklist item. Empty string disables the check.'
     required: false
     default: 'doc|knowledge'
   skip-if-no-template:

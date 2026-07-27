@@ -1,10 +1,10 @@
 import {
-  checklistCoversTopic,
   compileTopicRegex,
   ConfigError,
   effectiveRequiredHeadings,
   extractLabelNames,
   extractSection,
+  findChecklistSubsections,
   findUnresolvedCheckboxes,
   isBypassed,
   isSubstantive,
@@ -110,24 +110,36 @@ describe('findUnresolvedCheckboxes', () => {
   });
 });
 
-describe('checklistCoversTopic', () => {
-  const body = `
-## Checklist
-- [ ] Repo skills/memories checked
+describe('findChecklistSubsections', () => {
+  const section = `
+**PR shape**
+
+- [x] one concern
+- [ ] small
+
+**Documentation & knowledge maintenance**
+
 - [x] docs updated
+- [ ] memories refreshed
 `;
-  const topicRe = /doc|knowledge/i;
-  it('matches doc topic via /doc/i on ticked or unticked line', () => {
-    expect(checklistCoversTopic(body, 'Checklist', topicRe).covered).toBe(true);
+  it('groups checkbox items under bold sub-headings', () => {
+    const subs = findChecklistSubsections(section);
+    expect(subs.map((s) => s.label)).toEqual(['PR shape', 'Documentation & knowledge maintenance']);
+    expect(subs[0].items).toHaveLength(2);
+    expect(subs[1].items).toEqual(['docs updated', 'memories refreshed']);
   });
-  it('handles uppercase [X] boxes', () => {
-    expect(checklistCoversTopic('## Checklist\n- [X] doc note', 'Checklist', /doc/i).covered).toBe(true);
+  it('supports ### sub-headings', () => {
+    const subs = findChecklistSubsections('### Docs\n- [x] a\n');
+    expect(subs[0].label).toBe('Docs');
+    expect(subs[0].items).toEqual(['a']);
   });
-  it('reports sectionPresent false when heading missing', () => {
-    expect(checklistCoversTopic('## Other\n- [ ] docs', 'Checklist', topicRe)).toEqual({
-      covered: false,
-      sectionPresent: false,
-    });
+  it('ignores checkbox lines in HTML comments', () => {
+    const subs = findChecklistSubsections('**G**\n<!-- - [ ] hidden -->\n- [x] real\n');
+    expect(subs[0].items).toEqual(['real']);
+  });
+  it('returns a sub-section with no items when the group is empty', () => {
+    const subs = findChecklistSubsections('**Empty group**\n\n**Next**\n- [x] a\n');
+    expect(subs[0].items).toEqual([]);
   });
 });
 
@@ -177,17 +189,39 @@ describe('effectiveRequiredHeadings + validateSections', () => {
 });
 
 describe('validateChecklistTopic', () => {
+  const pattern = 'doc|knowledge';
+  const re = /doc|knowledge/i;
+  const good = `## Checklist
+
+**Documentation & knowledge maintenance**
+
+- [x] docs updated
+`;
   it('returns null when regex is null (empty pattern)', () => {
     expect(validateChecklistTopic('any body', 'Checklist', '', null)).toBeNull();
   });
-  it('null when section missing (avoid duplicate report)', () => {
-    expect(validateChecklistTopic('no headings', 'Checklist', 'doc', /doc/i)).toBeNull();
+  it('null when the Checklist section is missing (missing-section rule covers it)', () => {
+    expect(validateChecklistTopic('no headings', 'Checklist', pattern, re)).toBeNull();
   });
-  it('flags when Checklist present but no matching item', () => {
-    const body = '## Checklist\n- [x] unrelated';
-    expect(
-      validateChecklistTopic(body, 'Checklist', 'doc|knowledge', /doc|knowledge/i)?.rule,
-    ).toBe('checklist-topic-missing');
+  it('passes when a matching sub-section with items exists', () => {
+    expect(validateChecklistTopic(good, 'Checklist', pattern, re)).toBeNull();
+  });
+  it('flags when no sub-section heading matches', () => {
+    const body = '## Checklist\n\n**Self-review**\n\n- [x] unrelated\n';
+    expect(validateChecklistTopic(body, 'Checklist', pattern, re)?.rule).toBe(
+      'checklist-topic-missing',
+    );
+  });
+  it('does NOT match a stray word inside an unrelated checkbox item', () => {
+    const body =
+      '## Checklist\n\n**Self-review**\n\n- [x] removal condition is documented above\n';
+    expect(validateChecklistTopic(body, 'Checklist', pattern, re)?.rule).toBe(
+      'checklist-topic-missing',
+    );
+  });
+  it('flags a matching sub-section that has no items', () => {
+    const body = '## Checklist\n\n**Documentation & knowledge maintenance**\n\n**Next**\n- [x] a\n';
+    expect(validateChecklistTopic(body, 'Checklist', pattern, re)?.rule).toBe('checklist-topic-empty');
   });
 });
 

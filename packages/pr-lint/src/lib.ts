@@ -50,6 +50,7 @@ export const NA_REGEX = /\bn\/?a\b/i;
 export const CHECKBOX_UNCHECKED_REGEX = /^(\s*-\s*\[\s\])\s+(.+)$/gm;
 export const CHECKBOX_ANY_STATE_REGEX = /^\s*-\s*\[[\sxX]\]\s+(.+)$/;
 export const HEADING_REGEX = /^##\s+(.+?)\s*$/;
+export const SUBSECTION_REGEX = /^(?:\*\*(.+?)\*\*|#{3,6}\s+(.+?))\s*:?\s*$/;
 export const DEFAULT_MIN_CHARS = 20;
 export const GUIDE_URL =
   'https://app.notion.com/p/osome/PR-review-checklist-3a094fd5a8ec8019b75acfc88160323f';
@@ -125,21 +126,25 @@ export function findUnresolvedCheckboxes(body: string): string[] {
   return unresolved;
 }
 
-export function lineMatchesTopic(line: string, topicRe: RegExp): boolean {
-  const boxMatch = line.match(CHECKBOX_ANY_STATE_REGEX);
-  return boxMatch !== null && topicRe.test(boxMatch[1]);
+export interface ChecklistSubsection {
+  label: string;
+  items: string[];
 }
 
-export function checklistCoversTopic(
-  body: string,
-  checklistHeading: string,
-  topicRegex: RegExp,
-): { covered: boolean; sectionPresent: boolean } {
-  const section = extractSection(body, checklistHeading);
-  if (section === null) return { covered: false, sectionPresent: false };
-  const stripped = stripHtmlComments(section);
-  const covered = stripped.split(/\r?\n/).some((line) => lineMatchesTopic(line, topicRegex));
-  return { covered, sectionPresent: true };
+export function findChecklistSubsections(section: string): ChecklistSubsection[] {
+  const subsections: ChecklistSubsection[] = [];
+  let current: ChecklistSubsection | null = null;
+  for (const line of stripHtmlComments(section).split(/\r?\n/)) {
+    const heading = line.match(SUBSECTION_REGEX);
+    if (heading) {
+      current = { label: (heading[1] ?? heading[2]).trim(), items: [] };
+      subsections.push(current);
+      continue;
+    }
+    const box = line.match(CHECKBOX_ANY_STATE_REGEX);
+    if (current && box) current.items.push(box[1].trim());
+  }
+  return subsections;
 }
 
 export function validateTitle(title: string): Failure | null {
@@ -206,12 +211,27 @@ export function validateChecklistTopic(
   topicRegex: RegExp | null,
 ): Failure | null {
   if (!topicRegex) return null;
-  const result = checklistCoversTopic(body, checklistHeading, topicRegex);
-  if (!result.sectionPresent) return null;
-  if (result.covered) return null;
+  const section = extractSection(body, checklistHeading);
+  if (section === null) return null;
+  const matching = findChecklistSubsections(section).filter((s) => topicRegex.test(s.label));
+  if (matching.length === 0) return topicMissingFailure(checklistHeading, topicPattern);
+  if (matching.every((s) => s.items.length === 0)) {
+    return topicEmptyFailure(checklistHeading, matching[0].label);
+  }
+  return null;
+}
+
+function topicMissingFailure(checklistHeading: string, topicPattern: string): Failure {
   return {
     rule: 'checklist-topic-missing',
-    details: `Section \`## ${checklistHeading}\` must contain at least one checkbox line matching \`/${topicPattern}/i\` (e.g. documentation & knowledge maintenance). Add or restore the item.`,
+    details: `Section \`## ${checklistHeading}\` must contain a sub-section whose heading matches \`/${topicPattern}/i\` — e.g. \`**Documentation & knowledge maintenance**\`. Sub-headings are bold lines (\`**Label**\`) or \`###\` headings.`,
+  };
+}
+
+function topicEmptyFailure(checklistHeading: string, label: string): Failure {
+  return {
+    rule: 'checklist-topic-empty',
+    details: `Sub-section \`${label}\` under \`## ${checklistHeading}\` has no checklist items. Add at least one.`,
   };
 }
 

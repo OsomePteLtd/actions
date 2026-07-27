@@ -10,7 +10,7 @@ Validate a pull request body against the consuming repository's own `.github/pul
 2. **Template-required sections present** — every `##` heading in the template (except those starting with `Conditional:`) must appear in the PR body.
 3. **Floor-required sections present** — every heading in `required-sections` MUST appear in the PR body, regardless of what the local template declares. Default floor: `Checklist`.
 4. **Sections non-empty** — each required section must carry ≥ `min-section-chars` chars of substantive content, or "n/a" written into the section.
-5. **Checklist covers a required topic** — inside `## Checklist` (configurable via `checklist-section`), at least one checkbox line must match `required-checklist-topic-pattern`. Default `doc|knowledge` — enforces that authors think about documentation & knowledge maintenance. Set the input to an empty string to disable.
+5. **Checklist carries a required sub-section** — inside `## Checklist` (configurable via `checklist-section`), a sub-section heading must match `required-checklist-topic-pattern`, and that sub-section must carry at least one checklist item. Sub-headings are bold lines (`**Label**`) or `###` headings. Default `doc|knowledge` — enforces a documentation & knowledge maintenance group. Set the input to an empty string to disable.
 6. **Checkboxes resolved** — every `- [ ]` in the PR body must be `- [x]` or the line must contain "n/a".
 
 Conditional sections (`## Conditional: ...`) may be deleted when not applicable — this action does not require their presence.
@@ -84,7 +84,7 @@ jobs:
 | `min-section-chars`                | No       | `20`                               | Minimum substantive chars required per section (or write "n/a")                                                          |
 | `required-sections`                | No       | `Checklist`                        | Comma-separated `##` headings that MUST appear in the PR body regardless of the local template (org-wide floor)          |
 | `checklist-section`                | No       | `Checklist`                        | Name of the `##` heading treated as the checklist for topic-coverage validation                                          |
-| `required-checklist-topic-pattern` | No       | `doc\|knowledge`                   | Case-insensitive regex; at least one checkbox line inside the checklist section must match. Empty string disables check. |
+| `required-checklist-topic-pattern` | No       | `doc\|knowledge`                   | Case-insensitive regex matched against **sub-section headings** inside the checklist. A matching sub-section must exist and carry >= 1 item. Empty string disables. |
 | `skip-if-no-template`              | No       | `true`                             | When `true`, exit successfully with a notice if the repo has no PR template. Safe org-wide default. Set to `false` to enforce floor rules even in template-less repos. |
 | `mode`                             | No       | `enforce`                          | `enforce` (fail check on findings, blocking) or `warn` (report findings via warnings + step summary, exit 0 — non-blocking, safe for org-wide dogfood rollout).       |
 
@@ -96,7 +96,7 @@ Add the `pr-lint-skip` label to the PR for emergencies. The check exits successf
 
 - **Format freedom per repo, floor is enforced.** Each repo owns its template; only the `## Checklist` section (+ a documentation/knowledge-maintenance checkbox inside it) is org-mandated. See [`memory/pr-template-standard.md`](https://github.com/OsomePteLtd/dev/blob/main/memory/pr-template-standard.md) in the dev workspace.
 - **Floor vs template.** Template-declared headings are always required (unless `Conditional:`). Floor headings from `required-sections` are ALSO required even if the local template does not declare them — this is how `Checklist` stays mandatory for every repo.
-- **Topic coverage inside the checklist.** `required-checklist-topic-pattern` (default `doc\|knowledge`) enforces at least one checkbox item concerning documentation/knowledge maintenance — teams can name their bullet freely, e.g. "Docs updated", "Knowledge base synced", "AGENTS.md refreshed".
+- **Topic coverage is sub-section based, not text based.** `required-checklist-topic-pattern` (default `doc\|knowledge`) is matched against checklist **sub-section headings**, not the text of individual items. Teams name the group freely (`**Documentation & knowledge maintenance**`, `### Docs`, `**Knowledge upkeep**`) but it must exist and hold at least one item. Matching item text instead would let an unrelated line like "...is documented above" satisfy the rule.
 - **HTML comments are stripped** before parsing — `<!-- guidance -->` blocks inside templates and PR bodies do not create phantom sections or checkboxes.
 - **Conditional sections are optional.** Matches the template convention "delete if N/A" — no per-box "n/a" spam when a whole section doesn't apply.
 - **Checkbox resolution accepts "n/a"** anywhere in the line. Authors can tick or annotate — both are valid.
