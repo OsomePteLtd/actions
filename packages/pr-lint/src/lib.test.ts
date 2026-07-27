@@ -143,14 +143,45 @@ describe('findChecklistSubsections', () => {
 });
 
 describe('validateTitle', () => {
-  it('accepts conventional title with jira id', () => {
-    expect(validateTitle('feat(pr-lint): add mode input [ITG-1430]')).toBeNull();
+  const ok = (t: string) => expect(validateTitle(t)).toBeNull();
+  const bad = (t: string) => expect(validateTitle(t)?.rule).toBe('title-format');
+
+  it('accepts a conventional title with one jira id', () => {
+    ok('feat(pr-lint): add mode input [ITG-1430]');
   });
-  it('rejects missing jira id', () => {
-    expect(validateTitle('feat(pr-lint): add mode input')).not.toBeNull();
+  it('accepts multiple comma-separated jira ids (per OSOME git principles)', () => {
+    ok('feat: support companyId in invoice URLs [APP-226,PAY-67]');
+    ok('chore: bump deps [CORE-10,PAY-99,ITG-1]');
   });
-  it('rejects bad type', () => {
-    expect(validateTitle('nope(pr-lint): fix [ITG-1]')).not.toBeNull();
+  it('tolerates a space after the comma even though the convention omits it', () => {
+    ok('feat: support companyId in invoice URLs [APP-226, PAY-67]');
+  });
+  it('accepts project keys containing digits', () => {
+    ok('fix(accounting): correct rounding [ACV2-642]');
+  });
+  it('accepts the feature alias for feat', () => {
+    ok('feature(billing): add plan upgrade [BIL-3]');
+  });
+  it('accepts multiple comma-separated scopes', () => {
+    ok('fix(invoice,billing): align totals [PAY-12]');
+  });
+  it('accepts every documented issue type', () => {
+    for (const type of ['feat', 'feature', 'fix', 'chore', 'docs', 'refactor', 'test', 'perf', 'infra', 'task']) {
+      ok(`${type}: do the thing [ITG-1]`);
+    }
+  });
+  it('rejects a missing jira id', () => {
+    bad('feat(pr-lint): add mode input');
+  });
+  it('rejects an unknown type', () => {
+    bad('nope(pr-lint): fix [ITG-1]');
+  });
+  it('rejects a malformed jira id', () => {
+    bad('feat: thing [itg-1430]');
+    bad('feat: thing [ITG-]');
+  });
+  it('rejects a trailing comma in the jira list', () => {
+    bad('feat: thing [ITG-1,]');
   });
 });
 

@@ -10,7 +10,10 @@ pr-lint never imposes a shared PR format. Teams keep whatever template they like
 
 **Org floor — always enforced:**
 
-1. **Title format** — `<type>(<scope>): <description> [JIRA-ID]` where `type ∈ {feat, fix, chore, refactor, test, docs, perf, infra, task, revert}` (per [Osome git principles](https://github.com/OsomePteLtd/principles/blob/main/src/git.md)).
+1. **Title format** — `<type>(<scope>): <description> [<JIRA-ID>,...]` per [Osome git principles](https://github.com/OsomePteLtd/principles/blob/main/src/git.md):
+   - `type` is one of `feat`/`feature`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `infra`, `task` (plus `revert`, which the action allows although the principles table omits it).
+   - Scope is optional and may list several, e.g. `fix(invoice,billing):`.
+   - One or more Jira IDs, comma-separated: `[APP-226,PAY-67]`. Project keys may contain digits (`ACV2-642`). A space after the comma is tolerated even though the convention writes none.
 2. **A checklist section exists and is non-empty** — `## Checklist` by default (`required-sections` / `checklist-section`).
 3. **The checklist carries the required sub-section** — headed `Documentation & knowledge maintenance`, with at least one item under it. Write it as a bold line (`**Documentation & knowledge maintenance**`) or a `###` heading; matched case-insensitively. This is the point of the action: every PR gets a deliberate look at whether memories, skills, READMEs, runbooks and external docs went stale.
 4. **Checkboxes inside the checklist are resolved** — `- [x]`, or the line contains "n/a".
