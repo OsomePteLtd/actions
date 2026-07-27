@@ -20,6 +20,7 @@ export interface Inputs {
   floorSections: string[];
   checklistHeading: string;
   requiredSubsection: string;
+  enforceTemplateSections: boolean;
   skipIfNoTemplate: boolean;
   mode: 'warn' | 'enforce';
 }
@@ -214,13 +215,16 @@ function subsectionEmptyFailure(checklistHeading: string, required: string): Fai
   };
 }
 
-export function validateCheckboxes(body: string): Failure | null {
-  const unresolved = findUnresolvedCheckboxes(body);
+export function validateCheckboxes(body: string, scopeHeading?: string): Failure | null {
+  const scoped = scopeHeading ? (extractSection(body, scopeHeading) ?? '') : body;
+  const unresolved = findUnresolvedCheckboxes(scoped);
   if (unresolved.length === 0) return null;
   const listed = unresolved.map((l) => `  - ${l}`).join('\n');
   return {
     rule: 'unresolved-checkboxes',
-    details: `${unresolved.length} unresolved checkbox(es) in PR body — tick each, or write "n/a — reason" in the line:\n${listed}`,
+    details: `${unresolved.length} unresolved checkbox(es)${
+      scopeHeading ? ` in \`## ${scopeHeading}\`` : ' in PR body'
+    } — tick each, or write "n/a — reason" in the line:\n${listed}`,
   };
 }
 
@@ -245,6 +249,8 @@ export function readInputs(): Inputs {
     checklistHeading: core.getInput('checklist-section') || 'Checklist',
     requiredSubsection:
       core.getInput('required-checklist-subsection') || DEFAULT_REQUIRED_SUBSECTION,
+    enforceTemplateSections:
+      (core.getInput('enforce-template-sections') || 'true').toLowerCase() === 'true',
     skipIfNoTemplate: (core.getInput('skip-if-no-template') || 'true').toLowerCase() === 'true',
     mode: modeRaw === 'warn' ? 'warn' : 'enforce',
   };

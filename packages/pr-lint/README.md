@@ -6,12 +6,21 @@ Validate a pull request body against the consuming repository's own `.github/pul
 
 ## What it checks
 
+pr-lint never imposes a shared PR format. Teams keep whatever template they like — Nike's PRFAQ shape and a three-line template are equally valid. What it does is hold a repo to **its own** template, plus a small org-wide floor.
+
+**Org floor — always enforced:**
+
 1. **Title format** — `<type>(<scope>): <description> [JIRA-ID]` where `type ∈ {feat, fix, chore, refactor, test, docs, perf, infra, task, revert}` (per [Osome git principles](https://github.com/OsomePteLtd/principles/blob/main/src/git.md)).
-2. **Template-required sections present** — every `##` heading in the template (except those starting with `Conditional:`) must appear in the PR body.
-3. **Floor-required sections present** — every heading in `required-sections` MUST appear in the PR body, regardless of what the local template declares. Default floor: `Checklist`.
-4. **Sections non-empty** — each required section must carry ≥ `min-section-chars` chars of substantive content, or "n/a" written into the section.
-5. **Checklist carries the required sub-section** — inside `## Checklist` (configurable via `checklist-section`), a sub-section headed **`Documentation & knowledge maintenance`** must exist and carry at least one item. The name is fixed org-wide so every repo's checklist reads the same; write it as a bold line (`**Documentation & knowledge maintenance**`) or a `###` heading. Matched case-insensitively. Override with `required-checklist-subsection`, or set it to an empty string to disable.
-6. **Checkboxes resolved** — every `- [ ]` in the PR body must be `- [x]` or the line must contain "n/a".
+2. **A checklist section exists and is non-empty** — `## Checklist` by default (`required-sections` / `checklist-section`).
+3. **The checklist carries the required sub-section** — headed `Documentation & knowledge maintenance`, with at least one item under it. Write it as a bold line (`**Documentation & knowledge maintenance**`) or a `###` heading; matched case-insensitively. This is the point of the action: every PR gets a deliberate look at whether memories, skills, READMEs, runbooks and external docs went stale.
+4. **Checkboxes inside the checklist are resolved** — `- [x]`, or the line contains "n/a".
+
+**The repo's own template — enforced by default** (`enforce-template-sections`, default `true`):
+
+5. Every `##` heading declared in the repo's template must be present and non-empty in the PR body (≥ `min-section-chars`, or "n/a"). Headings prefixed `Conditional:` may be deleted when they don't apply.
+6. Every checkbox anywhere in the body must be resolved.
+
+These validate *that repo's* template, never a shared one — a team that wrote a section into its template presumably wants it filled in. Set the input to `false` to gate on the floor alone. Repos with no template are skipped entirely (`skip-if-no-template`).
 
 Conditional sections (`## Conditional: ...`) may be deleted when not applicable — this action does not require their presence.
 
@@ -85,6 +94,7 @@ jobs:
 | `required-sections`                | No       | `Checklist`                        | Comma-separated `##` headings that MUST appear in the PR body regardless of the local template (org-wide floor)          |
 | `checklist-section`                | No       | `Checklist`                        | Name of the `##` heading treated as the checklist for topic-coverage validation                                          |
 | `required-checklist-subsection`    | No       | `Documentation & knowledge maintenance` | Exact sub-section name required inside the checklist, carrying >= 1 item. Case-insensitive. Empty string disables. |
+| `enforce-template-sections`        | No       | `true`                             | Require every `##` heading from the repo's own template, and resolve checkboxes body-wide. Set `false` to gate on the org floor alone. |
 | `skip-if-no-template`              | No       | `true`                             | When `true`, exit successfully with a notice if the repo has no PR template. Safe org-wide default. Set to `false` to enforce floor rules even in template-less repos. |
 | `mode`                             | No       | `enforce`                          | `enforce` (fail check on findings, blocking) or `warn` (report findings via warnings + step summary, exit 0 — non-blocking, safe for org-wide dogfood rollout).       |
 
@@ -94,8 +104,8 @@ Add the `pr-lint-skip` label to the PR for emergencies. The check exits successf
 
 ## Design notes
 
-- **Format freedom per repo, floor is enforced.** Each repo owns its template; only the `## Checklist` section (+ a documentation/knowledge-maintenance checkbox inside it) is org-mandated. See [`memory/pr-template-standard.md`](https://github.com/OsomePteLtd/dev/blob/main/memory/pr-template-standard.md) in the dev workspace.
-- **Floor vs template.** Template-declared headings are always required (unless `Conditional:`). Floor headings from `required-sections` are ALSO required even if the local template does not declare them — this is how `Checklist` stays mandatory for every repo.
+- **Format freedom per repo, floor is enforced.** Each repo owns its PR description format. The org-wide gate is only: a checklist section, and a `Documentation & knowledge maintenance` sub-section inside it with at least one item. See [`memory/pr-template-standard.md`](https://github.com/OsomePteLtd/dev/blob/main/memory/pr-template-standard.md).
+- **Floor vs template.** Floor headings from `required-sections` are required even when the local template does not declare them. Template-declared headings are enforced by default, which holds a repo to the template it chose rather than to a shared one; `enforce-template-sections: 'false'` drops to floor-only.
 - **One fixed sub-section name, matched as a heading.** The doc/knowledge floor requires a sub-section literally named `Documentation & knowledge maintenance` holding at least one item. A fixed name means every repo's checklist reads the same and the failure message can tell the author exactly what to paste. Matching against headings rather than item text also closes a false pass: an unrelated line like "...is documented above" used to satisfy a substring rule.
 - **HTML comments are stripped** before parsing — `<!-- guidance -->` blocks inside templates and PR bodies do not create phantom sections or checkboxes.
 - **Conditional sections are optional.** Matches the template convention "delete if N/A" — no per-box "n/a" spam when a whole section doesn't apply.
