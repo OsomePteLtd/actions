@@ -74,6 +74,13 @@ describe('extractSection', () => {
   it('returns null when heading absent', () => {
     expect(extractSection('nothing here', 'What')).toBeNull();
   });
+  it('matches heading case-insensitively', () => {
+    expect(extractSection('## impact\nalpha\n', 'Impact')).toBe('alpha');
+    expect(extractSection('## RISKS & ROLLOUT\nbeta\n', 'Risks & rollout')).toBe('beta');
+  });
+  it('still stops at the next heading regardless of case', () => {
+    expect(extractSection('## what\nalpha\n## WHY\nbeta\n', 'What')).toBe('alpha');
+  });
 });
 
 describe('isSubstantive', () => {

@@ -97,7 +97,7 @@ export function parseTemplate(md: string): ParsedTemplate {
 
 export function extractSection(body: string, heading: string): string | null {
   const escaped = heading.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-  const re = new RegExp(`^##\\s+${escaped}\\s*$`, 'm');
+  const re = new RegExp(`^##\\s+${escaped}\\s*$`, 'im');
   const m = re.exec(body);
   if (!m) return null;
   const start = m.index + m[0].length;
