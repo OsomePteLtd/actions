@@ -38,8 +38,12 @@ function loadedTemplateContext(template: string): TemplateContext {
 
 function absentTemplateContext(templatePath: string, skipIfNoTemplate: boolean): TemplateContext {
   if (skipIfNoTemplate) {
-    core.notice(
-      `No PR template found at ${templatePath}. Skipping pr-lint (skip-if-no-template=true). Set input to "false" to enforce floor rules (Checklist + doc/knowledge topic) here anyway.`,
+    void writeSkipSummary(
+      'pr-lint SKIPPED — no PR template',
+      `> Nothing was validated on this pull request.\n> No template was found at \`${templatePath}\`, and \`skip-if-no-template\` is enabled.\n> Add a PR template to opt this repository into the check.`,
+    );
+    core.warning(
+      `pr-lint SKIPPED — no PR template found at ${templatePath}. Nothing was validated. Add the template, or set skip-if-no-template to "false" to enforce the floor rules here anyway.`,
     );
     return { headings: [], skip: true };
   }
@@ -81,6 +85,10 @@ async function reportFailures(failures: Failure[], mode: 'warn' | 'enforce'): Pr
   core.setFailed(`pr-lint found ${failures.length} issue(s):\n\n${summary}\n\n${GUIDE_URL}`);
 }
 
+async function writeSkipSummary(heading: string, detail: string): Promise<void> {
+  await core.summary.addHeading(heading).addRaw(`\n${detail}\n`).write();
+}
+
 async function writeStepSummary(failures: Failure[], mode: 'warn' | 'enforce'): Promise<void> {
   await core.summary
     .addHeading(`pr-lint — ${failures.length} issue(s) (${mode})`)
@@ -92,7 +100,13 @@ async function writeStepSummary(failures: Failure[], mode: 'warn' | 'enforce'): 
 
 async function runPullRequest(pr: NonNullable<typeof github.context.payload.pull_request>, inputs: Inputs): Promise<void> {
   if (isBypassed(pr.labels, inputs.bypassLabel)) {
-    core.notice(`Bypass label '${inputs.bypassLabel}' present — pr-lint skipped.`);
+    await writeSkipSummary(
+      `pr-lint SKIPPED — bypass label \`${inputs.bypassLabel}\``,
+      `> Nothing was validated on this pull request.\n> The label \`${inputs.bypassLabel}\` is present, which disables the check for every future commit until it is removed.\n> Remove the label to re-enable pr-lint.`,
+    );
+    core.warning(
+      `pr-lint SKIPPED — bypass label '${inputs.bypassLabel}' is present, so nothing was validated. It stays in effect for every future commit until removed.`,
+    );
     return;
   }
   const { headings, skip } = await loadTemplateContext(inputs.templatePath, inputs.skipIfNoTemplate);
