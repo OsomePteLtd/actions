@@ -250,7 +250,7 @@ export function readInputs(): Inputs {
     requiredSubsection:
       core.getInput('required-checklist-subsection') || DEFAULT_REQUIRED_SUBSECTION,
     enforceTemplateSections:
-      (core.getInput('enforce-template-sections') || 'false').toLowerCase() === 'true',
+      (core.getInput('enforce-template-sections') || 'true').toLowerCase() === 'true',
     skipIfNoTemplate: (core.getInput('skip-if-no-template') || 'true').toLowerCase() === 'true',
     mode: modeRaw === 'warn' ? 'warn' : 'enforce',
   };
