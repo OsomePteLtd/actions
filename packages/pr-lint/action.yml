@@ -25,10 +25,10 @@ inputs:
     description: 'Name of the ## heading treated as the checklist for topic-coverage validation'
     required: false
     default: 'Checklist'
-  required-checklist-topic-pattern:
-    description: 'Case-insensitive regex matched against sub-section headings inside the checklist section (bold `**Label**` lines or `###` headings). A matching sub-section must exist and carry at least one checklist item. Empty string disables the check.'
+  required-checklist-subsection:
+    description: 'Exact name of the sub-section that must exist inside the checklist section, carrying at least one item. Matched case-insensitively against bold `**Label**` lines and `###` headings. Empty string disables the check.'
     required: false
-    default: 'doc|knowledge'
+    default: 'Documentation & knowledge maintenance'
   skip-if-no-template:
     description: 'When true, exit successfully with a notice if the repo has no PR template file. Safe default for org-wide rollout. Set to "false" to enforce floor rules (Checklist + doc/knowledge topic) even in template-less repos.'
     required: false
