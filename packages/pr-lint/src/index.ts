@@ -2,56 +2,16 @@ import * as core from '@actions/core';
 import * as github from '@actions/github';
 import {
   Failure,
+  loadTemplateContext,
   GUIDE_URL,
   Inputs,
   isBypassed,
-  parseTemplate,
   readInputs,
-  readWorkspaceFile,
   validateChecklistSubsection,
   validateCheckboxes,
   validateSections,
   validateTitle,
 } from './lib';
-
-interface TemplateContext {
-  headings: string[];
-  skip: boolean;
-}
-
-async function loadTemplateContext(
-  templatePath: string,
-  skipIfNoTemplate: boolean,
-): Promise<TemplateContext> {
-  const template = await readWorkspaceFile(templatePath);
-  if (template) return loadedTemplateContext(template);
-  return absentTemplateContext(templatePath, skipIfNoTemplate);
-}
-
-function loadedTemplateContext(template: string): TemplateContext {
-  const parsed = parseTemplate(template);
-  core.info(
-    `Template loaded: ${parsed.requiredHeadings.length} required section(s), ${parsed.optionalHeadings.length} conditional, ${parsed.templateCheckboxCount} template checkboxes.`,
-  );
-  return { headings: parsed.requiredHeadings, skip: false };
-}
-
-function absentTemplateContext(templatePath: string, skipIfNoTemplate: boolean): TemplateContext {
-  if (skipIfNoTemplate) {
-    void writeSkipSummary(
-      'pr-lint SKIPPED — no PR template',
-      `> Nothing was validated on this pull request.\n> No template was found at \`${templatePath}\`, and \`skip-if-no-template\` is enabled.\n> Add a PR template to opt this repository into the check.`,
-    );
-    core.warning(
-      `pr-lint SKIPPED — no PR template found at ${templatePath}. Nothing was validated. Add the template, or set skip-if-no-template to "false" to enforce the floor rules here anyway.`,
-    );
-    return { headings: [], skip: true };
-  }
-  core.warning(
-    `No template found at ${templatePath} in workspace. Consumer must \`actions/checkout\` before running pr-lint. Falling back to floor rules only.`,
-  );
-  return { headings: [], skip: false };
-}
 
 function collectFailures(body: string, title: string, headings: string[], inputs: Inputs): Failure[] {
   const failures: Failure[] = [];

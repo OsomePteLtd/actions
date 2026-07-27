@@ -266,3 +266,48 @@ export function extractLabelNames(rawLabels: unknown): string[] {
 export function isBypassed(rawLabels: unknown, bypassLabel: string): boolean {
   return extractLabelNames(rawLabels).includes(bypassLabel);
 }
+
+export async function emitSkip(heading: string, detail: string, warning: string): Promise<void> {
+  await core.summary.addHeading(heading).addRaw(`\n${detail}\n`).write();
+  core.warning(warning);
+}
+
+export interface TemplateContext {
+  headings: string[];
+  skip: boolean;
+}
+
+export async function loadTemplateContext(
+  templatePath: string,
+  skipIfNoTemplate: boolean,
+): Promise<TemplateContext> {
+  const template = await readWorkspaceFile(templatePath);
+  if (template) return loadedTemplateContext(template);
+  return await absentTemplateContext(templatePath, skipIfNoTemplate);
+}
+
+function loadedTemplateContext(template: string): TemplateContext {
+  const parsed = parseTemplate(template);
+  core.info(
+    `Template loaded: ${parsed.requiredHeadings.length} required section(s), ${parsed.optionalHeadings.length} conditional, ${parsed.templateCheckboxCount} template checkboxes.`,
+  );
+  return { headings: parsed.requiredHeadings, skip: false };
+}
+
+async function absentTemplateContext(
+  templatePath: string,
+  skipIfNoTemplate: boolean,
+): Promise<TemplateContext> {
+  if (skipIfNoTemplate) {
+    await emitSkip(
+      'pr-lint SKIPPED — no PR template',
+      `> Nothing was validated on this pull request.\n> No template was found at \`${templatePath}\`, and \`skip-if-no-template\` is enabled.\n> Add a PR template to opt this repository into the check.`,
+      `pr-lint SKIPPED — no PR template found at ${templatePath}. Nothing was validated. Add the template, or set skip-if-no-template to "false" to enforce the floor rules here anyway.`,
+    );
+    return { headings: [], skip: true };
+  }
+  core.warning(
+    `No template found at ${templatePath} in workspace. Consumer must \`actions/checkout\` before running pr-lint. Falling back to floor rules only.`,
+  );
+  return { headings: [], skip: false };
+}
