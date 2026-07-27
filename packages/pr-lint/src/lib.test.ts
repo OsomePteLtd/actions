@@ -253,3 +253,26 @@ describe('isBypassed / extractLabelNames', () => {
     expect(isBypassed([{ name: 'other' }], 'pr-lint-skip')).toBe(false);
   });
 });
+
+describe('validateCheckboxes scoping', () => {
+  const body = [
+    '## Changes',
+    '- [ ] a template checkbox outside the checklist',
+    '',
+    '## Checklist',
+    '',
+    '**Documentation & knowledge maintenance**',
+    '',
+    '- [ ] docs updated',
+    '',
+  ].join('\n');
+  it('flags every unresolved box when unscoped', () => {
+    expect(validateCheckboxes(body)?.details).toContain('2 unresolved');
+  });
+  it('only flags boxes inside the scoped section', () => {
+    const f = validateCheckboxes(body, 'Checklist');
+    expect(f?.details).toContain('1 unresolved');
+    expect(f?.details).toContain('docs updated');
+    expect(f?.details).not.toContain('template checkbox');
+  });
+});

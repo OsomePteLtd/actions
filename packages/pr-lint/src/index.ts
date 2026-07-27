@@ -53,14 +53,17 @@ function collectFailures(body: string, title: string, headings: string[], inputs
   const failures: Failure[] = [];
   const titleFailure = validateTitle(title);
   if (titleFailure) failures.push(titleFailure);
-  failures.push(...validateSections(body, headings, inputs.floorSections, inputs.minChars));
+  const templateHeadings = inputs.enforceTemplateSections ? headings : [];
+  failures.push(...validateSections(body, templateHeadings, inputs.floorSections, inputs.minChars));
   const subsectionFailure = validateChecklistSubsection(
     body,
     inputs.checklistHeading,
     inputs.requiredSubsection,
   );
   if (subsectionFailure) failures.push(subsectionFailure);
-  const boxFailure = validateCheckboxes(body);
+  const boxFailure = inputs.enforceTemplateSections
+    ? validateCheckboxes(body)
+    : validateCheckboxes(body, inputs.checklistHeading);
   if (boxFailure) failures.push(boxFailure);
   return failures;
 }
