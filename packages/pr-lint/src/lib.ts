@@ -13,6 +13,13 @@ export interface Failure {
   details: string;
 }
 
+export class ConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConfigError';
+  }
+}
+
 export interface Inputs {
   templatePath: string;
   bypassLabel: string;
@@ -20,6 +27,8 @@ export interface Inputs {
   floorSections: string[];
   checklistHeading: string;
   requiredSubsection: string;
+  enforceTitle: boolean;
+  titleRegex: RegExp;
   enforceTemplateSections: boolean;
   skipIfNoTemplate: boolean;
   mode: 'warn' | 'enforce';
@@ -133,11 +142,23 @@ export function findChecklistSubsections(section: string): ChecklistSubsection[]
   return subsections;
 }
 
-export function validateTitle(title: string): Failure | null {
-  if (TITLE_REGEX.test(title.trim())) return null;
+export function compileTitleRegex(pattern: string): RegExp {
+  if (!pattern) return TITLE_REGEX;
+  try {
+    return new RegExp(pattern);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new ConfigError(
+      `Invalid title-pattern "${pattern}" — not a valid regex. Fix the workflow input. (${message})`,
+    );
+  }
+}
+
+export function validateTitle(title: string, titleRegex: RegExp = TITLE_REGEX): Failure | null {
+  if (titleRegex.test(title.trim())) return null;
   return {
     rule: 'title-format',
-    details: `Title must match \`<type>(<scope>): <description> [JIRA-ID]\`. Got: \`${title}\``,
+    details: `Title does not match the expected format \`${titleRegex.source}\`. Got: \`${title}\``,
   };
 }
 
@@ -253,6 +274,8 @@ export function readInputs(): Inputs {
     checklistHeading: core.getInput('checklist-section') || 'Checklist',
     requiredSubsection:
       core.getInput('required-checklist-subsection') || DEFAULT_REQUIRED_SUBSECTION,
+    enforceTitle: (core.getInput('enforce-title') || 'true').toLowerCase() === 'true',
+    titleRegex: compileTitleRegex(core.getInput('title-pattern') || ''),
     enforceTemplateSections:
       (core.getInput('enforce-template-sections') || 'true').toLowerCase() === 'true',
     skipIfNoTemplate: (core.getInput('skip-if-no-template') || 'true').toLowerCase() === 'true',

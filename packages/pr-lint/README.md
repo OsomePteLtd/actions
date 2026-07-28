@@ -19,6 +19,15 @@ pr-lint never imposes a shared PR format. Teams keep whatever template they like
    - **Jira IDs are the part that is enforced** — one or more, comma-separated, e.g. `[APP-226,PAY-67]`. Project keys may contain digits (`ACV2-642`), and a space after the comma is fine.
 
    Rejected: a missing colon, a missing or malformed Jira list, an empty type.
+
+   **Both parts are per-repo configurable.** Set `enforce-title: 'false'` to drop the title check entirely — appropriate for a repository that does not track work in Jira. Or keep the check and supply your own `title-pattern` to require a shape without Jira IDs:
+
+   ```yaml
+   with:
+     title-pattern: '^[a-z][a-z-]*(\([^)]+\))?: .+$'
+   ```
+
+   An invalid `title-pattern` fails the check with a clear `pr-lint config error` rather than crashing.
 2. **A checklist section exists and is non-empty** — `## Checklist` by default (`required-sections` / `checklist-section`).
 3. **The checklist carries the required sub-section** — headed `Documentation & knowledge maintenance`, with at least one item under it. Write it as a bold line (`**Documentation & knowledge maintenance**`) or a `###` heading; matched case-insensitively. This is the point of the action: every PR gets a deliberate look at whether memories, skills, READMEs, runbooks and external docs went stale.
 4. **Checkboxes inside the checklist are resolved** — `- [x]`, or the line contains "n/a".
@@ -102,6 +111,8 @@ jobs:
 | `required-sections`                | No       | `Checklist`                        | Comma-separated `##` headings that MUST appear in the PR body regardless of the local template (org-wide floor)          |
 | `checklist-section`                | No       | `Checklist`                        | Name of the `##` heading treated as the checklist for topic-coverage validation                                          |
 | `required-checklist-subsection`    | No       | `Documentation & knowledge maintenance` | Exact sub-section name required inside the checklist, carrying >= 1 item. Case-insensitive. Empty string disables. |
+| `enforce-title`                    | No       | `true`                             | Whether to check the PR title at all. `false` skips it entirely. |
+| `title-pattern`                    | No       | *(built-in)*                       | Regex overriding the built-in title format, e.g. to require a shape without Jira IDs. Ignored when `enforce-title` is `false`. |
 | `enforce-template-sections`        | No       | `true`                             | Require every `##` heading from the repo's own template, and resolve checkboxes body-wide. Set `false` to gate on the org floor alone. |
 | `skip-if-no-template`              | No       | `true`                             | When `true`, exit successfully with a notice if the repo has no PR template. Safe org-wide default. Set to `false` to enforce floor rules even in template-less repos. |
 | `mode`                             | No       | `enforce`                          | `enforce` (fail check on findings, blocking) or `warn` (report findings via warnings + step summary, exit 0 — non-blocking, safe for org-wide dogfood rollout).       |

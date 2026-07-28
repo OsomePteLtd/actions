@@ -1,4 +1,6 @@
 import {
+  compileTitleRegex,
+  ConfigError,
   effectiveRequiredHeadings,
   extractLabelNames,
   extractSection,
@@ -195,6 +197,28 @@ describe('validateTitle', () => {
   });
   it('rejects a trailing comma in the jira list', () => {
     bad('feat: thing [ITG-1,]');
+  });
+});
+
+describe('compileTitleRegex + custom title patterns', () => {
+  it('falls back to the built-in pattern when none is given', () => {
+    expect(validateTitle('feat: thing [ITG-1]', compileTitleRegex(''))).toBeNull();
+  });
+  it('accepts a jira-less shape when a repo supplies its own pattern', () => {
+    const re = compileTitleRegex('^[a-z][a-z-]*(\\([^)]+\\))?: .+$');
+    expect(validateTitle('feat(ui): add button', re)).toBeNull();
+    expect(validateTitle('no colon here', re)?.rule).toBe('title-format');
+  });
+  it('throws ConfigError with a clear message on an invalid pattern', () => {
+    let error: unknown;
+    try {
+      compileTitleRegex('(unclosed');
+    } catch (e) {
+      error = e;
+    }
+    expect(error).toBeInstanceOf(ConfigError);
+    expect((error as Error).message).toContain('Invalid title-pattern');
+    expect((error as Error).message).toContain('Fix the workflow input');
   });
 });
 
