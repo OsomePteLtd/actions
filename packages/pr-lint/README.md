@@ -28,6 +28,16 @@ pr-lint never imposes a shared PR format. Teams keep whatever template they like
    ```
 
    An invalid `title-pattern` fails the check with a clear `pr-lint config error` rather than crashing.
+
+   **Documentation repositories** (`shared-brain`, wikis, planning workspaces) are the common case for this. Work there often starts before a ticket exists, or without one at all, so requiring a Jira ID would block legitimate PRs. Keep the documentation gate and drop the ticket requirement:
+
+   ```yaml
+   - uses: OsomePteLtd/actions/packages/pr-lint@master
+     with:
+       title-pattern: '^[a-z][a-z-]*(\([^)]+\))?: .+$'
+   ```
+
+   Or skip the title check altogether with `enforce-title: 'false'`. Either way the checklist and `Documentation & knowledge maintenance` rules still apply — which is usually the whole reason a documentation repository adopts pr-lint.
 2. **A checklist section exists and is non-empty** — `## Checklist` by default (`required-sections` / `checklist-section`).
 3. **The checklist carries the required sub-section** — headed `Documentation & knowledge maintenance`, with at least one item under it. Write it as a bold line (`**Documentation & knowledge maintenance**`) or a `###` heading; matched case-insensitively. This is the point of the action: every PR gets a deliberate look at whether memories, skills, READMEs, runbooks and external docs went stale.
 4. **Checkboxes inside the checklist are resolved** — `- [x]`, or the line contains "n/a".
