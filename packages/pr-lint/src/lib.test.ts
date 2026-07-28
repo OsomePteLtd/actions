@@ -1,4 +1,6 @@
 import {
+  compileTitleRegex,
+  ConfigError,
   effectiveRequiredHeadings,
   extractLabelNames,
   extractSection,
@@ -143,14 +145,80 @@ describe('findChecklistSubsections', () => {
 });
 
 describe('validateTitle', () => {
-  it('accepts conventional title with jira id', () => {
-    expect(validateTitle('feat(pr-lint): add mode input [ITG-1430]')).toBeNull();
+  const ok = (t: string) => expect(validateTitle(t)).toBeNull();
+  const bad = (t: string) => expect(validateTitle(t)?.rule).toBe('title-format');
+
+  it('accepts a conventional title with one jira id', () => {
+    ok('feat(pr-lint): add mode input [ITG-1430]');
   });
-  it('rejects missing jira id', () => {
-    expect(validateTitle('feat(pr-lint): add mode input')).not.toBeNull();
+  it('accepts multiple comma-separated jira ids (per OSOME git principles)', () => {
+    ok('feat: support companyId in invoice URLs [APP-226,PAY-67]');
+    ok('chore: bump deps [CORE-10,PAY-99,ITG-1]');
   });
-  it('rejects bad type', () => {
-    expect(validateTitle('nope(pr-lint): fix [ITG-1]')).not.toBeNull();
+  it('tolerates a space after the comma even though the convention omits it', () => {
+    ok('feat: support companyId in invoice URLs [APP-226, PAY-67]');
+  });
+  it('accepts project keys containing digits', () => {
+    ok('fix(accounting): correct rounding [ACV2-642]');
+  });
+  it('accepts the feature alias for feat', () => {
+    ok('feature(billing): add plan upgrade [BIL-3]');
+  });
+  it('accepts multiple comma-separated scopes', () => {
+    ok('fix(invoice,billing): align totals [PAY-12]');
+  });
+  it('accepts every documented issue type', () => {
+    for (const type of ['feat', 'feature', 'fix', 'chore', 'docs', 'refactor', 'test', 'perf', 'infra', 'task']) {
+      ok(`${type}: do the thing [ITG-1]`);
+    }
+  });
+  it('does not police the type vocabulary — teams vary', () => {
+    ok('build: bump docker base image [PLAT-9]');
+    ok('ci: cache node modules [PLAT-10]');
+    ok('style: reformat [PLAT-11]');
+    ok('hotfix: patch prod [PLAT-12]');
+  });
+  it('does not police the scope vocabulary — teams vary', () => {
+    ok('fix(ui/checkout): align totals [PAY-12]');
+    ok('fix(Aspire Account Opening): retry on 5xx [ITG-1]');
+    ok('fix(a,b,c): sweep [ITG-2]');
+  });
+  it('rejects a missing jira id', () => {
+    bad('feat(pr-lint): add mode input');
+  });
+  it('still requires the structural shape', () => {
+    bad('no colon here [ITG-1]');
+    bad('UPPERCASE: shouting [ITG-1]');
+    bad(': empty type [ITG-1]');
+  });
+  it('rejects a malformed jira id', () => {
+    bad('feat: thing [itg-1430]');
+    bad('feat: thing [ITG-]');
+  });
+  it('rejects a trailing comma in the jira list', () => {
+    bad('feat: thing [ITG-1,]');
+  });
+});
+
+describe('compileTitleRegex + custom title patterns', () => {
+  it('falls back to the built-in pattern when none is given', () => {
+    expect(validateTitle('feat: thing [ITG-1]', compileTitleRegex(''))).toBeNull();
+  });
+  it('accepts a jira-less shape when a repo supplies its own pattern', () => {
+    const re = compileTitleRegex('^[a-z][a-z-]*(\\([^)]+\\))?: .+$');
+    expect(validateTitle('feat(ui): add button', re)).toBeNull();
+    expect(validateTitle('no colon here', re)?.rule).toBe('title-format');
+  });
+  it('throws ConfigError with a clear message on an invalid pattern', () => {
+    let error: unknown;
+    try {
+      compileTitleRegex('(unclosed');
+    } catch (e) {
+      error = e;
+    }
+    expect(error).toBeInstanceOf(ConfigError);
+    expect((error as Error).message).toContain('Invalid title-pattern');
+    expect((error as Error).message).toContain('Fix the workflow input');
   });
 });
 

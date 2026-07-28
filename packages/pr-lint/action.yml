@@ -29,6 +29,14 @@ inputs:
     description: 'Exact name of the sub-section that must exist inside the checklist section, carrying at least one item. Matched case-insensitively against bold `**Label**` lines and `###` headings. Empty string disables the check.'
     required: false
     default: 'Documentation & knowledge maintenance'
+  enforce-title:
+    description: 'When true (default), the PR title must match the expected format. Set to false in repositories that do not use the convention — for example ones that do not track work in Jira.'
+    required: false
+    default: 'true'
+  title-pattern:
+    description: 'Optional regex overriding the built-in title check. Use it to keep a shape requirement without demanding Jira IDs, e.g. ^[a-z][a-z-]*(\([^)]+\))?: .+$. Ignored when enforce-title is false.'
+    required: false
+    default: ''
   enforce-template-sections:
     description: 'When true (default), every `##` heading declared in the repo own template must be present and non-empty in the PR body, and all checkboxes anywhere in the body must be resolved — the repo is held to the template it chose. Set to false to gate only on the org floor (checklist section + required sub-section + its checkboxes).'
     required: false
