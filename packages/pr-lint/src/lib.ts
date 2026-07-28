@@ -25,10 +25,11 @@ export interface Inputs {
   mode: 'warn' | 'enforce';
 }
 
-const ISSUE_TYPES = 'feat|feature|fix|chore|docs|refactor|test|perf|infra|task|revert';
+const ISSUE_TYPE = '[a-z][a-z-]*';
+const SCOPE = '\\([^)]+\\)';
 const JIRA_KEY = '[A-Z][A-Z0-9_]*-\\d+';
 export const TITLE_REGEX = new RegExp(
-  `^(${ISSUE_TYPES})(\\([^)]+\\))?: .+\\s\\[${JIRA_KEY}(?:\\s*,\\s*${JIRA_KEY})*\\]\\s*$`,
+  `^${ISSUE_TYPE}(?:${SCOPE})?: .+\\s\\[${JIRA_KEY}(?:\\s*,\\s*${JIRA_KEY})*\\]\\s*$`,
 );
 export const NA_REGEX = /\bn\/?a\b/i;
 export const CHECKBOX_UNCHECKED_REGEX = /^(\s*-\s*\[\s\])\s+(.+)$/gm;

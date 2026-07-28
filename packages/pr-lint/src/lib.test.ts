@@ -170,11 +170,24 @@ describe('validateTitle', () => {
       ok(`${type}: do the thing [ITG-1]`);
     }
   });
+  it('does not police the type vocabulary — teams vary', () => {
+    ok('build: bump docker base image [PLAT-9]');
+    ok('ci: cache node modules [PLAT-10]');
+    ok('style: reformat [PLAT-11]');
+    ok('hotfix: patch prod [PLAT-12]');
+  });
+  it('does not police the scope vocabulary — teams vary', () => {
+    ok('fix(ui/checkout): align totals [PAY-12]');
+    ok('fix(Aspire Account Opening): retry on 5xx [ITG-1]');
+    ok('fix(a,b,c): sweep [ITG-2]');
+  });
   it('rejects a missing jira id', () => {
     bad('feat(pr-lint): add mode input');
   });
-  it('rejects an unknown type', () => {
-    bad('nope(pr-lint): fix [ITG-1]');
+  it('still requires the structural shape', () => {
+    bad('no colon here [ITG-1]');
+    bad('UPPERCASE: shouting [ITG-1]');
+    bad(': empty type [ITG-1]');
   });
   it('rejects a malformed jira id', () => {
     bad('feat: thing [itg-1430]');

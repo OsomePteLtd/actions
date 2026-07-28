@@ -10,10 +10,15 @@ pr-lint never imposes a shared PR format. Teams keep whatever template they like
 
 **Org floor — always enforced:**
 
-1. **Title format** — `<type>(<scope>): <description> [<JIRA-ID>,...]` per [Osome git principles](https://github.com/OsomePteLtd/principles/blob/main/src/git.md):
-   - `type` is one of `feat`/`feature`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `infra`, `task` (plus `revert`, which the action allows although the principles table omits it).
-   - Scope is optional and may list several, e.g. `fix(invoice,billing):`.
-   - One or more Jira IDs, comma-separated: `[APP-226,PAY-67]`. Project keys may contain digits (`ACV2-642`). A space after the comma is tolerated even though the convention writes none.
+1. **Title format** — `<type>(<scope>): <description> [<JIRA-ID>,...]` per [Osome git principles](https://github.com/OsomePteLtd/principles/blob/main/src/git.md).
+
+   The check enforces the **shape and the Jira traceability**, not the vocabulary:
+
+   - `type` — any lowercase word. The principles list `feat`/`feature`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `infra`, `task`, but teams use others (`build`, `ci`, `style`, `revert`) and the action does not police the list.
+   - `scope` — optional, free-form, anything inside parentheses: `fix(invoice,billing):`, `fix(ui/checkout):`, `fix(Aspire Account Opening):`.
+   - **Jira IDs are the part that is enforced** — one or more, comma-separated, e.g. `[APP-226,PAY-67]`. Project keys may contain digits (`ACV2-642`), and a space after the comma is fine.
+
+   Rejected: a missing colon, a missing or malformed Jira list, an empty type.
 2. **A checklist section exists and is non-empty** — `## Checklist` by default (`required-sections` / `checklist-section`).
 3. **The checklist carries the required sub-section** — headed `Documentation & knowledge maintenance`, with at least one item under it. Write it as a bold line (`**Documentation & knowledge maintenance**`) or a `###` heading; matched case-insensitively. This is the point of the action: every PR gets a deliberate look at whether memories, skills, READMEs, runbooks and external docs went stale.
 4. **Checkboxes inside the checklist are resolved** — `- [x]`, or the line contains "n/a".
