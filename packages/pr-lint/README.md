@@ -100,7 +100,11 @@ jobs:
 
 ## Bypass
 
-Add the `pr-lint-skip` label to the PR for emergencies. The check exits successfully with a notice.
+Add the `pr-lint-skip` label to the PR for emergencies. The check exits successfully without validating anything.
+
+**The label is sticky.** It stays in effect for every subsequent commit until someone removes it, so a PR that was bypassed once looks gated but is not. To make that hard to miss, a bypassed run emits a warning-level annotation and writes a `pr-lint SKIPPED` card to the job summary. Remove the label to re-enable the check — on a per-repo workflow the `unlabeled` event re-runs it immediately.
+
+The same treatment applies when a repository has no PR template and `skip-if-no-template` is on: the run is clearly marked as skipped rather than quietly passing.
 
 ## Design notes
 
