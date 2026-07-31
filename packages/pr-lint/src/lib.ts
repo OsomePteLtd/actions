@@ -23,6 +23,8 @@ export class ConfigError extends Error {
 export interface Inputs {
   templatePath: string;
   bypassLabel: string;
+  exemptAuthors: string[];
+  exemptBotAuthors: boolean;
   minChars: number;
   floorSections: string[];
   checklistHeading: string;
@@ -267,6 +269,8 @@ export function readInputs(): Inputs {
   return {
     templatePath: core.getInput('template-path') || '.github/pull_request_template.md',
     bypassLabel: core.getInput('bypass-label') || 'pr-lint-skip',
+    exemptAuthors: parseCsvList(core.getInput('exempt-authors') || ''),
+    exemptBotAuthors: (core.getInput('exempt-bot-authors') || 'true').toLowerCase() === 'true',
     minChars: parseMinChars(core.getInput('min-section-chars') || String(DEFAULT_MIN_CHARS), (msg) =>
       core.warning(msg),
     ),
@@ -292,6 +296,27 @@ export function extractLabelNames(rawLabels: unknown): string[] {
 
 export function isBypassed(rawLabels: unknown, bypassLabel: string): boolean {
   return extractLabelNames(rawLabels).includes(bypassLabel);
+}
+
+// Deliberately checks the PR author (payload `pull_request.user`), not
+// `github.actor`: the actor changes on synchronize/labeled events, while the
+// body attestation belongs to whoever authored the PR.
+export function exemptAuthorReason(
+  author: unknown,
+  exemptAuthors: string[],
+  exemptBotAuthors: boolean,
+): string | null {
+  if (!author || typeof author !== 'object') return null;
+  const { login: rawLogin, type: rawType } = author as { login?: unknown; type?: unknown };
+  const login = typeof rawLogin === 'string' ? rawLogin : '';
+  const type = typeof rawType === 'string' ? rawType : '';
+  if (exemptBotAuthors && type === 'Bot') {
+    return `author \`${login || 'unknown'}\` is a bot (GitHub user type \`Bot\`)`;
+  }
+  if (login && exemptAuthors.some((a) => a.toLowerCase() === login.toLowerCase())) {
+    return `author \`${login}\` is listed in \`exempt-authors\``;
+  }
+  return null;
 }
 
 export async function emitSkip(heading: string, detail: string, warning: string): Promise<void> {

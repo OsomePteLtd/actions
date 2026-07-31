@@ -13,6 +13,14 @@ inputs:
     description: 'Label on the PR that bypasses this check'
     required: false
     default: 'pr-lint-skip'
+  exempt-authors:
+    description: 'Comma-separated PR author logins to skip, for machine accounts whose GitHub user type is "User" (e.g. "osome-bot"). Matched case-insensitively against the PR author. Skipped runs emit a loud SKIPPED summary card.'
+    required: false
+    default: ''
+  exempt-bot-authors:
+    description: 'When true (default), skip PRs authored by accounts with GitHub user type "Bot" (dependabot[bot], github-actions[bot], ...). A bot cannot attest to a checklist, so linting its body is theatre. Set to "false" to lint bot PRs anyway.'
+    required: false
+    default: 'true'
   min-section-chars:
     description: 'Minimum non-whitespace characters required per template-declared section (or write "n/a")'
     required: false

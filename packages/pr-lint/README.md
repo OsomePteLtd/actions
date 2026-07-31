@@ -117,6 +117,8 @@ jobs:
 | `github-token`                     | No       | `${{ github.token }}`              | Token used for PR context (kept for future octokit calls)                                                                |
 | `template-path`                    | No       | `.github/pull_request_template.md` | Path to the PR template in the repo                                                                                      |
 | `bypass-label`                     | No       | `pr-lint-skip`                     | Applying this label to a PR skips the check                                                                              |
+| `exempt-authors`                   | No       | *(empty)*                          | Comma-separated PR author logins to skip, for machine accounts of GitHub user type `User` (e.g. `osome-bot`). Case-insensitive. |
+| `exempt-bot-authors`               | No       | `true`                             | Skip PRs authored by GitHub `Bot`-type accounts (`dependabot[bot]`, `github-actions[bot]`, ...). Set `false` to lint bot PRs too. |
 | `min-section-chars`                | No       | `20`                               | Minimum substantive chars required per section (or write "n/a")                                                          |
 | `required-sections`                | No       | `Checklist`                        | Comma-separated `##` headings that MUST appear in the PR body regardless of the local template (org-wide floor)          |
 | `checklist-section`                | No       | `Checklist`                        | Name of the `##` heading treated as the checklist for topic-coverage validation                                          |
@@ -126,6 +128,12 @@ jobs:
 | `enforce-template-sections`        | No       | `true`                             | Require every `##` heading from the repo's own template, and resolve checkboxes body-wide. Set `false` to gate on the org floor alone. |
 | `skip-if-no-template`              | No       | `true`                             | When `true`, exit successfully with a notice if the repo has no PR template. Safe org-wide default. Set to `false` to enforce floor rules even in template-less repos. |
 | `mode`                             | No       | `enforce`                          | `enforce` (fail check on findings, blocking) or `warn` (report findings via warnings + step summary, exit 0 — non-blocking, safe for org-wide dogfood rollout).       |
+
+## Bot-authored PRs
+
+PRs opened by machines (`Bump packages`, dependabot updates) never carry a template-compliant body, and a checklist ticked by a bot attests to nothing. By default the action skips them: accounts with GitHub user type `Bot` are exempt via `exempt-bot-authors` (default `true`), and machine accounts that are technically `User`-type (like `osome-bot`) can be listed per repo in `exempt-authors`. Exemption checks the PR *author* from the event payload, not `github.actor`, so a human pushing to a bot's branch does not flip the decision.
+
+Skipped runs are loud, not silent: the check shows a `pr-lint SKIPPED` card in the job summary naming the reason. Docs-staleness risk from dependency bumps is real, but it belongs to the reviewer layer, not a body-format check.
 
 ## Bypass
 
