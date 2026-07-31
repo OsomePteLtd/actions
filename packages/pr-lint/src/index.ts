@@ -63,7 +63,7 @@ async function writeStepSummary(failures: Failure[], mode: 'warn' | 'enforce'): 
 }
 
 async function runPullRequest(pr: NonNullable<typeof github.context.payload.pull_request>, inputs: Inputs): Promise<void> {
-  const exemptReason = exemptAuthorReason(pr.user, inputs.exemptAuthors, inputs.exemptBotAuthors);
+  const exemptReason = exemptAuthorReason(pr.user, inputs);
   if (exemptReason) {
     await writeSkipSummary(
       'pr-lint SKIPPED — exempt author',

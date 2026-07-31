@@ -303,8 +303,7 @@ export function isBypassed(rawLabels: unknown, bypassLabel: string): boolean {
 // body attestation belongs to whoever authored the PR.
 export function exemptAuthorReason(
   author: unknown,
-  exemptAuthors: string[],
-  exemptBotAuthors: boolean,
+  { exemptAuthors, exemptBotAuthors }: Pick<Inputs, 'exemptAuthors' | 'exemptBotAuthors'>,
 ): string | null {
   if (!author || typeof author !== 'object') return null;
   const { login: rawLogin, type: rawType } = author as { login?: unknown; type?: unknown };
