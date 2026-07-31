@@ -1,4 +1,5 @@
 import {
+  exemptAuthorReason,
   compileTitleRegex,
   ConfigError,
   effectiveRequiredHeadings,
@@ -342,5 +343,47 @@ describe('validateCheckboxes scoping', () => {
     expect(f?.details).toContain('1 unresolved');
     expect(f?.details).toContain('docs updated');
     expect(f?.details).not.toContain('template checkbox');
+  });
+});
+
+describe('exemptAuthorReason', () => {
+  const opts = (exemptAuthors: string[], exemptBotAuthors: boolean) => ({
+    exemptAuthors,
+    exemptBotAuthors,
+  });
+  it('skips Bot-type authors when exempt-bot-authors is on', () => {
+    const reason = exemptAuthorReason({ login: 'dependabot[bot]', type: 'Bot' }, opts([], true));
+    expect(reason).toContain('dependabot[bot]');
+    expect(reason).toContain('Bot');
+  });
+  it('lints Bot-type authors when exempt-bot-authors is off', () => {
+    expect(exemptAuthorReason({ login: 'dependabot[bot]', type: 'Bot' }, opts([], false))).toBeNull();
+  });
+  it('still honors the exempt-authors list for Bot-type authors when the bot flag is off', () => {
+    const reason = exemptAuthorReason(
+      { login: 'custom-app[bot]', type: 'Bot' },
+      opts(['custom-app[bot]'], false),
+    );
+    expect(reason).toContain('exempt-authors');
+  });
+  it('skips machine User accounts listed in exempt-authors, case-insensitively', () => {
+    const reason = exemptAuthorReason({ login: 'Osome-Bot', type: 'User' }, opts(['osome-bot'], true));
+    expect(reason).toContain('Osome-Bot');
+    expect(reason).toContain('exempt-authors');
+  });
+  it('lints human authors not in the list', () => {
+    expect(exemptAuthorReason({ login: 'sanoyphilippe', type: 'User' }, opts(['osome-bot'], true))).toBeNull();
+  });
+  it('lints when the list is empty and author is a User', () => {
+    expect(exemptAuthorReason({ login: 'someone', type: 'User' }, opts([], true))).toBeNull();
+  });
+  it('never throws on malformed payloads', () => {
+    expect(exemptAuthorReason(undefined, opts(['osome-bot'], true))).toBeNull();
+    expect(exemptAuthorReason(null, opts([], true))).toBeNull();
+    expect(exemptAuthorReason('osome-bot', opts(['osome-bot'], true))).toBeNull();
+    expect(exemptAuthorReason({ login: 42, type: 7 }, opts(['42'], true))).toBeNull();
+  });
+  it('reports an unknown login for Bot authors missing a login field', () => {
+    expect(exemptAuthorReason({ type: 'Bot' }, opts([], true))).toContain('unknown');
   });
 });

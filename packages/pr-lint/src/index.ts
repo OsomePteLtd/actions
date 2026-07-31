@@ -2,6 +2,7 @@ import * as core from '@actions/core';
 import * as github from '@actions/github';
 import {
   ConfigError,
+  exemptAuthorReason,
   Failure,
   loadTemplateContext,
   GUIDE_URL,
@@ -62,6 +63,15 @@ async function writeStepSummary(failures: Failure[], mode: 'warn' | 'enforce'): 
 }
 
 async function runPullRequest(pr: NonNullable<typeof github.context.payload.pull_request>, inputs: Inputs): Promise<void> {
+  const exemptReason = exemptAuthorReason(pr.user, inputs);
+  if (exemptReason) {
+    await writeSkipSummary(
+      'pr-lint SKIPPED — exempt author',
+      `> Nothing was validated on this pull request: ${exemptReason}.\n> Machine-authored bodies carry no meaningful attestation; docs-staleness review for these PRs belongs to the human/agent reviewer, not a body-format check.\n> To lint these PRs anyway, set \`exempt-bot-authors: 'false'\` or edit \`exempt-authors\` in the workflow.`,
+    );
+    core.notice(`pr-lint SKIPPED — ${exemptReason}; nothing was validated.`);
+    return;
+  }
   if (isBypassed(pr.labels, inputs.bypassLabel)) {
     await writeSkipSummary(
       `pr-lint SKIPPED — bypass label \`${inputs.bypassLabel}\``,
