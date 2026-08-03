@@ -80,7 +80,9 @@ permissions:
 
 jobs:
   pr-lint:
-    runs-on: ubuntu-latest
+    # Org-level ARC pools are shared across the org via runner groups,
+    # so self-hosted works here too. Pin the label, never ubuntu-latest.
+    runs-on: arc-runner-light
     steps:
       - uses: actions/checkout@v4
       - uses: OsomePteLtd/actions/packages/pr-lint@master
@@ -104,7 +106,9 @@ on:
 
 jobs:
   pr-lint:
-    runs-on: ubuntu-latest
+    # Self-hosted ARC pool: the per-repo default. GitHub-hosted runners
+    # bill paid minutes on private repos.
+    runs-on: arc-runner-light
     steps:
       - uses: actions/checkout@v4
       - uses: OsomePteLtd/actions/packages/pr-lint@master
