@@ -80,9 +80,9 @@ permissions:
 
 jobs:
   pr-lint:
-    # Org-wide workflows must resolve in every targeted repo, so use a
-    # pinned GitHub-hosted label here, never a self-hosted one.
-    runs-on: ubuntu-24.04
+    # Org-level ARC pools are shared across the org via runner groups,
+    # so self-hosted works here too. Pin the label, never ubuntu-latest.
+    runs-on: arc-runner-light
     steps:
       - uses: actions/checkout@v4
       - uses: OsomePteLtd/actions/packages/pr-lint@master
