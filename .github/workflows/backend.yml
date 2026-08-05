@@ -77,6 +77,19 @@ on:
         type: string
         required: false
         default: 'db:migrate:test'
+      # --- Runner tiers (smart defaults; tier by what the job DOES) ---
+      # Profiled on shiva (14d): setup 4s, report-coverage 13s, deploy ~0s → light.
+      # static-checks 95s (build+lint) and tests 76-85s/shard (pg+redis) → heavy.
+      light_runner:
+        description: 'Tier for near-zero jobs: setup, report-coverage, deploy'
+        type: string
+        required: false
+        default: 'arc-runner-light'
+      heavy_runner:
+        description: 'Tier for compute jobs: static-checks, tests'
+        type: string
+        required: false
+        default: 'azure-aks-medium-arm'
     # No `secrets:` block: the caller passes `secrets: inherit`, and this workflow
     # reads the org-standard secrets (OSOME_BOT_TOKEN, NPMJS_KEY_READ_ONLY,
     # DOCKER_CACHE_USER/PASSWORD) directly.
@@ -94,7 +107,7 @@ env:
 jobs:
   setup:
     name: Set up
-    runs-on: azure-aks-medium-arm
+    runs-on: ${{ inputs.light_runner }}
     outputs:
       stages: ${{ steps.stages.outputs.stages }}
     steps:
@@ -111,7 +124,7 @@ jobs:
     # `if:` guards that produced ~35% skipped-job noise org-wide.
     if: ${{ !contains(github.ref, 'refs/tags/') && !contains(github.ref, 'refs/heads/main') }}
     needs: setup
-    runs-on: azure-aks-medium-arm
+    runs-on: ${{ inputs.heavy_runner }}
     permissions:
       id-token: write
       contents: read
@@ -190,7 +203,7 @@ jobs:
     name: Unit tests
     if: ${{ !contains(github.ref, 'refs/tags/') && !contains(github.ref, 'refs/heads/main') }}
     needs: setup
-    runs-on: azure-aks-medium-arm
+    runs-on: ${{ inputs.heavy_runner }}
     permissions:
       id-token: write
       contents: read
@@ -280,7 +293,7 @@ jobs:
 
   report-coverage:
     name: Report coverage
-    runs-on: azure-aks-medium-arm
+    runs-on: ${{ inputs.light_runner }}
     if: ${{ github.actor != 'dependabot[bot]' }}
     needs: [tests]
     env:
@@ -334,7 +347,7 @@ jobs:
       - setup
       - static-checks
       - tests
-    runs-on: azure-aks-medium-arm
+    runs-on: ${{ inputs.light_runner }}
     if: ${{ !contains(needs.setup.outputs.stages, '[]') && always() && !(contains(needs.*.result, 'failure')) }}
     strategy:
       matrix:
