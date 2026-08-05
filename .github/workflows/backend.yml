@@ -1,0 +1,350 @@
+# Backend CI — shared workflow for Osome serverless backends.
+#
+# Owns the setup -> static-checks -> tests -> report-coverage -> deploy skeleton
+# that shiva, roberto, hermes, scrooge, billy, invoker, ... each hand-write today.
+# A repo consumes it with a ~20-line caller:
+#
+#   jobs:
+#     ci:
+#       uses: OsomePteLtd/actions/.github/workflows/backend.yml@master
+#       with:
+#         shards: '[1, 2, 3, 4, 5, 6]'
+#         services_registry: osomecache.azurecr.io/
+#         db_name: shiva-test
+#       secrets: inherit
+#
+# Repo-specific quality gates (type-check, lint, spell, ...) stay in the repo's
+# package.json scripts; this workflow owns only the harness around them, plus
+# npm + jest caching so the shared install/test path is fast for every backend.
+name: Backend CI
+
+on:
+  workflow_call:
+    inputs:
+      shards:
+        description: 'JSON array of unit-test shard numbers, e.g. "[1,2,3]" or "[1,2,3,4,5,6]". GitHub Actions has no range() function, so this is passed explicitly.'
+        type: string
+        required: false
+        default: '[1, 2, 3]'
+      services_registry:
+        description: 'Registry prefix for postgres/redis service images (e.g. osomecache.azurecr.io/). Empty = Docker Hub public images.'
+        type: string
+        required: false
+        default: ''
+      db_name:
+        description: 'POSTGRES_DB name for the test database'
+        type: string
+        required: false
+        default: 'app-test'
+      aws_region:
+        description: 'AWS region'
+        type: string
+        required: false
+        default: 'us-east-1'
+      dev_role_arn:
+        description: 'IAM role to assume for CI (OIDC)'
+        type: string
+        required: false
+        default: 'arn:aws:iam::664258603548:role/github-deployer-nokms'
+      run_iam_check:
+        description: 'Run the check-iam-wildcards gate in static-checks'
+        type: boolean
+        required: false
+        default: true
+      static_check_scripts:
+        description: 'Newline- or space-separated list of npm scripts to run as static checks, in order.'
+        type: string
+        required: false
+        default: |
+          unused-exports
+          type-check
+          lint
+          depcheck
+          type-coverage
+          spell
+      build_script:
+        description: 'npm script that produces the serverless bundle'
+        type: string
+        required: false
+        default: 'build'
+      test_script:
+        description: 'npm script that runs sharded tests (receives --shard=N/total)'
+        type: string
+        required: false
+        default: 'test:ci'
+      migrate_script:
+        description: 'npm script that migrates the test database before tests'
+        type: string
+        required: false
+        default: 'db:migrate:test'
+    # No `secrets:` block: the caller passes `secrets: inherit`, and this workflow
+    # reads the org-standard secrets (OSOME_BOT_TOKEN, NPMJS_KEY_READ_ONLY,
+    # DOCKER_CACHE_USER/PASSWORD) directly.
+
+# One workflow-level concurrency group replaces per-repo copies, and the
+# skip-guard (`if:` on tags/main) is lifted to the job level ONCE here instead of
+# being duplicated on every job in every repo.
+concurrency:
+  group: backend-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  AWS_REGION: ${{ inputs.aws_region }}
+
+jobs:
+  setup:
+    name: Set up
+    runs-on: azure-aks-medium-arm
+    outputs:
+      stages: ${{ steps.stages.outputs.stages }}
+    steps:
+      - name: Get deployment stages
+        uses: osomepteltd/actions/packages/get-deployment-stages@master
+        id: stages
+        with:
+          with-transient: false
+
+  static-checks:
+    name: Static checks
+    # Skeleton-level skip guard: only run the PR gates on real PRs / merge groups,
+    # not on tag pushes or main. Lifting this here removes the duplicated per-job
+    # `if:` guards that produced ~35% skipped-job noise org-wide.
+    if: ${{ !contains(github.ref, 'refs/tags/') && !contains(github.ref, 'refs/heads/main') }}
+    needs: setup
+    runs-on: azure-aks-medium-arm
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: read
+      deployments: write
+    steps:
+      - name: Check if PR contains both code and migrations
+        uses: osomepteltd/actions/packages/fail-on-code-and-migrations@master
+
+      - name: Load current commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 1
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        with:
+          role-to-assume: ${{ inputs.dev_role_arn }}
+          role-session-name: ${{ github.repository.id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Read nvmrc
+        id: read-nvmrc
+        run: echo "version=$(cat .nvmrc)" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.read-nvmrc.outputs.version }}
+          # Cache the npm download cache (~/.npm), keyed on package-lock.json.
+          # Restores regardless of registry auth (auth is injected below), so
+          # every job skips re-downloading unchanged deps.
+          cache: 'npm'
+
+      - name: Install dependencies and check package-lock.json
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.OSOME_BOT_TOKEN }}" >> ~/.npmrc
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPMJS_KEY_READ_ONLY }}" >> ~/.npmrc
+          cp package-lock.json package-lock.json.orig
+          npm install
+          if ! diff --color=always package-lock.json.orig package-lock.json ; then
+            echo "package-lock.json changed, failing build"
+            exit 1
+          fi
+        shell: bash
+
+      - name: Run static checks
+        run: |
+          for script in ${{ inputs.static_check_scripts }}; do
+            echo "::group::npm run $script"
+            npm run "$script"
+            echo "::endgroup::"
+          done
+        shell: bash
+
+      - name: Check iam wildcards
+        if: ${{ inputs.run_iam_check }}
+        uses: osomepteltd/actions/packages/check-iam-wildcards@master
+        with:
+          project_name: '${{ github.event.repository.name }}'
+
+      - name: Set Serverless License Key
+        run: |
+          LICENSE=$(aws ssm get-parameter --name '/ServerlessFramework/license' --with-decryption --query 'Parameter.Value' --output text)
+          echo "::add-mask::$LICENSE"
+          echo "SERVERLESS_LICENSE_KEY=$LICENSE" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Try to create a bundle
+        run: npm run ${{ inputs.build_script }}
+        shell: bash
+
+  tests:
+    name: Unit tests
+    if: ${{ !contains(github.ref, 'refs/tags/') && !contains(github.ref, 'refs/heads/main') }}
+    needs: setup
+    runs-on: azure-aks-medium-arm
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: read
+      deployments: write
+    env:
+      STAGE: test
+    services:
+      postgres:
+        image: ${{ inputs.services_registry }}postgres:latest
+        credentials:
+          username: ${{ secrets.DOCKER_CACHE_USER }}
+          password: ${{ secrets.DOCKER_CACHE_PASSWORD }}
+        env:
+          POSTGRES_USER: user
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: ${{ inputs.db_name }}
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: ${{ inputs.services_registry }}redis:latest
+        credentials:
+          username: ${{ secrets.DOCKER_CACHE_USER }}
+          password: ${{ secrets.DOCKER_CACHE_PASSWORD }}
+        ports:
+          - 6379:6379
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJson(inputs.shards) }}
+    steps:
+      - name: Load current commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 1
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        with:
+          role-to-assume: ${{ inputs.dev_role_arn }}
+          role-session-name: ${{ github.repository.id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Read nvmrc
+        id: read-nvmrc
+        run: echo "version=$(cat .nvmrc)" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.read-nvmrc.outputs.version }}
+          # Cache the npm download cache (~/.npm), keyed on package-lock.json.
+          # Restores regardless of registry auth (auth is injected below), so
+          # every job skips re-downloading unchanged deps.
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.OSOME_BOT_TOKEN }}" >> ~/.npmrc
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPMJS_KEY_READ_ONLY }}" >> ~/.npmrc
+          npm ci
+        shell: bash
+
+      - name: Migrate database
+        run: npm run ${{ inputs.migrate_script }}
+        shell: bash
+
+      - name: Run unit tests
+        run: npm run ${{ inputs.test_script }} -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+        shell: bash
+
+      - name: Move coverage to dedicated folder
+        run: mv coverage/coverage-final.json coverage/${{ matrix.shard }}.json
+        shell: bash
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-artifacts-${{ matrix.shard }}
+          path: coverage/
+
+  report-coverage:
+    name: Report coverage
+    runs-on: azure-aks-medium-arm
+    if: ${{ github.actor != 'dependabot[bot]' }}
+    needs: [tests]
+    env:
+      COVERAGE_FOLDER: ./coverage/
+      SUMMARY_DEST: ./coverage/coverage-summary.json
+    steps:
+      - name: Load current commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 1
+
+      - name: Read nvmrc
+        id: read-nvmrc
+        run: echo "version=$(cat .nvmrc)" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.read-nvmrc.outputs.version }}
+          # Cache the npm download cache (~/.npm), keyed on package-lock.json.
+          # Restores regardless of registry auth (auth is injected below), so
+          # every job skips re-downloading unchanged deps.
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.OSOME_BOT_TOKEN }}" >> ~/.npmrc
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPMJS_KEY_READ_ONLY }}" >> ~/.npmrc
+          npm ci
+        shell: bash
+
+      - name: Download coverage
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-artifacts-*
+          path: coverage
+          merge-multiple: true
+
+      - name: Check coverage
+        id: check-coverage
+        uses: osomepteltd/actions/packages/jest-coverage@master
+        with:
+          coverage-directory: ${{ env.COVERAGE_FOLDER }}
+          summary-destination: ${{ env.SUMMARY_DEST }}
+
+  deploy:
+    name: Deploy
+    needs:
+      - setup
+      - static-checks
+      - tests
+    runs-on: azure-aks-medium-arm
+    if: ${{ !contains(needs.setup.outputs.stages, '[]') && always() && !(contains(needs.*.result, 'failure')) }}
+    strategy:
+      matrix:
+        stage: ${{ fromJson(needs.setup.outputs.stages) }}
+    steps:
+      - name: Deploy to ${{ matrix.stage.name }}
+        uses: bobheadxi/deployments@648679e8e4915b27893bd7dbc35cb504dc915bc8 # v1
+        with:
+          step: start
+          token: ${{ secrets.OSOME_BOT_TOKEN }}
+          env: ${{ matrix.stage.name }}
+          ref: ${{ github.head_ref }}
+          override: true
