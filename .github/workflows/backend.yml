@@ -359,5 +359,9 @@ jobs:
           step: start
           token: ${{ secrets.OSOME_BOT_TOKEN }}
           env: ${{ matrix.stage.name }}
-          ref: ${{ github.head_ref }}
+          # github.head_ref is only set on pull_request events. get-deployment-stages
+          # can also return stages on tag/push/dispatch runs, where head_ref is empty
+          # and would create a broken deployment record — fall back to ref_name
+          # (the tag or branch name), which is always populated.
+          ref: ${{ github.head_ref || github.ref_name }}
           override: true
