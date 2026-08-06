@@ -1,0 +1,62 @@
+name: 'PR Lint'
+description: 'Validate a pull request body against the consuming repository''s pull_request_template.md'
+inputs:
+  github-token:
+    description: 'GitHub token for reading PR context (defaults to github.token)'
+    required: false
+    default: ${{ github.token }}
+  template-path:
+    description: 'Path to the PR template within the repo'
+    required: false
+    default: '.github/pull_request_template.md'
+  bypass-label:
+    description: 'Label on the PR that bypasses this check'
+    required: false
+    default: 'pr-lint-skip'
+  exempt-authors:
+    description: 'Comma-separated PR author logins to skip, for machine accounts whose GitHub user type is "User" (e.g. "osome-bot"). Matched case-insensitively against the PR author. Skipped runs emit a loud SKIPPED summary card.'
+    required: false
+    default: ''
+  exempt-bot-authors:
+    description: 'When true (default), skip PRs authored by accounts with GitHub user type "Bot" (dependabot[bot], github-actions[bot], ...). A bot cannot attest to a checklist, so linting its body is theatre. Set to "false" to lint bot PRs anyway.'
+    required: false
+    default: 'true'
+  min-section-chars:
+    description: 'Minimum non-whitespace characters required per template-declared section (or write "n/a")'
+    required: false
+    default: '20'
+  required-sections:
+    description: 'Comma-separated ## headings that MUST appear in the PR body regardless of what the local template declares (org-wide floor)'
+    required: false
+    default: 'Checklist'
+  checklist-section:
+    description: 'Name of the ## heading treated as the checklist for topic-coverage validation'
+    required: false
+    default: 'Checklist'
+  required-checklist-subsection:
+    description: 'Exact name of the sub-section that must exist inside the checklist section, carrying at least one item. Matched case-insensitively against bold `**Label**` lines and `###` headings. Empty string disables the check.'
+    required: false
+    default: 'Documentation & knowledge maintenance'
+  enforce-title:
+    description: 'When true (default), the PR title must match the expected format. Set to false in repositories that do not use the convention — for example ones that do not track work in Jira.'
+    required: false
+    default: 'true'
+  title-pattern:
+    description: 'Optional regex overriding the built-in title check. Use it to keep a shape requirement without demanding Jira IDs, e.g. ^[a-z][a-z-]*(\([^)]+\))?: .+$. Ignored when enforce-title is false.'
+    required: false
+    default: ''
+  enforce-template-sections:
+    description: 'When true (default), every `##` heading declared in the repo own template must be present and non-empty in the PR body, and all checkboxes anywhere in the body must be resolved — the repo is held to the template it chose. Set to false to gate only on the org floor (checklist section + required sub-section + its checkboxes).'
+    required: false
+    default: 'true'
+  skip-if-no-template:
+    description: 'When true, exit successfully with a notice if the repo has no PR template file. Safe default for org-wide rollout. Set to "false" to enforce floor rules (Checklist + doc/knowledge topic) even in template-less repos.'
+    required: false
+    default: 'true'
+  mode:
+    description: 'enforce | warn. In "warn" mode all findings are reported via warnings and step summary, and the action exits 0 (non-blocking, safe for dogfood rollout). In "enforce" mode findings fail the check.'
+    required: false
+    default: 'enforce'
+runs:
+  using: 'node24'
+  main: './dist/index.js'
