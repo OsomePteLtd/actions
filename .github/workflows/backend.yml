@@ -174,8 +174,14 @@ jobs:
         shell: bash
 
       - name: Run static checks
+        # Pass the script list via env (not inline expansion) so newlines and
+        # spaces are both handled safely and there's no shell-injection surface.
+        # `xargs -n1` splits on any whitespace incl. newlines into one script/line.
+        env:
+          STATIC_CHECK_SCRIPTS: ${{ inputs.static_check_scripts }}
         run: |
-          for script in ${{ inputs.static_check_scripts }}; do
+          echo "$STATIC_CHECK_SCRIPTS" | xargs -n1 | while read -r script; do
+            [ -z "$script" ] && continue
             echo "::group::npm run $script"
             npm run "$script"
             echo "::endgroup::"
