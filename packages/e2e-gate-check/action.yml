@@ -502,9 +502,13 @@ runs:
     # fails and warns rather than silently emitting nothing, so a repo that
     # forgot the line is visible in its own run rather than as a hole in the
     # dashboard.
+    # `always()` is load-bearing: without it the `if:` gets an implicit
+    # `success()`, so a blocking decision in `gate_mode: block` (an earlier step
+    # exits 1) skips this step, the emit below sees CREDS != success and bails,
+    # and every held deploy is silently missing — hold rate would read a flat 0%.
     - name: Configure AWS credentials (gate telemetry)
       id: gate-telemetry-aws
-      if: ${{ inputs.gate_mode != 'off' && inputs.telemetry_log_group != '' }}
+      if: ${{ always() && inputs.gate_mode != 'off' && inputs.telemetry_log_group != '' }}
       continue-on-error: true
       uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
       with:
