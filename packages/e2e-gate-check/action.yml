@@ -31,6 +31,16 @@ inputs:
     required: false
     default: 'block'
 
+  telemetry_log_group:
+    description: >-
+      CloudWatch log group for gate telemetry (PF-2856). One JSON line per
+      decision, so hold rates can be read off a dashboard instead of by opening
+      runs one at a time. Set to an empty string to disable.
+      Requires the CALLING JOB to declare `permissions: id-token: write`; without
+      it the credential step fails, the emit is skipped with a warning, and the
+      gate decision is unaffected.
+    required: false
+    default: '/e2e/gate'
 outputs:
   anchor_sha:
     description: 'Commit SHA on e2e_repo that the consulted board.json was read from (the board commit anchored by anchor_ref).'
@@ -480,4 +490,83 @@ runs:
             echo "This deploy was NOT blocked because \`gate_mode\` is set to \`report\`."
             echo "Flip to \`gate_mode: block\` once the gate is stable."
           } >> "$GITHUB_STEP_SUMMARY"
+        fi
+
+    # --- telemetry (PF-2856) ------------------------------------------------
+    # Every step below is non-fatal. A gate that cannot report itself must still
+    # gate: `continue-on-error` on the credential step, `|| true` and warnings on
+    # the emit. Nothing here can change gate_decision, which was already written
+    # to $GITHUB_OUTPUT above.
+    #
+    # The caller must declare `permissions: id-token: write`. Without it this
+    # fails and warns rather than silently emitting nothing, so a repo that
+    # forgot the line is visible in its own run rather than as a hole in the
+    # dashboard.
+    # `always()` is load-bearing: without it the `if:` gets an implicit
+    # `success()`, so a blocking decision in `gate_mode: block` (an earlier step
+    # exits 1) skips this step, the emit below sees CREDS != success and bails,
+    # and every held deploy is silently missing — hold rate would read a flat 0%.
+    - name: Configure AWS credentials (gate telemetry)
+      id: gate-telemetry-aws
+      if: ${{ always() && inputs.gate_mode != 'off' && inputs.telemetry_log_group != '' }}
+      continue-on-error: true
+      uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+      with:
+        role-to-assume: arn:aws:iam::664258603548:role/github-deployer-nokms
+        aws-region: us-east-1
+
+    - name: Emit gate telemetry
+      if: ${{ always() && inputs.gate_mode != 'off' && inputs.telemetry_log_group != '' }}
+      shell: bash
+      env:
+        LOG_GROUP: ${{ inputs.telemetry_log_group }}
+        SERVICE: ${{ inputs.service }}
+        DOMAIN: ${{ inputs.domain_tag }}
+        GATE_MODE: ${{ inputs.gate_mode }}
+        DEPLOYING_SHA: ${{ inputs.deploying_sha }}
+        CREDS: ${{ steps.gate-telemetry-aws.outcome }}
+        # Reuse what set-outputs already computed rather than re-reading files.
+        # snapshot_sha is a STEP OUTPUT, not a file in $RUNNER_TEMP — reading it
+        # from disk would silently always be empty.
+        DECISION: ${{ steps.set-outputs.outputs.gate_decision }}
+        SNAPSHOT: ${{ steps.set-outputs.outputs.snapshot_sha }}
+        DEPLOYMENT_ID: ${{ github.event.deployment.id }}
+      run: |
+        set -uo pipefail            # NOT -e — telemetry must not fail the gate
+
+        if [ "${CREDS:-}" != "success" ]; then
+          echo "::warning::gate telemetry skipped: AWS credentials unavailable (does the calling job declare permissions: id-token: write?)"
+          exit 0
+        fi
+
+        # An empty decision means the action died before deciding anything. Record
+        # it as `unknown` rather than dropping the line: a gate that crashed is
+        # exactly what a dashboard should show, and a missing line looks like a
+        # deploy that never happened.
+        [ -z "$DECISION" ] && DECISION="unknown"
+
+        # skipE2e never reaches this action — the caller's `if:` excludes the job
+        # entirely on a bypass, so a bypassed release emits nothing at all here.
+        # That absence is the signal; the dashboard reads it as a production
+        # deploy with no matching gate line.
+        TS=$(date +%s%3N)
+        LINE=$(jq -nc \
+          --arg service "$SERVICE" --arg domain "$DOMAIN" --arg decision "$DECISION" \
+          --arg mode "$GATE_MODE" --arg deployingSha "$DEPLOYING_SHA" --arg snapshotSha "$SNAPSHOT" \
+          --arg runId "${GITHUB_RUN_ID:-}" --arg repo "${GITHUB_REPOSITORY:-}" \
+          --arg deploymentId "${DEPLOYMENT_ID:-}" \
+          '{type:"gate",level:"info",service:$service,domain:$domain,decision:$decision,mode:$mode,deployingSha:$deployingSha,snapshotSha:$snapshotSha,runId:$runId,repo:$repo,deploymentId:$deploymentId}' 2>/dev/null || echo '')
+
+        if [ -z "$LINE" ]; then
+          echo "::warning::gate telemetry line could not be built (non-fatal)"
+          exit 0
+        fi
+
+        STREAM="gate/${SERVICE}/${GITHUB_RUN_ID:-manual}"
+        aws logs create-log-stream --log-group-name "$LOG_GROUP" --log-stream-name "$STREAM" 2>/dev/null || true
+        EVENTS=$(jq -nc --argjson ts "$TS" --arg msg "$LINE" '[{timestamp:$ts, message:$msg}]' 2>/dev/null || echo '')
+        if [ -n "$EVENTS" ]; then
+          aws logs put-log-events --log-group-name "$LOG_GROUP" --log-stream-name "$STREAM" \
+            --log-events "$EVENTS" >/dev/null 2>&1 \
+            || echo "::warning::gate telemetry emit failed (non-fatal) — decision was ${DECISION}"
         fi
