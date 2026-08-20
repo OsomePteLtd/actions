@@ -1,0 +1,315 @@
+# Frontend CI — shared workflow for Osome web frontends.
+#
+# Owns the setup -> static-checks -> tests -> build -> e2e skeleton that websome,
+# osome-com and client-ui-kit each hand-write today. A repo consumes it with a
+# short caller:
+#
+#   jobs:
+#     ci:
+#       uses: OsomePteLtd/actions/.github/workflows/frontend.yml@master
+#       with:
+#         package_manager: npm          # or yarn
+#         build_script: build
+#         static_check_scripts: |
+#           lint
+#           prettier
+#           type-check
+#         has_e2e: true
+#         e2e_browsers: chromium        # chromium | all
+#       secrets: inherit
+#
+# The three repos build with three different bundlers (webpack / next / vite),
+# so the build COMMAND is an input — the harness around it is what's shared.
+# Repo-specific gates stay in package.json scripts; this workflow owns the
+# install/cache/runner-tier skeleton only.
+name: Frontend CI
+
+on:
+  workflow_call:
+    inputs:
+      package_manager:
+        description: 'npm or yarn (osome-com uses yarn, the rest npm)'
+        type: string
+        required: false
+        default: 'npm'
+      static_check_scripts:
+        description: 'Newline-separated package scripts to run as static checks, in order. Only list what the repo has.'
+        type: string
+        required: false
+        default: |
+          lint
+          prettier
+          type-check
+      test_script:
+        description: 'Package script for unit tests. Empty string skips the tests job (osome-com has none).'
+        type: string
+        required: false
+        default: 'test:ci'
+      build_script:
+        description: 'Package script that produces the production bundle (webpack / next build / vite build).'
+        type: string
+        required: false
+        default: 'build'
+      node_options:
+        description: 'NODE_OPTIONS for build and test. Frontend bundles are memory-hungry; websome needs 8G.'
+        type: string
+        required: false
+        default: '--max-old-space-size=8192'
+      lines_control:
+        description: 'Run the branch-diff size gate (bin/checkBranchDiff.js).'
+        type: boolean
+        required: false
+        default: false
+      has_storybook:
+        description: 'Build Storybook as part of CI (osome-com, client-ui-kit).'
+        type: boolean
+        required: false
+        default: false
+      storybook_script:
+        description: 'Package script that builds Storybook.'
+        type: string
+        required: false
+        default: 'build-storybook'
+      has_e2e:
+        description: 'Run Playwright end-to-end tests.'
+        type: boolean
+        required: false
+        default: false
+      e2e_script:
+        description: 'Package script that runs Playwright.'
+        type: string
+        required: false
+        default: 'test:e2e'
+      e2e_browsers:
+        description: 'chromium (cheap, default) or all. "all" pulls firefox + webkit too — only osome-com needs it.'
+        type: string
+        required: false
+        default: 'chromium'
+      aws_region:
+        description: 'AWS region'
+        type: string
+        required: false
+        default: 'us-east-1'
+      dev_role_arn:
+        description: 'IAM role to assume for CI (OIDC)'
+        type: string
+        required: false
+        default: 'arn:aws:iam::664258603548:role/github-deployer-nokms'
+      # --- Runner tiers (tier by what the job DOES, never by its name) ---
+      # Measured Aug 2026 across 4,433 jobs: gates/triggers are seconds -> light;
+      # installs + type-checks fit medium; bundlers, jest and browsers need heavy
+      # (medium's 4G pod ceiling kills an 8G-heap webpack build).
+      light_runner:
+        description: 'Near-zero jobs: gates, diff checks, status roll-ups'
+        type: string
+        required: false
+        default: 'arc-runner-light'
+      medium_runner:
+        description: 'Install + static analysis'
+        type: string
+        required: false
+        default: 'arc-runner-medium'
+      heavy_runner:
+        description: 'Bundlers, jest, Playwright'
+        type: string
+        required: false
+        default: 'arc-runner-heavy'
+    # No `secrets:` block — the caller passes `secrets: inherit` and this workflow
+    # reads the org-standard secrets (OSOME_BOT_TOKEN, NPMJS_KEY_READ_ONLY) directly.
+
+concurrency:
+  group: frontend-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  AWS_REGION: ${{ inputs.aws_region }}
+  NODE_OPTIONS: ${{ inputs.node_options }}
+
+jobs:
+  setup:
+    name: Set up
+    runs-on: ${{ inputs.light_runner }}
+    outputs:
+      stages: ${{ steps.stages.outputs.stages }}
+    steps:
+      # No npm ci here on purpose: this job only resolves deployment stages, and
+      # installing for it was pure waste in all three repos (~1-3 min each run).
+      - name: Get deployment stages
+        uses: osomepteltd/actions/packages/get-deployment-stages@master
+        id: stages
+        with:
+          with-transient: false
+
+  static-checks:
+    name: Static checks
+    # Skeleton-level skip guard, lifted here once instead of on every job in every repo.
+    if: ${{ !contains(github.ref, 'refs/tags/') && !contains(github.ref, 'refs/heads/main') }}
+    needs: setup
+    runs-on: ${{ inputs.medium_runner }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Install dependencies and verify the lockfile is clean
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.OSOME_BOT_TOKEN }}" >> ~/.npmrc
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPMJS_KEY_READ_ONLY }}" >> ~/.npmrc
+          if [ "${{ inputs.package_manager }}" = "yarn" ]; then
+            npm install --global yarn
+            cp yarn.lock yarn.lock.orig
+            yarn install
+            diff --color=always yarn.lock.orig yarn.lock || { echo "::error::yarn.lock changed — commit it"; exit 1; }
+          else
+            cp package-lock.json package-lock.json.orig
+            npm install
+            diff --color=always package-lock.json.orig package-lock.json || { echo "::error::package-lock.json changed — commit it"; exit 1; }
+          fi
+
+      - name: Run static checks
+        # Pass the list via env, never inline: a multiline input spliced into shell
+        # syntax breaks the loop before it runs (caught by review on the backend
+        # skeleton). xargs -n1 splits on any whitespace including newlines.
+        env:
+          STATIC_CHECK_SCRIPTS: ${{ inputs.static_check_scripts }}
+          PM: ${{ inputs.package_manager }}
+        run: |
+          echo "$STATIC_CHECK_SCRIPTS" | xargs -n1 | while read -r script; do
+            [ -z "$script" ] && continue
+            echo "::group::$PM run $script"
+            "$PM" run "$script"
+            echo "::endgroup::"
+          done
+
+  tests:
+    name: Unit tests
+    if: ${{ inputs.test_script != '' && !contains(github.ref, 'refs/tags/') && !contains(github.ref, 'refs/heads/main') }}
+    needs: setup
+    runs-on: ${{ inputs.heavy_runner }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Install dependencies
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.OSOME_BOT_TOKEN }}" >> ~/.npmrc
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPMJS_KEY_READ_ONLY }}" >> ~/.npmrc
+          if [ "${{ inputs.package_manager }}" = "yarn" ]; then npm install --global yarn && yarn --frozen-lockfile; else npm ci; fi
+
+      - name: Run unit tests
+        run: ${{ inputs.package_manager }} run ${{ inputs.test_script }}
+
+  build:
+    name: Build
+    if: ${{ !contains(github.ref, 'refs/tags/') && !contains(github.ref, 'refs/heads/main') }}
+    needs: setup
+    runs-on: ${{ inputs.heavy_runner }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Install dependencies
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.OSOME_BOT_TOKEN }}" >> ~/.npmrc
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPMJS_KEY_READ_ONLY }}" >> ~/.npmrc
+          if [ "${{ inputs.package_manager }}" = "yarn" ]; then npm install --global yarn && yarn --frozen-lockfile; else npm ci; fi
+
+      - name: Build
+        run: ${{ inputs.package_manager }} run ${{ inputs.build_script }}
+
+      - name: Build Storybook
+        if: ${{ inputs.has_storybook }}
+        run: ${{ inputs.package_manager }} run ${{ inputs.storybook_script }}
+
+  e2e:
+    name: E2E tests
+    if: ${{ inputs.has_e2e && !contains(github.ref, 'refs/tags/') && !contains(github.ref, 'refs/heads/main') }}
+    needs: setup
+    runs-on: ${{ inputs.heavy_runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Install dependencies
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.OSOME_BOT_TOKEN }}" >> ~/.npmrc
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPMJS_KEY_READ_ONLY }}" >> ~/.npmrc
+          if [ "${{ inputs.package_manager }}" = "yarn" ]; then npm install --global yarn && yarn --frozen-lockfile; else npm ci; fi
+
+      # Cache the browsers: osome-com's daily job re-downloads every browser on
+      # every run today because nothing caches them.
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ inputs.e2e_browsers }}-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}
+
+      - name: Install Playwright browsers
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: |
+          if [ "${{ inputs.e2e_browsers }}" = "all" ]; then
+            npx playwright install --with-deps
+          else
+            npx playwright install --with-deps chromium
+          fi
+
+      - name: Run E2E tests
+        run: ${{ inputs.package_manager }} run ${{ inputs.e2e_script }}
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  lines-control:
+    name: Lines control
+    if: ${{ inputs.lines_control && !contains(github.ref, 'refs/tags/') && !contains(github.ref, 'refs/heads/main') }}
+    needs: setup
+    runs-on: ${{ inputs.light_runner }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+      - name: Check branch diff size
+        run: node bin/checkBranchDiff.js
+
+  ci-status:
+    name: CI status
+    # One required check for branch protection instead of N per-job checks.
+    if: ${{ always() && !contains(github.ref, 'refs/tags/') && !contains(github.ref, 'refs/heads/main') }}
+    needs: [static-checks, tests, build, e2e, lines-control]
+    runs-on: ${{ inputs.light_runner }}
+    steps:
+      - name: Fail if any job failed
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
+      - name: Pass
+        run: echo "all frontend CI gates passed"
