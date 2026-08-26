@@ -4,7 +4,7 @@ import { exec } from "@actions/exec";
 
 const DEFAULT_USER_ID = "osome-bot";
 const DEFAULT_USER_NAME = "Osome Bot";
-const DEFAULT_USER_EMAIL = "67785357+osome-bot@users.noreply.github.com";
+const DEFAULT_USER_EMAIL = "osome-bot@osome.com";
 
 async function run() {
   try {
@@ -43,7 +43,7 @@ async function run() {
     await exec("git", ["commit", "-m Update Spec"]);
     await exec("git", ["push", "origin", `HEAD:${ref}`]);
   } catch (error) {
-    core.setFailed(error.message);
+    core.setFailed(error instanceof Error ? error.message : String(error));
   }
 }
 
