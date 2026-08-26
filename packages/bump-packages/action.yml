@@ -128,7 +128,7 @@ runs:
         token: ${{ inputs.token }}
         commit-message: Bump package to the latest version
         committer: GitHub <noreply@github.com>
-        author: ${{ github.actor }} <${{ authorEmail }}>
+        author: ${{ github.actor }} <${{ env.authorEmail }}>
         signoff: false
         branch: bump-package
         branch-suffix: random
