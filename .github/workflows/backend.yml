@@ -108,6 +108,7 @@ jobs:
   setup:
     name: Set up
     runs-on: ${{ inputs.light_runner }}
+    timeout-minutes: 15
     outputs:
       stages: ${{ steps.stages.outputs.stages }}
     steps:
@@ -125,6 +126,7 @@ jobs:
     if: ${{ !contains(github.ref, 'refs/tags/') && !contains(github.ref, 'refs/heads/main') }}
     needs: setup
     runs-on: ${{ inputs.heavy_runner }}
+    timeout-minutes: 20
     permissions:
       id-token: write
       contents: read
@@ -210,6 +212,7 @@ jobs:
     if: ${{ !contains(github.ref, 'refs/tags/') && !contains(github.ref, 'refs/heads/main') }}
     needs: setup
     runs-on: ${{ inputs.heavy_runner }}
+    timeout-minutes: 45
     permissions:
       id-token: write
       contents: read
@@ -300,6 +303,7 @@ jobs:
   report-coverage:
     name: Report coverage
     runs-on: ${{ inputs.light_runner }}
+    timeout-minutes: 15
     if: ${{ github.actor != 'dependabot[bot]' }}
     needs: [tests]
     env:
@@ -354,6 +358,7 @@ jobs:
       - static-checks
       - tests
     runs-on: ${{ inputs.light_runner }}
+    timeout-minutes: 60
     if: ${{ !contains(needs.setup.outputs.stages, '[]') && always() && !(contains(needs.*.result, 'failure')) }}
     strategy:
       matrix:
