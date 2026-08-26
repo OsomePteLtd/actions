@@ -204,8 +204,10 @@ jobs:
         shell: bash
 
       - name: Try to create a bundle
-        run: npm run ${{ inputs.build_script }}
+        run: npm run "$BUILD_SCRIPT"
         shell: bash
+        env:
+          BUILD_SCRIPT: ${{ inputs.build_script }}
 
   tests:
     name: Unit tests
@@ -284,12 +286,16 @@ jobs:
         shell: bash
 
       - name: Migrate database
-        run: npm run ${{ inputs.migrate_script }}
+        run: npm run "$MIGRATE_SCRIPT"
         shell: bash
+        env:
+          MIGRATE_SCRIPT: ${{ inputs.migrate_script }}
 
       - name: Run unit tests
-        run: npm run ${{ inputs.test_script }} -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+        run: npm run "$TEST_SCRIPT" -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
         shell: bash
+        env:
+          TEST_SCRIPT: ${{ inputs.test_script }}
 
       - name: Move coverage to dedicated folder
         run: mv coverage/coverage-final.json coverage/${{ matrix.shard }}.json
