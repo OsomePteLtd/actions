@@ -108,7 +108,7 @@ jobs:
   setup:
     name: Set up
     runs-on: ${{ inputs.light_runner }}
-    timeout-minutes: 15
+    timeout-minutes: 10
     outputs:
       stages: ${{ steps.stages.outputs.stages }}
     steps:
@@ -126,7 +126,7 @@ jobs:
     if: ${{ !contains(github.ref, 'refs/tags/') && !contains(github.ref, 'refs/heads/main') }}
     needs: setup
     runs-on: ${{ inputs.heavy_runner }}
-    timeout-minutes: 20
+    timeout-minutes: 15
     permissions:
       id-token: write
       contents: read
@@ -364,7 +364,7 @@ jobs:
       - static-checks
       - tests
     runs-on: ${{ inputs.light_runner }}
-    timeout-minutes: 60
+    timeout-minutes: 30
     if: ${{ !contains(needs.setup.outputs.stages, '[]') && always() && !(contains(needs.*.result, 'failure')) }}
     strategy:
       matrix:
