@@ -77,6 +77,16 @@ on:
         type: string
         required: false
         default: 'db:migrate:test'
+      run_diff_check:
+        description: 'run the branch-size diff check (needs bin/checkBranchDiff.js in the repo)'
+        type: boolean
+        required: false
+        default: true
+      diff_check_script:
+        description: 'path to the branch diff check script'
+        type: string
+        required: false
+        default: 'bin/checkBranchDiff.js'
       # --- Runner tiers (smart defaults; tier by what the job DOES) ---
       # Profiled on shiva (14d): setup 4s, report-coverage 13s, deploy ~0s → light.
       # static-checks 95s (build+lint) and tests 76-85s/shard (pg+redis) → heavy.
@@ -209,12 +219,34 @@ jobs:
         env:
           BUILD_SCRIPT: ${{ inputs.build_script }}
 
+  diff-check:
+    name: Git diff check
+    # Same skeleton-level skip guard as static-checks. Opt out with run_diff_check: false
+    # if the repo has no bin/checkBranchDiff.js.
+    if: ${{ inputs.run_diff_check && !contains(github.ref, 'refs/tags/') && !contains(github.ref, 'refs/heads/main') }}
+    needs: setup
+    runs-on: ${{ inputs.light_runner }}
+    timeout-minutes: 10
+
+    steps:
+      - name: Load current commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Check diff
+        run: node "$DIFF_SCRIPT" "$MAX_LINES"
+        shell: bash
+        env:
+          DIFF_SCRIPT: ${{ inputs.diff_check_script }}
+          MAX_LINES: ${{ vars.MAX_LINES_DIFF_BACKEND || 500 }}
+
   tests:
     name: Unit tests
     if: ${{ !contains(github.ref, 'refs/tags/') && !contains(github.ref, 'refs/heads/main') }}
     needs: setup
     runs-on: ${{ inputs.heavy_runner }}
-    timeout-minutes: 45
+    timeout-minutes: 30
     permissions:
       id-token: write
       contents: read
