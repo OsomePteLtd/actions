@@ -77,6 +77,11 @@ on:
         type: string
         required: false
         default: 'db:migrate:test'
+      enable_sharding:
+        description: 'pass --shard=N/total to the test script. false = one unsharded run (set shards to "[1]" too)'
+        type: boolean
+        required: false
+        default: true
       run_diff_check:
         description: 'run the branch-size diff check (needs bin/checkBranchDiff.js in the repo)'
         type: boolean
@@ -324,10 +329,18 @@ jobs:
           MIGRATE_SCRIPT: ${{ inputs.migrate_script }}
 
       - name: Run unit tests
-        run: npm run "$TEST_SCRIPT" -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+        run: |
+          if [ "$ENABLE_SHARDING" = "true" ]; then
+            npm run "$TEST_SCRIPT" -- --shard="$SHARD/$SHARD_TOTAL"
+          else
+            npm run "$TEST_SCRIPT"
+          fi
         shell: bash
         env:
           TEST_SCRIPT: ${{ inputs.test_script }}
+          ENABLE_SHARDING: ${{ inputs.enable_sharding }}
+          SHARD: ${{ matrix.shard }}
+          SHARD_TOTAL: ${{ strategy.job-total }}
 
       - name: Move coverage to dedicated folder
         run: mv coverage/coverage-final.json coverage/${{ matrix.shard }}.json
