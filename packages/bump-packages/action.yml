@@ -113,8 +113,10 @@ runs:
       run: |
         if [ "${{ github.actor }}" = "osome-bot" ]; then
           echo "Workflow triggered from slack reviewer will not set"
+          echo "authorEmail=osome-bot@osome.com" >> $GITHUB_ENV
         else
           echo "reviewer=${{ github.actor }}" >> $GITHUB_ENV
+          echo "authorEmail=${{ github.actor }}@users.noreply.github.com" >> $GITHUB_ENV
         fi
       shell: bash
 
@@ -126,7 +128,7 @@ runs:
         token: ${{ inputs.token }}
         commit-message: Bump package to the latest version
         committer: GitHub <noreply@github.com>
-        author: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
+        author: ${{ github.actor }} <${{ env.authorEmail }}>
         signoff: false
         branch: bump-package
         branch-suffix: random
