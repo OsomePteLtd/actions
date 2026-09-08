@@ -104,7 +104,7 @@ on:
         description: 'Tier for compute jobs: static-checks, tests'
         type: string
         required: false
-        default: 'azure-aks-medium-arm'
+        default: 'arc-runner-heavy'
     # No `secrets:` block: the caller passes `secrets: inherit`, and this workflow
     # reads the org-standard secrets (OSOME_BOT_TOKEN, NPMJS_KEY_READ_ONLY,
     # DOCKER_CACHE_USER/PASSWORD) directly.
