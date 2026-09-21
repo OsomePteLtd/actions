@@ -43,16 +43,17 @@ umbrella row `<execution_tag>+umbrella` (the execution-scope catch-all):
 
 ## Inputs
 
-| Name            | Required | Default                   | Description                                                                                                                                                                  |
-| --------------- | -------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `execution_tag` | yes      | —                         | Execution scope tag (e.g. `@e2e`). Combined with `domain_tag` to form the primary board key `<execution_tag>+<domain_tag>`. Also used for the fallback key `<execution_tag>+umbrella`. |
-| `domain_tag`    | yes      | —                         | Domain gate tag (e.g. `@billing`). Combined with `execution_tag` to form the primary board key.                                                                              |
-| `service`       | yes      | —                         | Service key for snapshot SHA lookup at `versions.<service>` in the board row (e.g. `billy`).                                                                                 |
-| `deploying_sha` | yes      | —                         | SHA being deployed; typically `${{ github.sha }}`. Used as first arg to `git merge-base --is-ancestor`.                                                                      |
-| `token`         | yes      | —                         | GitHub token with read access on `e2e_repo`.                                                                                                                                 |
-| `e2e_repo`      | no       | `OsomePteLtd/e2e-testing` | Repository that owns the result board and anchor tag.                                                                                                                        |
-| `anchor_ref`    | no       | `e2e-latest`              | Tag pointing at the latest board commit. The producer pushes a lightweight tag; annotated tags are tolerated and dereferenced.                                               |
-| `gate_mode`     | no       | `block`                   | Enforcement mode: `block` (exits non-zero on gate failure), `report` (always exits 0, logs decision in `gate_decision` output and step summary), or `off` (skips all checks, exits 0). |
+| Name                | Required | Default                   | Description                                                                                                                                                                  |
+| ------------------- | -------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `execution_tag`     | yes      | —                         | Execution scope tag (e.g. `@e2e`). Combined with `domain_tag` to form the primary board key `<execution_tag>+<domain_tag>`. Also used for the fallback key `<execution_tag>+umbrella`. |
+| `domain_tag`        | yes      | —                         | Domain gate tag (e.g. `@billing`). Combined with `execution_tag` to form the primary board key.                                                                              |
+| `anchor_domain_tag` | no       | `''` (empty)              | Anchor domain tag of a multi-domain service: the **first** entry of that service's `domains` list in e2e-testing's `.github/gate-services.json`. Adds one lookup between the primary key and the umbrella. Empty for a service registered with a single `domain`. See [Anchor domain fallback](#anchor-domain-fallback). |
+| `service`           | yes      | —                         | Service key for snapshot SHA lookup at `versions.<service>` in the board row (e.g. `billy`).                                                                                 |
+| `deploying_sha`     | yes      | —                         | SHA being deployed; typically `${{ github.sha }}`. Used as first arg to `git merge-base --is-ancestor`.                                                                      |
+| `token`             | yes      | —                         | GitHub token with read access on `e2e_repo`.                                                                                                                                 |
+| `e2e_repo`          | no       | `OsomePteLtd/e2e-testing` | Repository that owns the result board and anchor tag.                                                                                                                        |
+| `anchor_ref`        | no       | `e2e-latest`              | Tag pointing at the latest board commit. The producer pushes a lightweight tag; annotated tags are tolerated and dereferenced. Unrelated to `anchor_domain_tag`.             |
+| `gate_mode`         | no       | `block`                   | Enforcement mode: `block` (exits non-zero on gate failure), `report` (always exits 0, logs decision in `gate_decision` output and step summary), or `off` (skips all checks, exits 0). |
 
 ## Outputs
 
@@ -60,7 +61,7 @@ umbrella row `<execution_tag>+umbrella` (the execution-scope catch-all):
 | --------------- | ------------------------------------------------------------------------------------------------------------ |
 | `anchor_sha`    | Commit SHA on `e2e_repo` that `board.json` was read from (the board commit `anchor_ref` points to).          |
 | `snapshot_sha`  | Snapshot SHA of the caller service captured at e2e-time, read from the selected board row at `versions.<service>`. |
-| `tag_used`      | Tag identifier actually consulted: the `domain_tag` value on the primary path, or the literal `umbrella` on the fallback path. |
+| `tag_used`      | Tag identifier actually consulted: the `domain_tag` value on the primary path, the `anchor_domain_tag` value on the anchor path, or the literal `umbrella` on the umbrella path. |
 | `gate_decision` | One of: `pass`, `fail-state`, `fail-stale`, `fail-missing`.                                                  |
 
 All outputs are populated even on failure (via an `if: always()` final step), so
@@ -73,7 +74,7 @@ the calling workflow can branch on `gate_decision` while still failing the job.
 | `pass`         | Board row state is `success` and the deploying SHA is an ancestor of the snapshot SHA — the green e2e run covers this deploy.                                 |
 | `fail-state`   | The selected board row has `state: failure` — the latest e2e run for this tag did not pass.                                                                   |
 | `fail-stale`   | The row is green, but the deploying SHA is **not** an ancestor of the snapshot SHA — e2e has not yet run against code that includes this deploy.              |
-| `fail-missing` | Something needed by the gate does not exist: the anchor tag, `board.json` at the anchor (or it is unparseable), both board keys (primary and umbrella), the service entry in `row.versions` (service not onboarded in `GATE_SERVICES`), or a SHA that cannot be resolved in the caller's checkout. |
+| `fail-missing` | Something needed by the gate does not exist: the anchor tag, `board.json` at the anchor (or it is unparseable), every board key it tried (primary, the anchor domain if one was supplied, and umbrella), the service entry in `row.versions` (service not onboarded in `GATE_SERVICES`), or a SHA that cannot be resolved in the caller's checkout. |
 
 ## How to unblock a failing gate
 
@@ -83,7 +84,8 @@ the calling workflow can branch on `gate_decision` while still failing the job.
 - **`fail-stale`**: Re-run e2e so the board snapshot advances past your
   deploying commit.
 - **`fail-missing` (no row for your keys)**: Re-run e2e-dispatch with the
-  right execution/domain tags so the producer writes your row.
+  right execution/domain tags so the producer writes your row. The job summary
+  lists every key that was tried, in the order they were tried.
 - **`fail-missing` (no `versions.<service>` in the row)**: Onboard the service
   in `GATE_SERVICES` on the e2e-testing side, then re-run e2e.
 
@@ -123,9 +125,10 @@ jobs:
 
 - **Row lookup**: The primary board key is
   `<execution_tag>+<domain_tag>` (e.g. `@e2e+@billing`). If absent, the gate
-  falls back to the umbrella key `<execution_tag>+umbrella`. If neither key
-  exists, `gate_decision=fail-missing` and the action exits non-zero. The job
-  summary lists both attempted keys.
+  tries `<execution_tag>+<anchor_domain_tag>` when an `anchor_domain_tag` was
+  supplied, then falls back to the umbrella key `<execution_tag>+umbrella`. If
+  none of them exists, `gate_decision=fail-missing` and the action exits
+  non-zero. The job summary lists every attempted key.
 - **Stale snapshot (ancestor semantics)**: The action runs
   `git merge-base --is-ancestor <deploying_sha> <snapshot_sha>` in the
   caller's checkout.
@@ -140,6 +143,35 @@ jobs:
     `gate_decision=fail-missing`, with a hint to use `fetch-depth: 0`.
   The argument order is critical: inverting it would let stale snapshots pass
   while blocking fresh deploys.
+- <a id="anchor-domain-fallback"></a>**Anchor domain fallback**: A service
+  that owns tests under several tags is registered in e2e-testing's
+  `.github/gate-services.json` with a `domains` array instead of a single
+  `domain`. The producer folds those rows into one aggregate row keyed
+  `<execution_tag>+#<service>` — but that aggregate row only appears at the
+  **next board publish** after the registration merges. Until then the primary
+  key misses, and without an anchor the only row left is the whole-fleet
+  umbrella: the service is judged on some other team's failure.
+
+  `anchor_domain_tag` fills that window with one extra lookup. Its value must
+  be the **first** entry of that service's `domains` list, which is the same
+  entry the release worker in e2e-testing uses as the anchor — the two sides
+  must name the same row or they judge different evidence. A service registered
+  with a single `domain` has no `domains` list, so it leaves the input empty and
+  the resolution stays exactly the two-key one.
+
+  ```text
+  registry: "billy": { "domain": "@billing" }
+    domain_tag: '@billing'   anchor_domain_tag: (empty)
+    keys tried: @e2e+@billing -> @e2e+umbrella
+
+  registry: "core": { "domains": ["@core", "@chat"] }
+    domain_tag: '#core'      anchor_domain_tag: '@core'
+    keys tried: @e2e+#core -> @e2e+@core -> @e2e+umbrella
+  ```
+
+  e2e-testing's `validate-gate-services` workflow cross-checks both values
+  against the registry on every PR, so a drifted or missing `anchor_domain_tag`
+  fails there rather than silently at release time.
 - **`e2e-latest` anchor rationale**: The lightweight tag `e2e-latest` is
   force-pushed by the e2e-testing producer to the latest board commit after
   every e2e run on main, so the gate always reads a single, consistent
