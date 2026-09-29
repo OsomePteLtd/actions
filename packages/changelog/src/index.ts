@@ -95,7 +95,7 @@ async function buildChangelog(
 
   for (const ghCommit of commits) {
     const { commit } = ghCommit;
-    const author = { email: commit.author.email, login: ghCommit.author.login };
+    const author = { email: commit.author.email, login: ghCommit.author.login, name: commit.author.name };
     const [issueKey] = commit.message.match(/\w+\-\d+/) ?? [];
     const issueExistsInChangelog = !!issueKey && changelog.items.some((item) => item.issue?.key === issueKey);
 

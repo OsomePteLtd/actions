@@ -3,9 +3,11 @@ export type Changelog = {
   items: ChangelogItem[];
 };
 
+export type ChangelogAuthor = { email: string; login?: string; name?: string };
+
 type ChangelogItem = {
-  author: { email: string; login?: string };
-  coauthors: { email: string }[];
+  author: ChangelogAuthor;
+  coauthors: ChangelogAuthor[];
   commit: { link: string; message: string; shortSha: string };
   issue: ChangelogIssue | null;
   type: string;
