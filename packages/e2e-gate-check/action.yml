@@ -9,6 +9,24 @@ inputs:
   domain_tag:
     required: true
     description: 'Domain gate tag the caller service is gated on, e.g. @billing. Combined with execution_tag to form the primary board key.'
+  anchor_domain_tag:
+    description: >-
+      Anchor domain tag of a multi-domain service (PF-3139). Must be the FIRST
+      entry of that service's `domains` list in e2e-testing's
+      .github/gate-services.json; a service registered with a single `domain`
+      leaves this empty.
+
+      When set, the row lookup becomes primary, then
+      <execution_tag>+<anchor_domain_tag>, then <execution_tag>+umbrella. It
+      covers the window between a `domains` registration merging and the next
+      board publish, when the aggregate row <execution_tag>+#<service> does not
+      exist yet and only the whole-fleet umbrella row would answer.
+
+      Empty (the default) skips the middle lookup entirely, so the resolution
+      is the two-key one every caller has today. Unrelated to anchor_ref, which
+      names the git tag pointing at the board commit.
+    required: false
+    default: ''
   service:
     required: true
     description: 'Service key used to look up the snapshot SHA in the board row at versions.<service>, e.g. billy.'
@@ -49,7 +67,7 @@ outputs:
     description: 'Snapshot SHA of the caller service captured at e2e-time, read from the selected board row at versions.<service>.'
     value: ${{ steps.set-outputs.outputs.snapshot_sha }}
   tag_used:
-    description: 'Tag identifier actually consulted: domain_tag value on the primary path, or the literal "umbrella" on the fallback path.'
+    description: 'Tag identifier actually consulted: domain_tag value on the primary path, anchor_domain_tag value on the anchor path, or the literal "umbrella" on the umbrella fallback path.'
     value: ${{ steps.set-outputs.outputs.tag_used }}
   gate_decision:
     description: 'One of: pass | fail-state | fail-stale | fail-missing.'
@@ -212,6 +230,7 @@ runs:
       env:
         INPUT_EXECUTION_TAG: ${{ inputs.execution_tag }}
         INPUT_DOMAIN_TAG: ${{ inputs.domain_tag }}
+        INPUT_ANCHOR_DOMAIN_TAG: ${{ inputs.anchor_domain_tag }}
         E2E_REPO: ${{ inputs.e2e_repo }}
         ANCHOR_SHA: ${{ steps.resolve-anchor.outputs.anchor_sha }}
       run: |
@@ -223,6 +242,16 @@ runs:
         PRIMARY_KEY="${INPUT_EXECUTION_TAG}+${INPUT_DOMAIN_TAG}"
         FALLBACK_KEY="${INPUT_EXECUTION_TAG}+umbrella"
 
+        # The anchor step is opt-in and empty by default, so a caller that passes
+        # nothing keeps the two-key resolution byte for byte: ANCHOR_KEY stays
+        # empty, the middle lookup below is never entered, and the one log line
+        # and the failure summary keep their exact previous wording.
+        ANCHOR_DOMAIN_TAG="${INPUT_ANCHOR_DOMAIN_TAG:-}"
+        ANCHOR_KEY=""
+        if [ -n "$ANCHOR_DOMAIN_TAG" ]; then
+          ANCHOR_KEY="${INPUT_EXECUTION_TAG}+${ANCHOR_DOMAIN_TAG}"
+        fi
+
         ROW=$(jq -c --arg k "$PRIMARY_KEY" '.[$k] | select(type == "object")' "$BOARD_PATH")
 
         if [ -n "$ROW" ]; then
@@ -232,7 +261,26 @@ runs:
           echo "Board row found for primary key ${PRIMARY_KEY}"
           exit 0
         fi
-        echo "No board row for primary key ${PRIMARY_KEY}; trying umbrella fallback"
+
+        if [ -n "$ANCHOR_KEY" ]; then
+          echo "No board row for primary key ${PRIMARY_KEY}; trying anchor domain key ${ANCHOR_KEY}"
+
+          ROW=$(jq -c --arg k "$ANCHOR_KEY" '.[$k] | select(type == "object")' "$BOARD_PATH")
+
+          if [ -n "$ROW" ]; then
+            echo "$ROW" > "$SELECTED_PATH"
+            # The anchor TAG, not the primary value and not "umbrella": every
+            # summary below prints "tag consulted", and naming the primary there
+            # would claim a row the board does not hold yet.
+            echo "$ANCHOR_DOMAIN_TAG" > "$TAG_USED_PATH"
+            echo "$ANCHOR_KEY" > "$KEY_USED_PATH"
+            echo "Board row found for anchor domain key ${ANCHOR_KEY}"
+            exit 0
+          fi
+          echo "No board row for anchor domain key ${ANCHOR_KEY}; trying umbrella fallback"
+        else
+          echo "No board row for primary key ${PRIMARY_KEY}; trying umbrella fallback"
+        fi
 
         ROW=$(jq -c --arg k "$FALLBACK_KEY" '.[$k] | select(type == "object")' "$BOARD_PATH")
 
@@ -247,6 +295,9 @@ runs:
             echo ""
             echo "- Anchor SHA: \`${ANCHOR_SHA}\` on \`${E2E_REPO}\`"
             echo "- Primary key: \`${PRIMARY_KEY}\` — not found"
+            if [ -n "$ANCHOR_KEY" ]; then
+              echo "- Anchor domain key: \`${ANCHOR_KEY}\` — not found"
+            fi
             echo "- Fallback key: \`${FALLBACK_KEY}\` — not found"
             echo ""
             echo "The e2e-testing repo has not yet published a board row for this (execution, domain) pair. Re-run e2e with the right tags:"
@@ -530,6 +581,11 @@ runs:
         # from disk would silently always be empty.
         DECISION: ${{ steps.set-outputs.outputs.gate_decision }}
         SNAPSHOT: ${{ steps.set-outputs.outputs.snapshot_sha }}
+        # `domain` above is what the caller ASKED for; this is what ANSWERED.
+        # They differ whenever the primary row was missing, so without it a
+        # verdict read off the anchor row (or the umbrella) is indistinguishable
+        # on the dashboard from one read off the service's own row.
+        TAG_USED: ${{ steps.set-outputs.outputs.tag_used }}
         DEPLOYMENT_ID: ${{ github.event.deployment.id }}
       run: |
         set -uo pipefail            # NOT -e — telemetry must not fail the gate
@@ -554,8 +610,8 @@ runs:
           --arg service "$SERVICE" --arg domain "$DOMAIN" --arg decision "$DECISION" \
           --arg mode "$GATE_MODE" --arg deployingSha "$DEPLOYING_SHA" --arg snapshotSha "$SNAPSHOT" \
           --arg runId "${GITHUB_RUN_ID:-}" --arg repo "${GITHUB_REPOSITORY:-}" \
-          --arg deploymentId "${DEPLOYMENT_ID:-}" \
-          '{type:"gate",level:"info",service:$service,domain:$domain,decision:$decision,mode:$mode,deployingSha:$deployingSha,snapshotSha:$snapshotSha,runId:$runId,repo:$repo,deploymentId:$deploymentId}' 2>/dev/null || echo '')
+          --arg deploymentId "${DEPLOYMENT_ID:-}" --arg tagUsed "${TAG_USED:-}" \
+          '{type:"gate",level:"info",service:$service,domain:$domain,tagUsed:$tagUsed,decision:$decision,mode:$mode,deployingSha:$deployingSha,snapshotSha:$snapshotSha,runId:$runId,repo:$repo,deploymentId:$deploymentId}' 2>/dev/null || echo '')
 
         if [ -z "$LINE" ]; then
           echo "::warning::gate telemetry line could not be built (non-fatal)"

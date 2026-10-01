@@ -35,7 +35,6 @@ actions/
 ├── dependency-track-check/    # Dependency security
 ├── check-iam-wildcards/       # IAM wildcard validation
 ├── check-last-version/        # Version checking
-├── e2e-websome/               # Websome E2E testing
 ├── update-spec/               # Spec update automation
 ├── sentry-issue-limiter/      # Sentry rate limiting
 ├── fail-on-code-and-migrations/ # PR validation

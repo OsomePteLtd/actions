@@ -27,10 +27,20 @@ on:
         required: false
         default: '[1, 2, 3]'
       services_registry:
-        description: 'Registry prefix for postgres/redis service images (e.g. osomecache.azurecr.io/). Empty = Docker Hub public images.'
+        description: 'Registry prefix for postgres/redis service images (e.g. osomecache.azurecr.io/). When set, the images become <prefix>postgres:16 and <prefix>redis:7 - the tags core already pulls from that cache. Empty = postgres_image / redis_image below, which track the exact prod minors.'
         type: string
         required: false
         default: ''
+      postgres_image:
+        description: 'Postgres service image when services_registry is empty. Default matches prod: 19 of 22 prod Aurora clusters run aurora-postgresql 16.11. Override for the exceptions (hero and pablo are on 15.15, database-1 on 17.7).'
+        type: string
+        required: false
+        default: 'postgres:16.11'
+      redis_image:
+        description: 'Redis service image when services_registry is empty. Default matches prod ElastiCache 7.0.7 (both prod clusters).'
+        type: string
+        required: false
+        default: 'redis:7.0.7'
       db_name:
         description: 'POSTGRES_DB name for the test database'
         type: string
@@ -261,7 +271,7 @@ jobs:
       STAGE: test
     services:
       postgres:
-        image: ${{ inputs.services_registry }}postgres:latest
+        image: ${{ inputs.services_registry != '' && format('{0}postgres:16', inputs.services_registry) || inputs.postgres_image }}
         credentials:
           username: ${{ secrets.DOCKER_CACHE_USER }}
           password: ${{ secrets.DOCKER_CACHE_PASSWORD }}
@@ -277,7 +287,7 @@ jobs:
         ports:
           - 5432:5432
       redis:
-        image: ${{ inputs.services_registry }}redis:latest
+        image: ${{ inputs.services_registry != '' && format('{0}redis:7', inputs.services_registry) || inputs.redis_image }}
         credentials:
           username: ${{ secrets.DOCKER_CACHE_USER }}
           password: ${{ secrets.DOCKER_CACHE_PASSWORD }}
