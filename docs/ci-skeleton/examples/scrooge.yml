@@ -1,0 +1,46 @@
+# scrooge/.github/workflows/pr-checks.yml — replaces the 224-line file.
+# Labeling moves to its own labeler.yml (as shiva already does).
+name: PR checks
+on:
+  repository_dispatch:
+    types: [deployment]
+  push:
+    tags: ['v*.*.*']
+  pull_request:
+    types: [opened, synchronize, reopened, edited] # edited: base retarget
+    branches: [main]
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: read
+jobs:
+  ci:
+    # The one gate: title/body edits skip the whole skeleton (and never cancel a run).
+    if: ${{ github.event.action != 'edited' || github.event.changes.base != null }}
+    # @master until OsomePteLtd/actions has a v1 tag. Intended pin after that is @v1.
+    uses: OsomePteLtd/actions/.github/workflows/backend.yml@master
+    with:
+      static_check_scripts: static-checks
+      shards: '[1]'
+      enable_sharding: false
+      report_coverage: false
+      run_diff_check: false
+      services_registry: osomecache.azurecr.io/
+      db_name: scrooge-test
+    secrets:
+      OSOME_BOT_TOKEN: ${{ secrets.OSOME_BOT_TOKEN }}
+      NPMJS_KEY_READ_ONLY: ${{ secrets.NPMJS_KEY_READ_ONLY }}
+      DOCKER_CACHE_USER: ${{ secrets.DOCKER_CACHE_USER }}
+      DOCKER_CACHE_PASSWORD: ${{ secrets.DOCKER_CACHE_PASSWORD }}
+  dependabot-combine:
+    if: ${{ github.event_name == 'pull_request' && contains(github.head_ref, 'dependabot/npm_and_yarn/osomepteltd/') }}
+    runs-on: arc-runner-light
+    timeout-minutes: 10
+    steps:
+      - uses: osomepteltd/actions/packages/dependabot-combine@master
+        with:
+          nvmrc: .nvmrc
+          pr_number: ${{ github.event.number }}
+          primary_sdk: sdk
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.OSOME_BOT_TOKEN }}
