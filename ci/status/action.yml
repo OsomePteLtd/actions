@@ -3,13 +3,13 @@ description: >-
   Single required check. skipped = success; any failure/cancelled = fail.
   Guard: a gate the change-rules REQUIRED must be success (a skip there is a bug, not a pass).
 inputs:
-  results: { description: toJSON(needs), required: true }
-  required_gates: { description: Space-separated jobs that had to run (computed by the skeleton), default: '' }
+  results: {"description": "toJSON(needs)", "required": true}
+  required_gates: {"description": "Space-separated jobs that had to run (computed by the skeleton)", "default": ""}
 runs:
   using: composite
   steps:
     - shell: bash
-      env: { RESULTS: "${{ inputs.results }}", REQUIRED: "${{ inputs.required_gates }}" }
+      env: {"RESULTS": "${{ inputs.results }}", "REQUIRED": "${{ inputs.required_gates }}"}
       run: |
         status=0
         { echo "| job | result |"; echo "|---|---|"; } >> "$GITHUB_STEP_SUMMARY"

@@ -1,8 +1,8 @@
 name: deploy-trigger
 description: "Stage 5: create a GitHub deployment record; the repo's on: deployment workflow ships it (SV:254-275, SC:210-227)."
 inputs:
-  stage: { required: true }
-  token: { description: OSOME_BOT_TOKEN (GITHUB_TOKEN events do not trigger workflows), required: true }
+  stage: {"required": true}
+  token: {"description": "OSOME_BOT_TOKEN (GITHUB_TOKEN events do not trigger workflows)", "required": true}
 runs:
   using: composite
   steps:

@@ -1,17 +1,17 @@
 name: setup
 description: "Stage 1: decide what runs (stages to deploy, whether PR gates run, shard list)."
 inputs:
-  with_transient: { description: get-deployment-stages with-transient, default: 'false' }
-  combine_dependabot: { description: Run dependabot-combine on osomepteltd dependabot PRs (SC:40-48), default: 'false' }
-  primary_sdk: { description: dependabot-combine primary_sdk, default: sdk }
-  node_version_file: { default: .nvmrc }
-  shards: { description: Number of test shards, default: '1' }
-  default_branch: { default: main }
-  token: { description: OSOME_BOT_TOKEN, required: true }
+  with_transient: {"description": "get-deployment-stages with-transient", "default": "false"}
+  combine_dependabot: {"description": "Run dependabot-combine on osomepteltd dependabot PRs (SC:40-48)", "default": "false"}
+  primary_sdk: {"description": "dependabot-combine primary_sdk", "default": "sdk"}
+  node_version_file: {"default": ".nvmrc"}
+  shards: {"description": "Number of test shards", "default": "1"}
+  default_branch: {"default": "main"}
+  token: {"description": "OSOME_BOT_TOKEN", "required": true}
 outputs:
-  stages: { value: "${{ steps.stages.outputs.stages || '[]' }}" }
-  run_checks: { value: "${{ steps.decide.outputs.run_checks }}" }
-  shard_list: { value: "${{ steps.decide.outputs.shard_list }}" }
+  stages: {"value": "${{ steps.stages.outputs.stages || '[]' }}"}
+  run_checks: {"value": "${{ steps.decide.outputs.run_checks }}"}
+  shard_list: {"value": "${{ steps.decide.outputs.shard_list }}"}
 runs:
   using: composite
   steps:

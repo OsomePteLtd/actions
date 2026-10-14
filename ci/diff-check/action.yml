@@ -1,17 +1,17 @@
 name: diff-check
 description: "Stage 2b: fail a PR whose changed lines exceed max_lines (0 = off). Neither repo has this today; #358 used bin/checkBranchDiff.js."
 inputs:
-  max_lines: { description: Max added+deleted lines; 0 disables, default: '0' }
-  ignore_globs: { description: Pathspecs excluded from the count, default: "package-lock.json **/__snapshots__/** **/*.snap" }
-  skip_label: { description: PR label that bypasses the check, default: allow-large-diff }
+  max_lines: {"description": "Max added+deleted lines; 0 disables", "default": "0"}
+  ignore_globs: {"description": "Pathspecs excluded from the count", "default": "package-lock.json **/__snapshots__/** **/*.snap"}
+  skip_label: {"description": "PR label that bypasses the check", "default": "allow-large-diff"}
 outputs:
-  changed_lines: { value: "${{ steps.count.outputs.changed_lines }}" }
+  changed_lines: {"value": "${{ steps.count.outputs.changed_lines }}"}
 runs:
   using: composite
   steps:
     - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       if: inputs.max_lines != '0' && github.event_name == 'pull_request'
-      with: { fetch-depth: 0, persist-credentials: false }
+      with: {"fetch-depth": 0, "persist-credentials": false}
     - id: count
       if: inputs.max_lines != '0' && github.event_name == 'pull_request'
       shell: bash

@@ -8,10 +8,10 @@ jobs:
     name: actionlint + guards
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    permissions: { contents: read }
+    permissions: {"contents": "read"}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-        with: { persist-credentials: false }
+        with: {"persist-credentials": false}
       - name: actionlint 1.7.12 (pinned sha256)
         run: |
           tgz=actionlint_1.7.12_linux_amd64.tar.gz

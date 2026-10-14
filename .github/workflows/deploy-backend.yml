@@ -5,25 +5,25 @@ name: Backend CD
 on:
   workflow_call:
     inputs:
-      env: { type: string, default: '', description: "Override target env (smoke.yml test-N). Default: deployment env." }
-      runner: { type: string, default: arc-runner-light }
-      aws_region: { type: string, default: us-east-1 }
-      nonprod_role_arn: { type: string, required: true }
-      prod_role_arn: { type: string, required: true }
-      pre_functions: { type: string, default: 'migrate try-canary' }
-      package_artifact: { type: string, default: '' }
-      use_environment: { type: boolean, default: false, description: "Bind deploy job to a GitHub environment (reviewers). Unverified with on: deployment." }
-      changelog_slack_channel: { type: string, default: '' }
-      promote_to_production: { type: boolean, default: true, description: "stage success on main/tag -> production record (SD:263-276)" }
-      check_last_version: { type: boolean, default: true, description: "SD:278-309" }
-      node_version_file: { type: string, default: .nvmrc }
+      env: {"type": "string", "default": "", "description": "Override target env (smoke.yml test-N). Default: deployment env."}
+      runner: {"type": "string", "default": "arc-runner-light"}
+      aws_region: {"type": "string", "default": "us-east-1"}
+      nonprod_role_arn: {"type": "string", "required": true}
+      prod_role_arn: {"type": "string", "required": true}
+      pre_functions: {"type": "string", "default": "migrate try-canary"}
+      package_artifact: {"type": "string", "default": ""}
+      use_environment: {"type": "boolean", "default": false, "description": "Bind deploy job to a GitHub environment (reviewers). Unverified with on: deployment."}
+      changelog_slack_channel: {"type": "string", "default": ""}
+      promote_to_production: {"type": "boolean", "default": true, "description": "stage success on main/tag -> production record (SD:263-276)"}
+      check_last_version: {"type": "boolean", "default": true, "description": "SD:278-309"}
+      node_version_file: {"type": "string", "default": ".nvmrc"}
     secrets:
-      OSOME_BOT_TOKEN: { required: true }
-      NPMJS_KEY_READ_ONLY: { required: true }
-      JIRA_SITE: { required: false }
-      JIRA_USERNAME: { required: false }
-      JIRA_PASSWORD: { required: false }
-      SLACK_TOKEN: { required: false }
+      OSOME_BOT_TOKEN: {"required": true}
+      NPMJS_KEY_READ_ONLY: {"required": true}
+      JIRA_SITE: {"required": false}
+      JIRA_USERNAME: {"required": false}
+      JIRA_PASSWORD: {"required": false}
+      SLACK_TOKEN: {"required": false}
 
 concurrency:
   group: deploy-${{ github.repository }}-${{ inputs.env || github.event.deployment.environment }}
@@ -36,13 +36,13 @@ jobs:
     name: Resolve
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 5
-    permissions: { contents: read }
+    permissions: {"contents": "read"}
     outputs:
       stage: ${{ steps.r.outputs.stage }}
       version: ${{ steps.r.outputs.version }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-        with: { persist-credentials: false }
+        with: {"persist-credentials": false}
       - id: r
         env:
           STAGE: ${{ inputs.env || github.event.deployment.environment }}
@@ -57,7 +57,7 @@ jobs:
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 45
     environment: ${{ inputs.use_environment && needs.resolve.outputs.stage || '' }}
-    permissions: { contents: read, id-token: write }
+    permissions: {"contents": "read", "id-token": "write"}
     steps:
       - uses: OsomePteLtd/actions/ci/serverless-deploy@cursor/simplify-backend-ci-cb4f  # TEMP: revert to @v1 before tagging v1
         with:
@@ -76,7 +76,7 @@ jobs:
     if: always() && needs.resolve.result == 'success'
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 10
-    permissions: { contents: read }
+    permissions: {"contents": "read"}
     steps:
       - name: Changelog to Slack (production)
         if: needs.resolve.outputs.stage == 'production' && needs.deploy.result == 'success' && inputs.changelog_slack_channel != ''

@@ -1,17 +1,17 @@
 name: checks
 description: "Stage 2: migration guard, lockfile guard, static scripts, IAM wildcard check, bundle build (SV:52-119, SC:69-115)."
 inputs:
-  static_scripts: { description: Whitespace-separated npm scripts run in order, required: true }
-  build_script: { description: "npm script for the bundle ('' skips)", default: build }
-  lockfile_guard: { default: 'true' }
-  iam_check: { default: 'true' }
-  migration_guard: { default: 'true' }
-  serverless_license: { description: Read /ServerlessFramework/license from SSM before build, default: 'true' }
-  role_arn: { required: true }
-  aws_region: { default: us-east-1 }
-  node_version_file: { default: .nvmrc }
-  github_packages_token: { required: true }
-  npmjs_token: { required: true }
+  static_scripts: {"description": "Whitespace-separated npm scripts run in order", "required": true}
+  build_script: {"description": "npm script for the bundle ('' skips)", "default": "build"}
+  lockfile_guard: {"default": "true"}
+  iam_check: {"default": "true"}
+  migration_guard: {"default": "true"}
+  serverless_license: {"description": "Read /ServerlessFramework/license from SSM before build", "default": "true"}
+  role_arn: {"required": true}
+  aws_region: {"default": "us-east-1"}
+  node_version_file: {"default": ".nvmrc"}
+  github_packages_token: {"required": true}
+  npmjs_token: {"required": true}
 runs:
   using: composite
   steps:
@@ -19,9 +19,9 @@ runs:
       if: inputs.migration_guard == 'true' && github.event_name == 'pull_request'
       uses: OsomePteLtd/actions/packages/fail-on-code-and-migrations@master  # TEMP: @v1 after first release
     - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-      with: { persist-credentials: false }
+      with: {"persist-credentials": false}
     - uses: OsomePteLtd/actions/ci/aws-auth@cursor/simplify-backend-ci-cb4f  # TEMP: revert to @v1 before tagging v1
-      with: { role_arn: "${{ inputs.role_arn }}", region: "${{ inputs.aws_region }}" }
+      with: {"role_arn": "${{ inputs.role_arn }}", "region": "${{ inputs.aws_region }}"}
     - uses: OsomePteLtd/actions/ci/setup-node@cursor/simplify-backend-ci-cb4f  # TEMP: revert to @v1 before tagging v1
       with:
         node_version_file: ${{ inputs.node_version_file }}
@@ -30,7 +30,7 @@ runs:
         npmjs_token: ${{ inputs.npmjs_token }}
     - name: Static scripts
       shell: bash
-      env: { SCRIPTS: "${{ inputs.static_scripts }}" }
+      env: {"SCRIPTS": "${{ inputs.static_scripts }}"}
       run: |
         for s in $SCRIPTS; do
           echo "::group::npm run $s"; start=$SECONDS
@@ -52,5 +52,5 @@ runs:
     - name: Build bundle
       if: inputs.build_script != ''
       shell: bash
-      env: { BUILD: "${{ inputs.build_script }}" }
+      env: {"BUILD": "${{ inputs.build_script }}"}
       run: npm run "$BUILD"

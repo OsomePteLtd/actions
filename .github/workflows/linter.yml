@@ -6,14 +6,14 @@ name: Linter
 on:
   workflow_call:
     inputs:
-      runner: { type: string, default: arc-runner-light }
-      pr_lint: { type: boolean, default: false, description: "packages/pr-lint (shiva pr-lint.yml / scrooge pr-lint-local.yml)" }
-      pr_lint_mode: { type: string, default: enforce }
-      pr_lint_skip_if_no_template: { type: boolean, default: false }
-      pr_lint_exempt_authors: { type: string, default: osome-bot }
-      workflows: { type: boolean, default: false, description: "actionlint + SHA-pin check (.github/** changed)" }
-      infra: { type: boolean, default: false, description: "terraform fmt/validate/tflint (skips if no .tf)" }
-      terraform_dirs: { type: string, default: '' }
+      runner: {"type": "string", "default": "arc-runner-light"}
+      pr_lint: {"type": "boolean", "default": false, "description": "packages/pr-lint (shiva pr-lint.yml / scrooge pr-lint-local.yml)"}
+      pr_lint_mode: {"type": "string", "default": "enforce"}
+      pr_lint_skip_if_no_template: {"type": "boolean", "default": false}
+      pr_lint_exempt_authors: {"type": "string", "default": "osome-bot"}
+      workflows: {"type": "boolean", "default": false, "description": "actionlint + SHA-pin check (.github/** changed)"}
+      infra: {"type": "boolean", "default": false, "description": "terraform fmt/validate/tflint (skips if no .tf)"}
+      terraform_dirs: {"type": "string", "default": ""}
 
 permissions: {}
 
@@ -23,10 +23,10 @@ jobs:
     if: inputs.pr_lint && github.event_name == 'pull_request'
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 5
-    permissions: { contents: read, pull-requests: read }   # same as pr-lint.yml:7-9
+    permissions: {"contents": "read", "pull-requests": "read"}   # same as pr-lint.yml:7-9
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with: { persist-credentials: false }
+        with: {"persist-credentials": false}
       - uses: OsomePteLtd/actions/packages/pr-lint@master # TEMP: @v1 after first release
         with:
           mode: ${{ inputs.pr_lint_mode }}
@@ -38,7 +38,7 @@ jobs:
     if: inputs.workflows
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 5
-    permissions: { contents: read }
+    permissions: {"contents": "read"}
     steps:
       - uses: OsomePteLtd/actions/ci/workflow-lint@cursor/simplify-backend-ci-cb4f  # TEMP: revert to @v1 before tagging v1
 
@@ -47,7 +47,7 @@ jobs:
     if: inputs.infra
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 10
-    permissions: { contents: read }
+    permissions: {"contents": "read"}
     steps:
       - uses: OsomePteLtd/actions/ci/terraform-lint@cursor/simplify-backend-ci-cb4f  # TEMP: revert to @v1 before tagging v1
         with:

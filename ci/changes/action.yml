@@ -4,22 +4,22 @@ description: >-
   Any file matching none of the four groups counts as code (fail safe). Non-PR events: everything true.
 inputs:
   # '' = built-in default below. `*` and `**` both cross `/`; a leading `**/` also matches root files.
-  code_globs: { default: '' }
-  infra_globs: { default: '' }
-  workflows_globs: { default: '' }
-  docs_globs: { default: '' }
+  code_globs: {"default": ""}
+  infra_globs: {"default": ""}
+  workflows_globs: {"default": ""}
+  docs_globs: {"default": ""}
 outputs:
-  code: { value: "${{ steps.c.outputs.code }}" }
-  infra: { value: "${{ steps.c.outputs.infra }}" }
-  workflows: { value: "${{ steps.c.outputs.workflows }}" }
-  docs: { value: "${{ steps.c.outputs.docs }}" }
-  full: { description: "'true' when not a pull_request (always full CI)", value: "${{ steps.c.outputs.full }}" }
+  code: {"value": "${{ steps.c.outputs.code }}"}
+  infra: {"value": "${{ steps.c.outputs.infra }}"}
+  workflows: {"value": "${{ steps.c.outputs.workflows }}"}
+  docs: {"value": "${{ steps.c.outputs.docs }}"}
+  full: {"description": "'true' when not a pull_request (always full CI)", "value": "${{ steps.c.outputs.full }}"}
 runs:
   using: composite
   steps:
     - if: github.event_name == 'pull_request'
       uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      with: { fetch-depth: 0, persist-credentials: false }
+      with: {"fetch-depth": 0, "persist-credentials": false}
     - id: c
       shell: bash
       env:
