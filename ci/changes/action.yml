@@ -28,7 +28,7 @@ runs:
         HEAD: ${{ github.event.pull_request.head.sha }}
         G_CODE: ${{ inputs.code_globs || 'src/** db/** bin/** test/** tests/** package.json package-lock.json .npmrc .nvmrc tsconfig* jest* serverless* *.serverless.ts webpack* migrations.js secrets.json .sequelizerc .eslintrc* .prettierrc* .depcheckrc .cspell.json knip* i18next* eslint-plugin-*/** docker-compose.yml' }}
         G_INFRA: ${{ inputs.infra_globs || 'terraform/** infra/** **/*.tf **/*.tfvars **/.tflint.hcl' }}
-        G_WF: ${{ inputs.workflows_globs || '.github/workflows/** .github/actions/**' }}
+        G_WF: ${{ inputs.workflows_globs || '.github/**' }}
         G_DOCS: ${{ inputs.docs_globs || '**/*.md docs/**' }}
       run: |
         set -euo pipefail

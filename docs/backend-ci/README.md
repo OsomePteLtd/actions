@@ -15,17 +15,17 @@ changes -> setup -> checks + diff-check + workflow-lint + terraform-lint -> test
 | Change on PR | Runs | Skipped (= success in CI status) |
 |---|---|---|
 | code (or any file matching no group) | changes, setup, checks, diff-check, tests×N, coverage, deploy-trigger | — |
-| infra only | changes, setup, terraform-lint (auto-skips if no `.tf`) | checks, tests, coverage |
-| workflows only | changes, setup, checks (light: no tests), workflow-lint (actionlint + SHA pins) | tests, coverage, diff-check |
+| infra only | changes, setup, lint job → linter.yml terraform (auto-skips if no `.tf`) | checks, tests, coverage |
+| workflows only | changes, setup, checks (light: no tests), lint job → linter.yml (actionlint + SHA pins) | tests, coverage, diff-check |
 | docs only | changes, setup | everything heavy |
 | mixed | union of the rows above | — |
 | push / tag / dispatch / merge_group | full (all groups true) | — |
 
-`CI status` (always runs): fails on any `failure`/`cancelled`; `skipped` passes, **except** a gate the rules required (code→checks+tests, workflows→checks+workflow-lint, infra→terraform-lint), which must be `success`. `changes` and `setup` must always succeed.
+`CI status` (always runs): fails on any `failure`/`cancelled`; `skipped` passes, **except** a gate the rules required (code→checks+tests, workflows→checks+lint, infra→lint), which must be `success`. `changes` and `setup` must always succeed.
 Default globs (override via `code_globs`, `infra_globs`, `workflows_globs`, `docs_globs`):
 - code: `src/** db/** bin/** test/** tests/** package.json package-lock.json .npmrc .nvmrc tsconfig* jest* serverless* *.serverless.ts webpack* migrations.js secrets.json .sequelizerc .eslintrc* .prettierrc* .depcheckrc .cspell.json knip* i18next* eslint-plugin-*/** docker-compose.yml`
 - infra: `terraform/** infra/** **/*.tf **/*.tfvars **/.tflint.hcl`
-- workflows: `.github/workflows/** .github/actions/**`
+- workflows: `.github/**`
 - docs: `**/*.md docs/**`
 Unmatched file ⇒ code (fail safe). `src/x.md` matches docs + code ⇒ code.
 
