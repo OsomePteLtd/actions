@@ -25,7 +25,8 @@ runs:
         curl -sSfLO "$base/$tgz"
         echo "$want  $tgz" | sha256sum -c -   # pinned checksum, not fetched
         tar xzf "$tgz" actionlint
-        ./actionlint -color
+        # GitHub supports `concurrency.queue`; actionlint <= 1.7.12 does not (rhysd/actionlint#657, #746).
+        ./actionlint -color -ignore 'unexpected key "queue" for "concurrency" section'
     - name: SHA-pin check
       shell: bash
       env: {"ALLOW": "${{ inputs.allow_unpinned_prefixes }}"}
