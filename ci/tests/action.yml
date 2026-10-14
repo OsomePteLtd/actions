@@ -1,0 +1,47 @@
+name: tests
+description: "Stage 3: one test shard (SV:165-206, SC:158-184). Services are declared by the skeleton job."
+inputs:
+  shard: { required: true }
+  shards: { required: true }
+  migrate_script: { description: "'' skips", default: 'db:migrate:test' }
+  test_script: { default: 'test:ci' }
+  coverage: { description: Upload coverage-final.json as coverage-artifacts-<shard>, default: 'true' }
+  role_arn: { required: true }
+  aws_region: { default: us-east-1 }
+  node_version_file: { default: .nvmrc }
+  github_packages_token: { required: true }
+  npmjs_token: { required: true }
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      with: { persist-credentials: false }
+    - uses: OsomePteLtd/actions/ci/aws-auth@cursor/simplify-backend-ci-cb4f  # TEMP: revert to @v1 before tagging v1
+      with: { role_arn: "${{ inputs.role_arn }}", region: "${{ inputs.aws_region }}" }
+    - uses: OsomePteLtd/actions/ci/setup-node@cursor/simplify-backend-ci-cb4f  # TEMP: revert to @v1 before tagging v1
+      with:
+        node_version_file: ${{ inputs.node_version_file }}
+        github_packages_token: ${{ inputs.github_packages_token }}
+        npmjs_token: ${{ inputs.npmjs_token }}
+    - name: Migrate test DB
+      if: inputs.migrate_script != ''
+      shell: bash
+      env: { S: "${{ inputs.migrate_script }}" }
+      run: npm run "$S"
+    - name: Run tests (shard ${{ inputs.shard }}/${{ inputs.shards }})
+      shell: bash
+      env: { S: "${{ inputs.test_script }}", N: "${{ inputs.shard }}", T: "${{ inputs.shards }}" }
+      run: |
+        # single shard: no --shard flag, same as scrooge SC:184
+        if [ "$T" = 1 ]; then npm run "$S"; else npm run "$S" -- --shard="$N/$T"; fi
+    - name: Move coverage
+      if: inputs.coverage == 'true'
+      shell: bash
+      env: { N: "${{ inputs.shard }}" }
+      run: mv coverage/coverage-final.json "coverage/$N.json"
+    - if: inputs.coverage == 'true'
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: coverage-artifacts-${{ inputs.shard }}
+        path: coverage/
+        retention-days: 3

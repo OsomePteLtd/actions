@@ -1,0 +1,53 @@
+name: setup
+description: "Stage 1: decide what runs (stages to deploy, whether PR gates run, shard list)."
+inputs:
+  with_transient: { description: get-deployment-stages with-transient, default: 'false' }
+  combine_dependabot: { description: Run dependabot-combine on osomepteltd dependabot PRs (SC:40-48), default: 'false' }
+  primary_sdk: { description: dependabot-combine primary_sdk, default: sdk }
+  node_version_file: { default: .nvmrc }
+  shards: { description: Number of test shards, default: '1' }
+  default_branch: { default: main }
+  token: { description: OSOME_BOT_TOKEN, required: true }
+outputs:
+  stages: { value: "${{ steps.stages.outputs.stages || '[]' }}" }
+  run_checks: { value: "${{ steps.decide.outputs.run_checks }}" }
+  shard_list: { value: "${{ steps.decide.outputs.shard_list }}" }
+runs:
+  using: composite
+  steps:
+    - name: Combine Dependabot PRs
+      if: inputs.combine_dependabot == 'true' && contains(github.head_ref, 'dependabot/npm_and_yarn/osomepteltd/')
+      uses: OsomePteLtd/actions/packages/dependabot-combine@master  # TEMP: @v1 after first release
+      with:
+        nvmrc: ${{ inputs.node_version_file }}
+        pr_number: ${{ github.event.number }}
+        primary_sdk: ${{ inputs.primary_sdk }}
+        ref: ${{ github.head_ref }}
+        token: ${{ inputs.token }}
+    - name: Get deployment stages
+      id: stages
+      # scrooge skips setup on merge_group (SC:33); we keep the job but emit [] there
+      if: github.event_name != 'merge_group'
+      uses: OsomePteLtd/actions/packages/get-deployment-stages@master  # TEMP: @v1 after first release
+      with:
+        with-transient: ${{ inputs.with_transient }}
+    - name: Decide gates and shards
+      id: decide
+      shell: bash
+      env:
+        EVENT: ${{ github.event_name }}
+        REF: ${{ github.ref }}
+        DEFAULT_BRANCH: ${{ inputs.default_branch }}
+        SHARDS: ${{ inputs.shards }}
+      run: |
+        # PR + merge queue always; workflow_dispatch on a feature branch keeps
+        # shiva's behaviour (SV:43 runs checks on any non-main, non-tag ref).
+        run_checks=false
+        case "$EVENT" in
+          pull_request|merge_group) run_checks=true ;;
+          workflow_dispatch) [[ "$REF" != "refs/heads/$DEFAULT_BRANCH" && "$REF" != refs/tags/* ]] && run_checks=true ;;
+        esac
+        [[ "$SHARDS" =~ ^[1-9][0-9]*$ ]] || { echo "::error::shards must be a positive integer"; exit 1; }
+        echo "run_checks=$run_checks" >> "$GITHUB_OUTPUT"
+        echo "shard_list=$(seq -s, 1 "$SHARDS" | sed 's/^/[/;s/$/]/')" >> "$GITHUB_OUTPUT"
+        echo "### setup: event=$EVENT run_checks=$run_checks shards=$SHARDS" >> "$GITHUB_STEP_SUMMARY"

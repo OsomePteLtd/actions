@@ -1,0 +1,24 @@
+# Runs the skeleton against examples/fixture-backend (fixture lands in PR 3).
+# NOTE: backend.yml calls ci/*@v1, so a PR here tests the released v1 actions,
+# not the PR's ci/ changes. Unknown: best way to test unreleased ci/ (see TREE.md).
+name: Template self-test
+on:
+  pull_request:
+    paths: ['.github/workflows/backend.yml', 'ci/**', 'examples/fixture-backend/**']
+permissions: {}
+jobs:
+  ci:
+    uses: ./.github/workflows/backend.yml
+    permissions: { contents: read, id-token: write, pull-requests: read }
+    with:
+      static_scripts: lint
+      shards: 2
+      diff_max_lines: 2000
+      serverless_license: false
+      iam_check: false
+      ci_role_arn: ${{ vars.SELFTEST_ROLE_ARN }}
+    secrets:
+      OSOME_BOT_TOKEN: ${{ secrets.OSOME_BOT_TOKEN }}
+      NPMJS_KEY_READ_ONLY: ${{ secrets.NPMJS_KEY_READ_ONLY }}
+      DOCKER_CACHE_USER: ${{ secrets.DOCKER_CACHE_USER }}
+      DOCKER_CACHE_PASSWORD: ${{ secrets.DOCKER_CACHE_PASSWORD }}

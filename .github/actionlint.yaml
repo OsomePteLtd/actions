@@ -1,0 +1,2 @@
+self-hosted-runner:
+  labels: [arc-runner-light, arc-runner-heavy, azure-aks-medium-arm]

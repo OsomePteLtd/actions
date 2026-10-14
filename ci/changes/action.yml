@@ -1,0 +1,62 @@
+name: changes
+description: >-
+  Classify a PR's changed files into code / infra / workflows / docs (git diff, no third-party action).
+  Any file matching none of the four groups counts as code (fail safe). Non-PR events: everything true.
+inputs:
+  # '' = built-in default below. `*` and `**` both cross `/`; a leading `**/` also matches root files.
+  code_globs: { default: '' }
+  infra_globs: { default: '' }
+  workflows_globs: { default: '' }
+  docs_globs: { default: '' }
+outputs:
+  code: { value: "${{ steps.c.outputs.code }}" }
+  infra: { value: "${{ steps.c.outputs.infra }}" }
+  workflows: { value: "${{ steps.c.outputs.workflows }}" }
+  docs: { value: "${{ steps.c.outputs.docs }}" }
+  full: { description: "'true' when not a pull_request (always full CI)", value: "${{ steps.c.outputs.full }}" }
+runs:
+  using: composite
+  steps:
+    - if: github.event_name == 'pull_request'
+      uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with: { fetch-depth: 0, persist-credentials: false }
+    - id: c
+      shell: bash
+      env:
+        EVENT: ${{ github.event_name }}
+        BASE: ${{ github.event.pull_request.base.sha }}
+        HEAD: ${{ github.event.pull_request.head.sha }}
+        G_CODE: ${{ inputs.code_globs || 'src/** db/** bin/** test/** tests/** package.json package-lock.json .npmrc .nvmrc tsconfig* jest* serverless* *.serverless.ts webpack* migrations.js secrets.json .sequelizerc .eslintrc* .prettierrc* .depcheckrc .cspell.json knip* i18next* eslint-plugin-*/** docker-compose.yml' }}
+        G_INFRA: ${{ inputs.infra_globs || 'terraform/** infra/** **/*.tf **/*.tfvars **/.tflint.hcl' }}
+        G_WF: ${{ inputs.workflows_globs || '.github/workflows/** .github/actions/**' }}
+        G_DOCS: ${{ inputs.docs_globs || '**/*.md docs/**' }}
+      run: |
+        set -euo pipefail
+        set -f   # globs are patterns, never expanded against the disk
+        out() { for k in code infra workflows docs full; do echo "$k=${!k}" >> "$GITHUB_OUTPUT"; done; }
+        if [ "$EVENT" != pull_request ]; then
+          code=true infra=true workflows=true docs=true full=true; out
+          echo "### changes: $EVENT -> full CI" >> "$GITHUB_STEP_SUMMARY"; exit 0
+        fi
+        # shellcheck disable=SC2034  # read via ${!k} in out()
+        code=false infra=false workflows=false docs=false full=false
+        # unquoted right-hand side is intentional: it is the glob pattern
+        # shellcheck disable=SC2053
+        m() { local f=$1 p; shift; for p in "$@"; do
+                [[ $f == $p ]] && return 0
+                [[ $p == '**/'* ]] && [[ $f == ${p#'**/'} ]] && return 0
+              done; return 1; }
+        files=$(git diff --name-only "$BASE...$HEAD")   # set -e: a failed diff fails the job
+        n=0
+        # shellcheck disable=SC2086  # word-split glob lists on purpose (set -f)
+        # shellcheck disable=SC2086
+        while IFS= read -r f; do
+          [ -z "$f" ] && continue; n=$((n+1)); hit=false
+          if m "$f" $G_INFRA; then infra=true; hit=true; fi
+          if m "$f" $G_WF;    then workflows=true; hit=true; fi
+          if m "$f" $G_DOCS;  then docs=true; hit=true; fi
+          if m "$f" $G_CODE || [ "$hit" = false ]; then code=true; fi
+        done <<< "$files"
+        [ "$n" -gt 0 ] || code=true   # empty/unknown diff -> fail safe
+        out
+        echo "### changes: $n files | code=$code infra=$infra workflows=$workflows docs=$docs" >> "$GITHUB_STEP_SUMMARY"

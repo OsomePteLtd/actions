@@ -1,0 +1,46 @@
+name: serverless-deploy
+description: "CD: migrate -> try-canary -> deploy -> upload package (SD:177-239, SA:200-224)."
+inputs:
+  stage: { required: true }
+  role_arn: { required: true }
+  aws_region: { default: us-east-1 }
+  pre_functions: { description: Functions deployed+invoked before full deploy, default: 'migrate try-canary' }
+  package_artifact: { description: "Artifact name for .serverless/<repo>.zip ('' skips)", default: '' }
+  node_version_file: { default: .nvmrc }
+  github_packages_token: { required: true }
+  npmjs_token: { required: true }
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      with: { persist-credentials: false }
+    - uses: OsomePteLtd/actions/ci/aws-auth@cursor/simplify-backend-ci-cb4f  # TEMP: revert to @v1 before tagging v1
+      with: { role_arn: "${{ inputs.role_arn }}", region: "${{ inputs.aws_region }}" }
+    - uses: OsomePteLtd/actions/ci/setup-node@cursor/simplify-backend-ci-cb4f  # TEMP: revert to @v1 before tagging v1
+      with:
+        node_version_file: ${{ inputs.node_version_file }}
+        github_packages_token: ${{ inputs.github_packages_token }}
+        npmjs_token: ${{ inputs.npmjs_token }}
+    - name: Serverless license
+      shell: bash
+      run: |
+        LICENSE=$(aws ssm get-parameter --name '/ServerlessFramework/license' --with-decryption --query 'Parameter.Value' --output text)
+        echo "::add-mask::$LICENSE"
+        echo "SERVERLESS_LICENSE_KEY=$LICENSE" >> "$GITHUB_ENV"
+    - name: Pre-deploy functions
+      shell: bash
+      env: { STAGE: "${{ inputs.stage }}", FNS: "${{ inputs.pre_functions }}" }
+      run: |
+        for f in $FNS; do
+          node_modules/.bin/serverless deploy function --stage "$STAGE" --function "$f"
+          node_modules/.bin/serverless invoke --stage "$STAGE" -f "$f"
+        done
+    - name: Deploy
+      shell: bash
+      env: { STAGE: "${{ inputs.stage }}" }
+      run: node_modules/.bin/serverless deploy --stage "$STAGE" --verbose
+    - if: inputs.package_artifact != ''
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ${{ inputs.package_artifact }}
+        path: .serverless/${{ github.event.repository.name }}.zip

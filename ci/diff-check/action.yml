@@ -1,0 +1,31 @@
+name: diff-check
+description: "Stage 2b: fail a PR whose changed lines exceed max_lines (0 = off). Neither repo has this today; #358 used bin/checkBranchDiff.js."
+inputs:
+  max_lines: { description: Max added+deleted lines; 0 disables, default: '0' }
+  ignore_globs: { description: Pathspecs excluded from the count, default: "package-lock.json **/__snapshots__/** **/*.snap" }
+  skip_label: { description: PR label that bypasses the check, default: allow-large-diff }
+outputs:
+  changed_lines: { value: "${{ steps.count.outputs.changed_lines }}" }
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      if: inputs.max_lines != '0' && github.event_name == 'pull_request'
+      with: { fetch-depth: 0, persist-credentials: false }
+    - id: count
+      if: inputs.max_lines != '0' && github.event_name == 'pull_request'
+      shell: bash
+      env:
+        MAX: ${{ inputs.max_lines }}
+        IGNORE: ${{ inputs.ignore_globs }}
+        BASE: ${{ github.event.pull_request.base.sha }}
+        HEAD: ${{ github.event.pull_request.head.sha }}
+        SKIP: ${{ contains(github.event.pull_request.labels.*.name, inputs.skip_label) }}
+      run: |
+        excludes=(); for g in $IGNORE; do excludes+=(":(exclude,glob)$g"); done
+        n=$(git diff --numstat "$BASE...$HEAD" -- . "${excludes[@]}" | awk '$1!="-"{s+=$1+$2} END{print s+0}')
+        echo "changed_lines=$n" >> "$GITHUB_OUTPUT"
+        echo "### diff-check: $n changed lines (max $MAX)" >> "$GITHUB_STEP_SUMMARY"
+        if [ "$n" -gt "$MAX" ] && [ "$SKIP" != true ]; then
+          echo "::error::PR changes $n lines (> $MAX). Split it, or add the skip label."; exit 1
+        fi

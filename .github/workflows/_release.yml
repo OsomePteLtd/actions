@@ -1,0 +1,29 @@
+# Manual: tag vX.Y.Z on master and move the vX major tag. Run only with cjyumul go-ahead.
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      version: { description: 'Semver, e.g. 1.0.0', required: true, type: string }
+permissions: {}
+concurrency: { group: release, cancel-in-progress: false }
+jobs:
+  tag:
+    name: Tag release
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: { contents: write }
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with: { fetch-depth: 0 }
+      - env: { VERSION: "${{ inputs.version }}" }
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::bad version"; exit 1; }
+          git rev-parse "v$VERSION" >/dev/null 2>&1 && { echo "::error::v$VERSION exists"; exit 1; }
+          major="v${VERSION%%.*}"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git tag -a "v$VERSION" -m "v$VERSION"
+          git tag -fa "$major" -m "$major -> v$VERSION"
+          git push origin "v$VERSION"
+          git push origin "refs/tags/$major" --force   # only the major tag ever moves

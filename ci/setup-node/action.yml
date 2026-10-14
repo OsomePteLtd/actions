@@ -1,0 +1,40 @@
+name: setup-node
+description: .nvmrc -> setup-node -> registry auth -> install. Replaces the block repeated in shiva default.yml:68-87,178-192,224-238 and deploy.yml:198-212.
+inputs:
+  node_version_file: { description: Node version file, default: .nvmrc }
+  install:
+    description: "ci = npm ci | guard = npm install + fail if package-lock.json changes (SV:78-87, SC:89-98) | none"
+    default: ci
+  cache: { description: "setup-node cache ('' disables)", default: npm }
+  github_packages_token: { description: Token for npm.pkg.github.com (OSOME_BOT_TOKEN), required: true }
+  npmjs_token: { description: Read-only npmjs token (NPMJS_KEY_READ_ONLY), required: true }
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      with:
+        node-version-file: ${{ inputs.node_version_file }}
+        cache: ${{ inputs.cache }}
+    - name: Registry auth
+      shell: bash
+      env:
+        GH_PKG_TOKEN: ${{ inputs.github_packages_token }}
+        NPMJS_TOKEN: ${{ inputs.npmjs_token }}
+      run: |
+        printf '//npm.pkg.github.com/:_authToken=%s\n' "$GH_PKG_TOKEN" >> ~/.npmrc
+        printf '//registry.npmjs.org/:_authToken=%s\n' "$NPMJS_TOKEN" >> ~/.npmrc
+    - name: Install (${{ inputs.install }})
+      if: inputs.install != 'none'
+      shell: bash
+      env:
+        MODE: ${{ inputs.install }}
+      run: |
+        if [ "$MODE" = guard ]; then
+          cp package-lock.json package-lock.json.orig
+          npm install
+          if ! diff --color=always package-lock.json.orig package-lock.json; then
+            echo "::error::package-lock.json changed, failing build"; exit 1
+          fi
+        else
+          npm ci
+        fi
