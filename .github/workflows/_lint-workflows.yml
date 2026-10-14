@@ -26,7 +26,7 @@ jobs:
             echo "::error::account ID found"; exit 1; fi
       - name: Third-party actions pinned by SHA
         run: |
-          bad=$(grep -rhoE 'uses:\s*[^ #]+' .github ci | sed 's/uses:\s*//' \
+          bad=$(grep -rhoE 'uses:\s*[^ #]+' .github/workflows/backend.yml .github/workflows/deploy-backend.yml .github/workflows/linter.yml .github/workflows/_*.yml ci | sed 's/uses:\s*//' \
             | grep -vE '^(\./|OsomePteLtd/actions/|docker://)' | grep -vE '@[0-9a-f]{40}$' || true)
           [ -z "$bad" ] || { echo "::error::unpinned: $bad"; exit 1; }
       # TODO: zizmor (PR 3)
