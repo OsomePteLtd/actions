@@ -59,7 +59,7 @@ jobs:
     environment: ${{ inputs.use_environment && needs.resolve.outputs.stage || '' }}
     permissions: {"contents": "read", "id-token": "write"}
     steps:
-      - uses: OsomePteLtd/actions/ci/serverless-deploy@cursor/simplify-backend-ci-cb4f  # TEMP: revert to @v1 before tagging v1
+      - uses: OsomePteLtd/actions/ci/serverless-deploy@v1
         with:
           stage: ${{ needs.resolve.outputs.stage }}
           role_arn: ${{ needs.resolve.outputs.stage == 'production' && inputs.prod_role_arn || inputs.nonprod_role_arn }}
@@ -80,7 +80,7 @@ jobs:
     steps:
       - name: Changelog to Slack (production)
         if: needs.resolve.outputs.stage == 'production' && needs.deploy.result == 'success' && inputs.changelog_slack_channel != ''
-        uses: OsomePteLtd/actions/packages/changelog@master  # TEMP: @v1 after first release
+        uses: OsomePteLtd/actions/packages/changelog@v1
         with:
           jira-host: ${{ secrets.JIRA_SITE }}
           jira-username: ${{ secrets.JIRA_USERNAME }}
@@ -129,7 +129,7 @@ jobs:
       lastVersion: ${{ steps.v.outputs.lastVersion }}
     steps:
       - id: v
-        uses: OsomePteLtd/actions/packages/check-last-version@master  # TEMP: @v1 after first release
+        uses: OsomePteLtd/actions/packages/check-last-version@v1
         with:
           token: ${{ secrets.OSOME_BOT_TOKEN }}
           repo: ${{ github.event.repository.name }}

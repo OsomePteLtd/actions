@@ -14,9 +14,9 @@ runs:
   steps:
     - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       with: {"persist-credentials": false}
-    - uses: OsomePteLtd/actions/ci/aws-auth@cursor/simplify-backend-ci-cb4f  # TEMP: revert to @v1 before tagging v1
+    - uses: OsomePteLtd/actions/ci/aws-auth@v1
       with: {"role_arn": "${{ inputs.role_arn }}", "region": "${{ inputs.aws_region }}"}
-    - uses: OsomePteLtd/actions/ci/setup-node@cursor/simplify-backend-ci-cb4f  # TEMP: revert to @v1 before tagging v1
+    - uses: OsomePteLtd/actions/ci/setup-node@v1
       with:
         node_version_file: ${{ inputs.node_version_file }}
         github_packages_token: ${{ inputs.github_packages_token }}
