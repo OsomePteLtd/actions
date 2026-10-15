@@ -1,0 +1,32 @@
+name: Lint workflows
+on:
+  pull_request:
+    paths: ['.github/**', 'ci/**', 'examples/**']
+permissions: {}
+jobs:
+  lint:
+    name: actionlint + guards
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {"contents": "read"}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with: {"persist-credentials": false}
+      - name: actionlint 1.7.12 (pinned sha256)
+        run: |
+          tgz=actionlint_1.7.12_linux_amd64.tar.gz
+          curl -sSfLO "https://github.com/rhysd/actionlint/releases/download/v1.7.12/$tgz"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $tgz" | sha256sum -c -
+          tar xzf "$tgz" actionlint
+          # template files only; legacy default.yml (checkout@v3) is out of scope
+          ./actionlint -color .github/workflows/backend.yml .github/workflows/deploy-backend.yml .github/workflows/linter.yml .github/workflows/_*.yml
+      - name: No AWS account IDs (public repo)
+        run: |
+          if grep -rnE 'arn:aws:[a-z0-9-]+:[a-z0-9-]*:[0-9]{12}:' .github ci examples docs; then
+            echo "::error::account ID found"; exit 1; fi
+      - name: Third-party actions pinned by SHA
+        run: |
+          bad=$(grep -rhoE '^\s*-?\s*uses:\s*[^ #]+' .github/workflows/backend.yml .github/workflows/deploy-backend.yml .github/workflows/linter.yml .github/workflows/_*.yml ci | sed -E 's/.*uses:\s*//' \
+            | grep -vE '^(\./|OsomePteLtd/actions/|docker://)' | grep -vE '@[0-9a-f]{40}$' || true)
+          [ -z "$bad" ] || { echo "::error::unpinned: $bad"; exit 1; }
+      # TODO: zizmor (PR 3)

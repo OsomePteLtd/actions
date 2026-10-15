@@ -1,0 +1,40 @@
+name: terraform-lint
+description: terraform fmt -check, init -backend=false + validate, tflint. Skips cleanly when the repo has no .tf files.
+inputs:
+  dirs: {"description": "Space-separated root dirs; '' = every dir that contains *.tf", "default": ""}
+  terraform_version: {"default": "latest"}   # TODO: pin to the team's version (unknown)
+  tflint_version: {"default": "latest"}      # TODO: pin (unknown)
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with: {"persist-credentials": false}
+    - id: find
+      shell: bash
+      env: {"DIRS": "${{ inputs.dirs }}"}
+      run: |
+        if [ -z "$DIRS" ]; then
+          DIRS=$(find . -name '*.tf' -not -path '*/.terraform/*' -printf '%h\n' | sort -u | tr '\n' ' ')
+        fi
+        echo "dirs=$DIRS" >> "$GITHUB_OUTPUT"
+        if [ -z "${DIRS// }" ]; then echo "### terraform-lint: no .tf files, skipped" >> "$GITHUB_STEP_SUMMARY"; fi
+    - if: steps.find.outputs.dirs != ''
+      uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+      with: {"terraform_version": "${{ inputs.terraform_version }}", "terraform_wrapper": false}
+    - if: steps.find.outputs.dirs != ''
+      uses: terraform-linters/setup-tflint@6ffdbaa3be476b3431f7275c26966ef32ff60337 # v6.3.2
+      with: {"tflint_version": "${{ inputs.tflint_version }}"}
+    - if: steps.find.outputs.dirs != ''
+      shell: bash
+      env: {"DIRS": "${{ steps.find.outputs.dirs }}"}
+      run: |
+        status=0
+        for d in $DIRS; do
+          echo "::group::$d"
+          terraform -chdir="$d" fmt -check -diff || { echo "::error::fmt: $d"; status=1; }
+          terraform -chdir="$d" init -backend=false -input=false -no-color >/dev/null || { echo "::error::init: $d"; status=1; continue; }
+          terraform -chdir="$d" validate -no-color || { echo "::error::validate: $d"; status=1; }
+          (cd "$d" && tflint --init && tflint --format compact) || { echo "::error::tflint: $d"; status=1; }
+          echo "::endgroup::"
+        done
+        exit "$status"

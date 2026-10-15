@@ -1,0 +1,56 @@
+# packages/setup-runtime — the only new composite.
+# Replaces the read-nvmrc + setup-node + .npmrc block repeated in every backend CI job.
+name: 'Setup runtime'
+description: 'Install a language runtime from a version file, with dependency caching and registry auth'
+inputs:
+  runtime:
+    description: 'node | python | go | java'
+    default: 'node'
+  version-file:
+    description: 'e.g. .nvmrc, .python-version, go.mod, .java-version'
+    default: '.nvmrc'
+  github-packages-token:
+    description: 'Token for npm.pkg.github.com (node only)'
+    default: ''
+  npmjs-token:
+    description: 'Read-only token for registry.npmjs.org (node only)'
+    default: ''
+runs:
+  using: 'composite'
+  steps:
+    - if: inputs.runtime == 'node'
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      with:
+        node-version-file: ${{ inputs.version-file }}
+        cache: 'npm'
+    - if: inputs.runtime == 'node'
+      shell: bash
+      env:
+        GH_PKG: ${{ inputs.github-packages-token }}
+        NPMJS: ${{ inputs.npmjs-token }}
+      run: |
+        [ -n "$GH_PKG" ] && echo "//npm.pkg.github.com/:_authToken=$GH_PKG" >> ~/.npmrc
+        [ -n "$NPMJS" ] && echo "//registry.npmjs.org/:_authToken=$NPMJS" >> ~/.npmrc
+        true
+    - if: inputs.runtime == 'python'
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      with:
+        python-version-file: ${{ inputs.version-file }}
+        cache: 'pip'
+    - if: inputs.runtime == 'go'
+      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+      with:
+        go-version-file: ${{ inputs.version-file }}
+    - if: inputs.runtime == 'java'
+      uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+      with:
+        distribution: 'temurin'
+        java-version-file: ${{ inputs.version-file }}
+        cache: 'gradle'
+    - if: ${{ !contains(fromJSON('["node","python","go","java"]'), inputs.runtime) }}
+      shell: bash
+      env:
+        RUNTIME: ${{ inputs.runtime }}
+      run: |
+        echo "::error::unsupported runtime $RUNTIME"
+        exit 1

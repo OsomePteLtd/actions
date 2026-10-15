@@ -1,439 +1,253 @@
-# Backend CI — shared workflow for Osome serverless backends.
-#
-# Owns the setup -> static-checks -> tests -> report-coverage -> deploy skeleton
-# that shiva, roberto, hermes, scrooge, billy, invoker, ... each hand-write today.
-# A repo consumes it with a ~20-line caller:
-#
-#   jobs:
-#     ci:
-#       uses: OsomePteLtd/actions/.github/workflows/backend.yml@master
-#       with:
-#         shards: '[1, 2, 3, 4, 5, 6]'
-#         services_registry: osomecache.azurecr.io/
-#         db_name: shiva-test
-#       secrets: inherit
-#
-# Repo-specific quality gates (type-check, lint, spell, ...) stay in the repo's
-# package.json scripts; this workflow owns only the harness around them, plus
-# npm + jest caching so the shared install/test path is fast for every backend.
+# Backend CI skeleton. Owns order, needs/if, services, matrix, permissions,
+# timeouts, runners. Steps live in ci/<stage>/action.yml. Callers pass values.
+# changes -> setup -> checks + diff-check + lint (linter.yml) -> tests(N) -> coverage
+#   -> deploy-trigger -> ci-status (always)
+# Path rules (PRs only; every other event = full): see docs/backend-ci/README.md
 name: Backend CI
 
 on:
   workflow_call:
     inputs:
-      shards:
-        description: 'JSON array of unit-test shard numbers, e.g. "[1,2,3]" or "[1,2,3,4,5,6]". GitHub Actions has no range() function, so this is passed explicitly.'
-        type: string
-        required: false
-        default: '[1, 2, 3]'
-      services_registry:
-        description: 'Registry prefix for postgres/redis service images (e.g. osomecache.azurecr.io/). When set, the images become <prefix>postgres:16 and <prefix>redis:7 - the tags core already pulls from that cache. Empty = postgres_image / redis_image below, which track the exact prod minors.'
-        type: string
-        required: false
-        default: ''
-      postgres_image:
-        description: 'Postgres service image when services_registry is empty. Default matches prod: 19 of 22 prod Aurora clusters run aurora-postgresql 16.11. Override for the exceptions (hero and pablo are on 15.15, database-1 on 17.7).'
-        type: string
-        required: false
-        default: 'postgres:16.11'
-      redis_image:
-        description: 'Redis service image when services_registry is empty. Default matches prod ElastiCache 7.0.7 (both prod clusters).'
-        type: string
-        required: false
-        default: 'redis:7.0.7'
-      db_name:
-        description: 'POSTGRES_DB name for the test database'
-        type: string
-        required: false
-        default: 'app-test'
-      aws_region:
-        description: 'AWS region'
-        type: string
-        required: false
-        default: 'us-east-1'
-      dev_role_arn:
-        description: 'IAM role to assume for CI (OIDC)'
-        type: string
-        required: false
-        default: 'arn:aws:iam::664258603548:role/github-deployer-nokms'
-      run_iam_check:
-        description: 'Run the check-iam-wildcards gate in static-checks'
-        type: boolean
-        required: false
-        default: true
-      static_check_scripts:
-        description: 'Newline- or space-separated list of npm scripts to run as static checks, in order.'
-        type: string
-        required: false
-        default: |
-          unused-exports
-          type-check
-          lint
-          depcheck
-          type-coverage
-          spell
-      build_script:
-        description: 'npm script that produces the serverless bundle'
-        type: string
-        required: false
-        default: 'build'
-      test_script:
-        description: 'npm script that runs sharded tests (receives --shard=N/total)'
-        type: string
-        required: false
-        default: 'test:ci'
-      migrate_script:
-        description: 'npm script that migrates the test database before tests'
-        type: string
-        required: false
-        default: 'db:migrate:test'
-      enable_sharding:
-        description: 'pass --shard=N/total to the test script. false = one unsharded run (set shards to "[1]" too)'
-        type: boolean
-        required: false
-        default: true
-      run_diff_check:
-        description: 'run the branch-size diff check (needs bin/checkBranchDiff.js in the repo)'
-        type: boolean
-        required: false
-        default: true
-      diff_check_script:
-        description: 'path to the branch diff check script'
-        type: string
-        required: false
-        default: 'bin/checkBranchDiff.js'
-      # --- Runner tiers (smart defaults; tier by what the job DOES) ---
-      # Profiled on shiva (14d): setup 4s, report-coverage 13s, deploy ~0s → light.
-      # static-checks 95s (build+lint) and tests 76-85s/shard (pg+redis) → heavy.
-      light_runner:
-        description: 'Tier for near-zero jobs: setup, report-coverage, deploy'
-        type: string
-        required: false
-        default: 'arc-runner-light'
-      heavy_runner:
-        description: 'Tier for compute jobs: static-checks, tests'
-        type: string
-        required: false
-        default: 'arc-runner-heavy'
-    # No `secrets:` block: the caller passes `secrets: inherit`, and this workflow
-    # reads the org-standard secrets (OSOME_BOT_TOKEN, NPMJS_KEY_READ_ONLY,
-    # DOCKER_CACHE_USER/PASSWORD) directly.
+      node_version_file: {"type": "string", "default": ".nvmrc"}
+      light_runner: {"type": "string", "default": "arc-runner-light"}
+      heavy_runner: {"type": "string", "default": "arc-runner-heavy"}
+      test_runner: {"type": "string", "default": "", "description": "Runner for tests; '' = heavy_runner (scrooge SC:123)"}
+      aws_region: {"type": "string", "default": "us-east-1"}
+      ci_role_arn: {"type": "string", "required": true, "description": "OIDC role for checks/tests. No default: public repo."}
+      default_branch: {"type": "string", "default": "main"}
+      # changes (path rules)
+      code_globs: {"type": "string", "default": "", "description": "'' = ci/changes default"}
+      infra_globs: {"type": "string", "default": ""}
+      workflows_globs: {"type": "string", "default": ""}
+      docs_globs: {"type": "string", "default": ""}
+      terraform_dirs: {"type": "string", "default": "", "description": "'' = auto-discover *.tf"}
+      pr_lint: {"type": "boolean", "default": false, "description": "Run pr-lint inside CI (repos keep their own pr-lint for edited/labeled events)"}
+      # setup
+      with_transient: {"type": "boolean", "default": false}
+      combine_dependabot: {"type": "boolean", "default": false}
+      # checks
+      static_scripts: {"type": "string", "required": true, "description": "Whitespace-separated npm scripts"}
+      build_script: {"type": "string", "default": "build"}
+      lockfile_guard: {"type": "boolean", "default": true}
+      iam_check: {"type": "boolean", "default": true}
+      migration_guard: {"type": "boolean", "default": true}
+      serverless_license: {"type": "boolean", "default": true}
+      # diff-check
+      diff_max_lines: {"type": "number", "default": 0, "description": "0 = off"}
+      diff_skip_label: {"type": "string", "default": "allow-large-diff"}
+      # tests
+      shards: {"type": "number", "default": 1}
+      migrate_script: {"type": "string", "default": "db:migrate:test"}
+      test_script: {"type": "string", "default": "test:ci"}
+      registry: {"type": "string", "default": "osomecache.azurecr.io"}
+      postgres_image: {"type": "string", "default": "postgres:16.11"}
+      redis_image: {"type": "string", "default": "redis:7.0.7"}
+      db_name: {"type": "string", "default": "", "description": "default <repo>-test"}
+      # coverage
+      coverage: {"type": "boolean", "default": true}
+    secrets:
+      OSOME_BOT_TOKEN: {"required": true}
+      NPMJS_KEY_READ_ONLY: {"required": true}
+      DOCKER_CACHE_USER: {"required": true}
+      DOCKER_CACHE_PASSWORD: {"required": true}
+    outputs:
+      stages: {"value": "${{ jobs.setup.outputs.stages }}"}
+      run_checks: {"value": "${{ jobs.setup.outputs.run_checks }}"}
 
-# One workflow-level concurrency group replaces per-repo copies, and the
-# skip-guard (`if:` on tags/main) is lifted to the job level ONCE here instead of
-# being duplicated on every job in every repo.
+# PRs: superseded runs cancelled. Tags/main/dispatch: keyed by run_id, never cancelled.
 concurrency:
-  group: backend-ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: backend-ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-env:
-  AWS_REGION: ${{ inputs.aws_region }}
+permissions: {}
 
 jobs:
+  changes:
+    name: Changes
+    runs-on: ${{ inputs.light_runner }}
+    timeout-minutes: 5
+    permissions: {"contents": "read"}
+    outputs:
+      code: ${{ steps.c.outputs.code }}
+      infra: ${{ steps.c.outputs.infra }}
+      workflows: ${{ steps.c.outputs.workflows }}
+      docs: ${{ steps.c.outputs.docs }}
+    steps:
+      - id: c
+        uses: OsomePteLtd/actions/ci/changes@cursor/simplify-backend-ci-cb4f  # TEMP: revert to @v1 before tagging v1
+        with:
+          # '' -> the action's built-in default
+          code_globs: ${{ inputs.code_globs }}
+          infra_globs: ${{ inputs.infra_globs }}
+          workflows_globs: ${{ inputs.workflows_globs }}
+          docs_globs: ${{ inputs.docs_globs }}
+
   setup:
     name: Set up
     runs-on: ${{ inputs.light_runner }}
-    timeout-minutes: 10
+    timeout-minutes: 5
+    permissions: {"contents": "read"}
     outputs:
-      stages: ${{ steps.stages.outputs.stages }}
+      stages: ${{ steps.s.outputs.stages }}
+      run_checks: ${{ steps.s.outputs.run_checks }}
+      shard_list: ${{ steps.s.outputs.shard_list }}
     steps:
-      - name: Get deployment stages
-        uses: osomepteltd/actions/packages/get-deployment-stages@master
-        id: stages
+      - id: s
+        uses: OsomePteLtd/actions/ci/setup@cursor/simplify-backend-ci-cb4f  # TEMP: revert to @v1 before tagging v1
         with:
-          with-transient: false
+          with_transient: ${{ inputs.with_transient }}
+          combine_dependabot: ${{ inputs.combine_dependabot }}
+          node_version_file: ${{ inputs.node_version_file }}
+          shards: ${{ inputs.shards }}
+          default_branch: ${{ inputs.default_branch }}
+          token: ${{ secrets.OSOME_BOT_TOKEN }}
 
-  static-checks:
+  checks:
     name: Static checks
-    # Skeleton-level skip guard: only run the PR gates on real PRs / merge groups,
-    # not on tag pushes or main. Lifting this here removes the duplicated per-job
-    # `if:` guards that produced ~35% skipped-job noise org-wide.
-    if: ${{ !contains(github.ref, 'refs/tags/') && !contains(github.ref, 'refs/heads/main') }}
-    needs: setup
+    needs: [changes, setup]
+    if: needs.setup.outputs.run_checks == 'true' && (needs.changes.outputs.code == 'true' || needs.changes.outputs.workflows == 'true')
     runs-on: ${{ inputs.heavy_runner }}
-    timeout-minutes: 15
-    permissions:
-      id-token: write
-      contents: read
-      pull-requests: read
-      deployments: write
+    timeout-minutes: 20
+    permissions: {"contents": "read", "id-token": "write", "pull-requests": "read"}
     steps:
-      - name: Check if PR contains both code and migrations
-        uses: osomepteltd/actions/packages/fail-on-code-and-migrations@master
-
-      - name: Load current commit
-        uses: actions/checkout@v4
+      - uses: OsomePteLtd/actions/ci/checks@cursor/simplify-backend-ci-cb4f  # TEMP: revert to @v1 before tagging v1
         with:
-          ref: ${{ github.ref }}
-          fetch-depth: 1
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
-        with:
-          role-to-assume: ${{ inputs.dev_role_arn }}
-          role-session-name: ${{ github.repository.id }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Read nvmrc
-        id: read-nvmrc
-        run: echo "version=$(cat .nvmrc)" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ steps.read-nvmrc.outputs.version }}
-          # Cache the npm download cache (~/.npm), keyed on package-lock.json.
-          # Restores regardless of registry auth (auth is injected below), so
-          # every job skips re-downloading unchanged deps.
-          cache: 'npm'
-
-      - name: Install dependencies and check package-lock.json
-        run: |
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.OSOME_BOT_TOKEN }}" >> ~/.npmrc
-          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPMJS_KEY_READ_ONLY }}" >> ~/.npmrc
-          cp package-lock.json package-lock.json.orig
-          npm install
-          if ! diff --color=always package-lock.json.orig package-lock.json ; then
-            echo "package-lock.json changed, failing build"
-            exit 1
-          fi
-        shell: bash
-
-      - name: Run static checks
-        # Pass the script list via env (not inline expansion) so newlines and
-        # spaces are both handled safely and there's no shell-injection surface.
-        # `xargs -n1` splits on any whitespace incl. newlines into one script/line.
-        env:
-          STATIC_CHECK_SCRIPTS: ${{ inputs.static_check_scripts }}
-        run: |
-          echo "$STATIC_CHECK_SCRIPTS" | xargs -n1 | while read -r script; do
-            [ -z "$script" ] && continue
-            echo "::group::npm run $script"
-            npm run "$script"
-            echo "::endgroup::"
-          done
-        shell: bash
-
-      - name: Check iam wildcards
-        if: ${{ inputs.run_iam_check }}
-        uses: osomepteltd/actions/packages/check-iam-wildcards@master
-        with:
-          project_name: '${{ github.event.repository.name }}'
-
-      - name: Set Serverless License Key
-        run: |
-          LICENSE=$(aws ssm get-parameter --name '/ServerlessFramework/license' --with-decryption --query 'Parameter.Value' --output text)
-          echo "::add-mask::$LICENSE"
-          echo "SERVERLESS_LICENSE_KEY=$LICENSE" >> $GITHUB_ENV
-        shell: bash
-
-      - name: Try to create a bundle
-        run: npm run "$BUILD_SCRIPT"
-        shell: bash
-        env:
-          BUILD_SCRIPT: ${{ inputs.build_script }}
+          static_scripts: ${{ inputs.static_scripts }}
+          build_script: ${{ inputs.build_script }}
+          lockfile_guard: ${{ inputs.lockfile_guard }}
+          iam_check: ${{ inputs.iam_check }}
+          migration_guard: ${{ inputs.migration_guard }}
+          serverless_license: ${{ inputs.serverless_license }}
+          role_arn: ${{ inputs.ci_role_arn }}
+          aws_region: ${{ inputs.aws_region }}
+          node_version_file: ${{ inputs.node_version_file }}
+          github_packages_token: ${{ secrets.OSOME_BOT_TOKEN }}
+          npmjs_token: ${{ secrets.NPMJS_KEY_READ_ONLY }}
 
   diff-check:
-    name: Git diff check
-    # Same skeleton-level skip guard as static-checks. Opt out with run_diff_check: false
-    # if the repo has no bin/checkBranchDiff.js.
-    if: ${{ inputs.run_diff_check && !contains(github.ref, 'refs/tags/') && !contains(github.ref, 'refs/heads/main') }}
-    needs: setup
+    name: Diff size
+    needs: [changes, setup]
+    if: needs.setup.outputs.run_checks == 'true' && needs.changes.outputs.code == 'true' && inputs.diff_max_lines > 0
     runs-on: ${{ inputs.light_runner }}
-    timeout-minutes: 10
-
+    timeout-minutes: 5
+    permissions: {"contents": "read", "pull-requests": "read"}
     steps:
-      - name: Load current commit
-        uses: actions/checkout@v6
+      - uses: OsomePteLtd/actions/ci/diff-check@cursor/simplify-backend-ci-cb4f  # TEMP: revert to @v1 before tagging v1
         with:
-          ref: ${{ github.ref }}
-
-      - name: Check diff
-        run: node "$DIFF_SCRIPT" "$MAX_LINES"
-        shell: bash
-        env:
-          DIFF_SCRIPT: ${{ inputs.diff_check_script }}
-          MAX_LINES: ${{ vars.MAX_LINES_DIFF_BACKEND || 500 }}
+          max_lines: ${{ inputs.diff_max_lines }}
+          skip_label: ${{ inputs.diff_skip_label }}
 
   tests:
-    name: Unit tests
-    if: ${{ !contains(github.ref, 'refs/tags/') && !contains(github.ref, 'refs/heads/main') }}
-    needs: setup
-    runs-on: ${{ inputs.heavy_runner }}
+    name: Unit tests ${{ matrix.shard }}/${{ inputs.shards }}
+    needs: [changes, setup]
+    if: needs.setup.outputs.run_checks == 'true' && needs.changes.outputs.code == 'true'
+    runs-on: ${{ inputs.test_runner || inputs.heavy_runner }}
     timeout-minutes: 30
-    permissions:
-      id-token: write
-      contents: read
-      pull-requests: read
-      deployments: write
+    permissions: {"contents": "read", "id-token": "write"}
     env:
-      STAGE: test
-    services:
-      postgres:
-        image: ${{ inputs.services_registry != '' && format('{0}postgres:16', inputs.services_registry) || inputs.postgres_image }}
-        credentials:
-          username: ${{ secrets.DOCKER_CACHE_USER }}
-          password: ${{ secrets.DOCKER_CACHE_PASSWORD }}
-        env:
-          POSTGRES_USER: user
-          POSTGRES_PASSWORD: password
-          POSTGRES_DB: ${{ inputs.db_name }}
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-      redis:
-        image: ${{ inputs.services_registry != '' && format('{0}redis:7', inputs.services_registry) || inputs.redis_image }}
-        credentials:
-          username: ${{ secrets.DOCKER_CACHE_USER }}
-          password: ${{ secrets.DOCKER_CACHE_PASSWORD }}
-        ports:
-          - 6379:6379
+      STAGE: test # SV:133, SC:131
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJson(inputs.shards) }}
+        shard: ${{ fromJSON(needs.setup.outputs.shard_list) }}
+    services:
+      postgres:
+        image: ${{ inputs.registry }}/${{ inputs.postgres_image }}
+        credentials:
+          username: ${{ secrets.DOCKER_CACHE_USER }}
+          password: ${{ secrets.DOCKER_CACHE_PASSWORD }}
+        env:
+          POSTGRES_USER: user          # local test creds, same as SV:142-144
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: ${{ inputs.db_name || format('{0}-test', github.event.repository.name) }}
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+        ports: ['5432:5432']
+      redis:
+        image: ${{ inputs.registry }}/${{ inputs.redis_image }}
+        credentials:
+          username: ${{ secrets.DOCKER_CACHE_USER }}
+          password: ${{ secrets.DOCKER_CACHE_PASSWORD }}
+        ports: ['6379:6379']
     steps:
-      - name: Load current commit
-        uses: actions/checkout@v4
+      - uses: OsomePteLtd/actions/ci/tests@cursor/simplify-backend-ci-cb4f  # TEMP: revert to @v1 before tagging v1
         with:
-          ref: ${{ github.ref }}
-          fetch-depth: 1
+          shard: ${{ matrix.shard }}
+          shards: ${{ inputs.shards }}
+          migrate_script: ${{ inputs.migrate_script }}
+          test_script: ${{ inputs.test_script }}
+          coverage: ${{ inputs.coverage }}
+          role_arn: ${{ inputs.ci_role_arn }}
+          aws_region: ${{ inputs.aws_region }}
+          node_version_file: ${{ inputs.node_version_file }}
+          github_packages_token: ${{ secrets.OSOME_BOT_TOKEN }}
+          npmjs_token: ${{ secrets.NPMJS_KEY_READ_ONLY }}
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
-        with:
-          role-to-assume: ${{ inputs.dev_role_arn }}
-          role-session-name: ${{ github.repository.id }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Read nvmrc
-        id: read-nvmrc
-        run: echo "version=$(cat .nvmrc)" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ steps.read-nvmrc.outputs.version }}
-          # Cache the npm download cache (~/.npm), keyed on package-lock.json.
-          # Restores regardless of registry auth (auth is injected below), so
-          # every job skips re-downloading unchanged deps.
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: |
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.OSOME_BOT_TOKEN }}" >> ~/.npmrc
-          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPMJS_KEY_READ_ONLY }}" >> ~/.npmrc
-          npm ci
-        shell: bash
-
-      - name: Migrate database
-        run: npm run "$MIGRATE_SCRIPT"
-        shell: bash
-        env:
-          MIGRATE_SCRIPT: ${{ inputs.migrate_script }}
-
-      - name: Run unit tests
-        run: |
-          if [ "$ENABLE_SHARDING" = "true" ]; then
-            npm run "$TEST_SCRIPT" -- --shard="$SHARD/$SHARD_TOTAL"
-          else
-            npm run "$TEST_SCRIPT"
-          fi
-        shell: bash
-        env:
-          TEST_SCRIPT: ${{ inputs.test_script }}
-          ENABLE_SHARDING: ${{ inputs.enable_sharding }}
-          SHARD: ${{ matrix.shard }}
-          SHARD_TOTAL: ${{ strategy.job-total }}
-
-      - name: Move coverage to dedicated folder
-        run: mv coverage/coverage-final.json coverage/${{ matrix.shard }}.json
-        shell: bash
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: coverage-artifacts-${{ matrix.shard }}
-          path: coverage/
-
-  report-coverage:
+  coverage:
     name: Report coverage
+    needs: [setup, tests]
+    # SV:211 skips dependabot; runs only when tests ran and passed
+    if: needs.tests.result == 'success' && inputs.coverage && github.actor != 'dependabot[bot]'
     runs-on: ${{ inputs.light_runner }}
-    timeout-minutes: 15
-    if: ${{ github.actor != 'dependabot[bot]' }}
-    needs: [tests]
-    env:
-      COVERAGE_FOLDER: ./coverage/
-      SUMMARY_DEST: ./coverage/coverage-summary.json
+    timeout-minutes: 10
+    permissions: {"contents": "read"}
     steps:
-      - name: Load current commit
-        uses: actions/checkout@v4
+      - uses: OsomePteLtd/actions/ci/coverage@cursor/simplify-backend-ci-cb4f  # TEMP: revert to @v1 before tagging v1
         with:
-          ref: ${{ github.ref }}
-          fetch-depth: 1
+          node_version_file: ${{ inputs.node_version_file }}
+          github_packages_token: ${{ secrets.OSOME_BOT_TOKEN }}
+          npmjs_token: ${{ secrets.NPMJS_KEY_READ_ONLY }}
 
-      - name: Read nvmrc
-        id: read-nvmrc
-        run: echo "version=$(cat .nvmrc)" >> $GITHUB_OUTPUT
-        shell: bash
+  lint:
+    name: Lint
+    needs: [changes, setup]
+    if: >-
+      needs.setup.outputs.run_checks == 'true' &&
+      (needs.changes.outputs.workflows == 'true' || needs.changes.outputs.infra == 'true' || inputs.pr_lint)
+    permissions: {"contents": "read", "pull-requests": "read"}
+    uses: OsomePteLtd/actions/.github/workflows/linter.yml@cursor/simplify-backend-ci-cb4f  # TEMP: revert to @v1 before tagging v1
+    with:
+      runner: ${{ inputs.light_runner }}
+      pr_lint: ${{ inputs.pr_lint }}
+      workflows: ${{ needs.changes.outputs.workflows == 'true' }}
+      infra: ${{ needs.changes.outputs.infra == 'true' }}
+      terraform_dirs: ${{ inputs.terraform_dirs }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ steps.read-nvmrc.outputs.version }}
-          # Cache the npm download cache (~/.npm), keyed on package-lock.json.
-          # Restores regardless of registry auth (auth is injected below), so
-          # every job skips re-downloading unchanged deps.
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: |
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.OSOME_BOT_TOKEN }}" >> ~/.npmrc
-          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPMJS_KEY_READ_ONLY }}" >> ~/.npmrc
-          npm ci
-        shell: bash
-
-      - name: Download coverage
-        uses: actions/download-artifact@v4
-        with:
-          pattern: coverage-artifacts-*
-          path: coverage
-          merge-multiple: true
-
-      - name: Check coverage
-        id: check-coverage
-        uses: osomepteltd/actions/packages/jest-coverage@master
-        with:
-          coverage-directory: ${{ env.COVERAGE_FOLDER }}
-          summary-destination: ${{ env.SUMMARY_DEST }}
-
-  deploy:
-    name: Deploy
-    needs:
-      - setup
-      - static-checks
-      - tests
+  deploy-trigger:
+    name: Deploy ${{ matrix.stage.name }}
+    needs: [setup, checks, diff-check, tests, lint]
+    # SV:261 / SC:214: deploy when stages exist and nothing failed; never on cancel or merge queue
+    if: >-
+      !cancelled() && github.event_name != 'merge_group' && needs.setup.result == 'success' &&
+      needs.setup.outputs.stages != '[]' && !contains(needs.*.result, 'failure')
     runs-on: ${{ inputs.light_runner }}
-    timeout-minutes: 30
-    if: ${{ !contains(needs.setup.outputs.stages, '[]') && always() && !(contains(needs.*.result, 'failure')) }}
+    timeout-minutes: 5
+    permissions: {} # record is created with OSOME_BOT_TOKEN
     strategy:
       matrix:
-        stage: ${{ fromJson(needs.setup.outputs.stages) }}
+        stage: ${{ fromJSON(needs.setup.outputs.stages) }}
+    concurrency:
+      group: deploy-record-${{ github.repository }}-${{ matrix.stage.name }}
+      cancel-in-progress: false
     steps:
-      - name: Deploy to ${{ matrix.stage.name }}
-        uses: bobheadxi/deployments@648679e8e4915b27893bd7dbc35cb504dc915bc8 # v1
+      - uses: OsomePteLtd/actions/ci/deploy-trigger@cursor/simplify-backend-ci-cb4f  # TEMP: revert to @v1 before tagging v1
         with:
-          step: start
+          stage: ${{ matrix.stage.name }}
           token: ${{ secrets.OSOME_BOT_TOKEN }}
-          env: ${{ matrix.stage.name }}
-          # github.head_ref is only set on pull_request events. get-deployment-stages
-          # can also return stages on tag/push/dispatch runs, where head_ref is empty
-          # and would create a broken deployment record — fall back to ref_name
-          # (the tag or branch name), which is always populated.
-          ref: ${{ github.head_ref || github.ref_name }}
-          override: true
+
+  ci-status:
+    name: CI status
+    needs: [changes, setup, checks, diff-check, tests, coverage, lint]
+    if: always()
+    runs-on: ${{ inputs.light_runner }}
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - uses: OsomePteLtd/actions/ci/status@cursor/simplify-backend-ci-cb4f  # TEMP: revert to @v1 before tagging v1
+        with:
+          results: ${{ toJSON(needs) }}
+          # gates the rules demanded; skip anywhere else = success
+          required_gates: >-
+            ${{ needs.setup.outputs.run_checks == 'true' && needs.changes.outputs.code == 'true' && 'checks tests' || '' }}
+            ${{ needs.setup.outputs.run_checks == 'true' && needs.changes.outputs.workflows == 'true' && 'checks lint' || '' }}
+            ${{ needs.setup.outputs.run_checks == 'true' && needs.changes.outputs.infra == 'true' && 'lint' || '' }}

@@ -1,0 +1,152 @@
+# Backend CD. Caller keeps `on: deployment`. Queued per env, never cancelled
+# (replaces packages/cancel-when-already-running, SD:54-66 / SA:70).
+name: Backend CD
+
+on:
+  workflow_call:
+    inputs:
+      env: {"type": "string", "default": "", "description": "Override target env (smoke.yml test-N). Default: deployment env."}
+      runner: {"type": "string", "default": "arc-runner-light"}
+      aws_region: {"type": "string", "default": "us-east-1"}
+      nonprod_role_arn: {"type": "string", "required": true}
+      prod_role_arn: {"type": "string", "required": true}
+      pre_functions: {"type": "string", "default": "migrate try-canary"}
+      package_artifact: {"type": "string", "default": ""}
+      use_environment: {"type": "boolean", "default": false, "description": "Bind deploy job to a GitHub environment (reviewers). Unverified with on: deployment."}
+      changelog_slack_channel: {"type": "string", "default": ""}
+      promote_to_production: {"type": "boolean", "default": true, "description": "stage success on main/tag -> production record (SD:263-276)"}
+      check_last_version: {"type": "boolean", "default": true, "description": "SD:278-309"}
+      node_version_file: {"type": "string", "default": ".nvmrc"}
+    secrets:
+      OSOME_BOT_TOKEN: {"required": true}
+      NPMJS_KEY_READ_ONLY: {"required": true}
+      JIRA_SITE: {"required": false}
+      JIRA_USERNAME: {"required": false}
+      JIRA_PASSWORD: {"required": false}
+      SLACK_TOKEN: {"required": false}
+
+concurrency:
+  group: deploy-${{ github.repository }}-${{ inputs.env || github.event.deployment.environment }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  resolve:
+    name: Resolve
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 5
+    permissions: {"contents": "read"}
+    outputs:
+      stage: ${{ steps.r.outputs.stage }}
+      version: ${{ steps.r.outputs.version }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with: {"persist-credentials": false}
+      - id: r
+        env:
+          STAGE: ${{ inputs.env || github.event.deployment.environment }}
+        run: |
+          [[ "$STAGE" =~ ^[a-z0-9-]+$ ]] || { echo "::error::bad stage '$STAGE'"; exit 1; }
+          echo "stage=$STAGE" >> "$GITHUB_OUTPUT"
+          echo "version=v$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Deploy to ${{ needs.resolve.outputs.stage }}
+    needs: resolve
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 45
+    environment: ${{ inputs.use_environment && needs.resolve.outputs.stage || '' }}
+    permissions: {"contents": "read", "id-token": "write"}
+    steps:
+      - uses: OsomePteLtd/actions/ci/serverless-deploy@cursor/simplify-backend-ci-cb4f  # TEMP: revert to @v1 before tagging v1
+        with:
+          stage: ${{ needs.resolve.outputs.stage }}
+          role_arn: ${{ needs.resolve.outputs.stage == 'production' && inputs.prod_role_arn || inputs.nonprod_role_arn }}
+          aws_region: ${{ inputs.aws_region }}
+          pre_functions: ${{ inputs.pre_functions }}
+          package_artifact: ${{ inputs.package_artifact }}
+          node_version_file: ${{ inputs.node_version_file }}
+          github_packages_token: ${{ secrets.OSOME_BOT_TOKEN }}
+          npmjs_token: ${{ secrets.NPMJS_KEY_READ_ONLY }}
+
+  notify:
+    name: Finish deployment
+    needs: [resolve, deploy]
+    if: always() && needs.resolve.result == 'success'
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 10
+    permissions: {"contents": "read"}
+    steps:
+      - name: Changelog to Slack (production)
+        if: needs.resolve.outputs.stage == 'production' && needs.deploy.result == 'success' && inputs.changelog_slack_channel != ''
+        uses: OsomePteLtd/actions/packages/changelog@master  # TEMP: @v1 after first release
+        with:
+          jira-host: ${{ secrets.JIRA_SITE }}
+          jira-username: ${{ secrets.JIRA_USERNAME }}
+          jira-password: ${{ secrets.JIRA_PASSWORD }}
+          token: ${{ secrets.OSOME_BOT_TOKEN }}
+          slack-channel: ${{ inputs.changelog_slack_channel }}
+          slack-token: ${{ secrets.SLACK_TOKEN }}
+      - name: Update deployment status
+        if: github.event_name == 'deployment'
+        uses: bobheadxi/deployments@648679e8e4915b27893bd7dbc35cb504dc915bc8 # v1.5.0
+        with:
+          step: finish
+          override: false
+          auto_inactive: true
+          token: ${{ secrets.OSOME_BOT_TOKEN }}
+          env: ${{ needs.resolve.outputs.stage }}
+          status: ${{ needs.deploy.result == 'skipped' && 'failure' || needs.deploy.result }}
+
+  promote:
+    name: Deploy to production
+    needs: [resolve, deploy]
+    if: >-
+      inputs.promote_to_production && needs.resolve.outputs.stage == 'stage' && needs.deploy.result == 'success' &&
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - uses: bobheadxi/deployments@648679e8e4915b27893bd7dbc35cb504dc915bc8 # v1.5.0
+        with:
+          step: start
+          token: ${{ secrets.OSOME_BOT_TOKEN }}
+          env: production
+          ref: ${{ needs.resolve.outputs.version }} # SD:275
+          override: true
+
+  last-version:
+    name: Check project last version
+    needs: [resolve, deploy]
+    if: inputs.check_last_version && needs.resolve.outputs.stage == 'stage'
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 5
+    permissions: {}
+    outputs:
+      deploy: ${{ steps.v.outputs.deploy }}
+      lastVersion: ${{ steps.v.outputs.lastVersion }}
+    steps:
+      - id: v
+        uses: OsomePteLtd/actions/packages/check-last-version@master  # TEMP: @v1 after first release
+        with:
+          token: ${{ secrets.OSOME_BOT_TOKEN }}
+          repo: ${{ github.event.repository.name }}
+          currentTag: ${{ needs.resolve.outputs.version }}
+
+  redeploy-stage:
+    name: Deploy to stage again
+    needs: last-version
+    if: needs.last-version.outputs.deploy == 'true'
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - uses: bobheadxi/deployments@648679e8e4915b27893bd7dbc35cb504dc915bc8 # v1.5.0
+        with:
+          step: start
+          token: ${{ secrets.OSOME_BOT_TOKEN }}
+          env: stage
+          ref: ${{ needs.last-version.outputs.lastVersion }}
+          override: true

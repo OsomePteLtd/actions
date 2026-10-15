@@ -1,0 +1,25 @@
+name: status
+description: >-
+  Single required check. skipped = success; any failure/cancelled = fail.
+  Guard: a gate the change-rules REQUIRED must be success (a skip there is a bug, not a pass).
+inputs:
+  results: {"description": "toJSON(needs)", "required": true}
+  required_gates: {"description": "Space-separated jobs that had to run (computed by the skeleton)", "default": ""}
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env: {"RESULTS": "${{ inputs.results }}", "REQUIRED": "${{ inputs.required_gates }}"}
+      run: |
+        status=0
+        { echo "| job | result |"; echo "|---|---|"; } >> "$GITHUB_STEP_SUMMARY"
+        while read -r job res; do
+          echo "| $job | $res |" >> "$GITHUB_STEP_SUMMARY"
+          case "$res" in failure|cancelled) echo "::error::$job: $res"; status=1 ;; esac
+        done < <(jq -r 'to_entries[] | "\(.key) \(.value.result)"' <<<"$RESULTS")
+        for g in changes setup $REQUIRED; do
+          r=$(jq -r --arg g "$g" '.[$g].result // "missing"' <<<"$RESULTS")
+          [ "$r" = success ] || { echo "::error::$g was required by the change rules; got '$r'"; status=1; }
+        done
+        echo "required: changes setup $REQUIRED" >> "$GITHUB_STEP_SUMMARY"
+        exit "$status"
