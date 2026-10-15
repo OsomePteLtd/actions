@@ -17,7 +17,7 @@ runs:
   steps:
     - name: Combine Dependabot PRs
       if: inputs.combine_dependabot == 'true' && contains(github.head_ref, 'dependabot/npm_and_yarn/osomepteltd/')
-      uses: OsomePteLtd/actions/packages/dependabot-combine@master  # TEMP: @v1 after first release
+      uses: OsomePteLtd/actions/packages/dependabot-combine@v1
       with:
         nvmrc: ${{ inputs.node_version_file }}
         pr_number: ${{ github.event.number }}
@@ -28,7 +28,7 @@ runs:
       id: stages
       # scrooge skips setup on merge_group (SC:33); we keep the job but emit [] there
       if: github.event_name != 'merge_group'
-      uses: OsomePteLtd/actions/packages/get-deployment-stages@master  # TEMP: @v1 after first release
+      uses: OsomePteLtd/actions/packages/get-deployment-stages@v1
       with:
         with-transient: ${{ inputs.with_transient }}
     - name: Decide gates and shards
