@@ -17,12 +17,12 @@ runs:
   steps:
     - name: Fail on code + migrations in one PR
       if: inputs.migration_guard == 'true' && github.event_name == 'pull_request'
-      uses: OsomePteLtd/actions/packages/fail-on-code-and-migrations@v1
+      uses: OsomePteLtd/actions/packages/fail-on-code-and-migrations@master
     - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       with: {"persist-credentials": false}
-    - uses: OsomePteLtd/actions/ci/aws-auth@v1
+    - uses: OsomePteLtd/actions/ci/aws-auth@master
       with: {"role_arn": "${{ inputs.role_arn }}", "region": "${{ inputs.aws_region }}"}
-    - uses: OsomePteLtd/actions/ci/setup-node@v1
+    - uses: OsomePteLtd/actions/ci/setup-node@master
       with:
         node_version_file: ${{ inputs.node_version_file }}
         install: ${{ inputs.lockfile_guard == 'true' && 'guard' || 'ci' }}
@@ -39,7 +39,7 @@ runs:
         done
     - name: IAM wildcards
       if: inputs.iam_check == 'true'
-      uses: OsomePteLtd/actions/packages/check-iam-wildcards@v1
+      uses: OsomePteLtd/actions/packages/check-iam-wildcards@master
       with:
         project_name: ${{ github.event.repository.name }}
     - name: Serverless license

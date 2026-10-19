@@ -1,6 +1,6 @@
 # Runs the skeleton against examples/fixture-backend (fixture lands in PR 3).
-# NOTE: backend.yml calls ci/*@v1, so a PR here tests the released v1 actions,
-# not the PR's ci/ changes. Unknown: best way to test unreleased ci/ (see TREE.md).
+# NOTE: backend.yml calls ci/*@master, so a PR here tests the ci/ actions already on master,
+# not the PR's ci/ changes (they apply once merged). Unknown: best way to test unreleased ci/ (see TREE.md).
 name: Template self-test
 on:
   pull_request:
