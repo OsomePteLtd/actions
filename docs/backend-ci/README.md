@@ -32,4 +32,4 @@ Unmatched file ⇒ code (fail safe). `src/x.md` matches docs + code ⇒ code.
 CD: `deploy-backend.yml`, queued per env (`cancel-in-progress: false`), never cancels.
 Use: copy `examples/shiva.yml`. Required: `ci_role_arn` (variable, no default), `static_scripts`, 4 secrets.
 Caller job grants `contents: read, id-token: write, pull-requests: read`. Required check: `ci / CI status`.
-Versioning `@v1` (moved by `_release.yml`). Rollback: revert caller PR or pin a previous `v1.x.y`.
+Versioning: callers use `@master` (no release tags for now), so every merge to master reaches all callers on their next run. Rollback: revert the change on master, or pin the caller to a known-good commit SHA.

@@ -74,7 +74,7 @@ jobs:
       docs: ${{ steps.c.outputs.docs }}
     steps:
       - id: c
-        uses: OsomePteLtd/actions/ci/changes@v1
+        uses: OsomePteLtd/actions/ci/changes@master
         with:
           # '' -> the action's built-in default
           code_globs: ${{ inputs.code_globs }}
@@ -93,7 +93,7 @@ jobs:
       shard_list: ${{ steps.s.outputs.shard_list }}
     steps:
       - id: s
-        uses: OsomePteLtd/actions/ci/setup@v1
+        uses: OsomePteLtd/actions/ci/setup@master
         with:
           with_transient: ${{ inputs.with_transient }}
           combine_dependabot: ${{ inputs.combine_dependabot }}
@@ -110,7 +110,7 @@ jobs:
     timeout-minutes: 20
     permissions: {"contents": "read", "id-token": "write", "pull-requests": "read"}
     steps:
-      - uses: OsomePteLtd/actions/ci/checks@v1
+      - uses: OsomePteLtd/actions/ci/checks@master
         with:
           static_scripts: ${{ inputs.static_scripts }}
           build_script: ${{ inputs.build_script }}
@@ -132,7 +132,7 @@ jobs:
     timeout-minutes: 5
     permissions: {"contents": "read", "pull-requests": "read"}
     steps:
-      - uses: OsomePteLtd/actions/ci/diff-check@v1
+      - uses: OsomePteLtd/actions/ci/diff-check@master
         with:
           max_lines: ${{ inputs.diff_max_lines }}
           skip_label: ${{ inputs.diff_skip_label }}
@@ -170,7 +170,7 @@ jobs:
           password: ${{ secrets.DOCKER_CACHE_PASSWORD }}
         ports: ['6379:6379']
     steps:
-      - uses: OsomePteLtd/actions/ci/tests@v1
+      - uses: OsomePteLtd/actions/ci/tests@master
         with:
           shard: ${{ matrix.shard }}
           shards: ${{ inputs.shards }}
@@ -192,7 +192,7 @@ jobs:
     timeout-minutes: 10
     permissions: {"contents": "read"}
     steps:
-      - uses: OsomePteLtd/actions/ci/coverage@v1
+      - uses: OsomePteLtd/actions/ci/coverage@master
         with:
           node_version_file: ${{ inputs.node_version_file }}
           github_packages_token: ${{ secrets.OSOME_BOT_TOKEN }}
@@ -205,7 +205,7 @@ jobs:
       needs.setup.outputs.run_checks == 'true' &&
       (needs.changes.outputs.workflows == 'true' || needs.changes.outputs.infra == 'true' || inputs.pr_lint)
     permissions: {"contents": "read", "pull-requests": "read"}
-    uses: OsomePteLtd/actions/.github/workflows/linter.yml@v1
+    uses: OsomePteLtd/actions/.github/workflows/linter.yml@master
     with:
       runner: ${{ inputs.light_runner }}
       pr_lint: ${{ inputs.pr_lint }}
@@ -215,11 +215,13 @@ jobs:
 
   deploy-trigger:
     name: Deploy ${{ matrix.stage.name }}
-    needs: [setup, checks, diff-check, tests, lint]
-    # SV:261 / SC:214: deploy when stages exist and nothing failed; never on cancel or merge queue
+    needs: [changes, setup, checks, diff-check, tests, lint]
+    # SV:261 / SC:214: deploy when stages exist and nothing failed; never on cancel or merge queue.
+    # changes must succeed: if it fails, the gated jobs are skipped (not failed) and would let unchecked code deploy.
     if: >-
-      !cancelled() && github.event_name != 'merge_group' && needs.setup.result == 'success' &&
-      needs.setup.outputs.stages != '[]' && !contains(needs.*.result, 'failure')
+      !cancelled() && github.event_name != 'merge_group' && needs.changes.result == 'success' &&
+      needs.setup.result == 'success' && needs.setup.outputs.stages != '[]' &&
+      !contains(needs.*.result, 'failure')
     runs-on: ${{ inputs.light_runner }}
     timeout-minutes: 5
     permissions: {} # record is created with OSOME_BOT_TOKEN
@@ -230,7 +232,7 @@ jobs:
       group: deploy-record-${{ github.repository }}-${{ matrix.stage.name }}
       cancel-in-progress: false
     steps:
-      - uses: OsomePteLtd/actions/ci/deploy-trigger@v1
+      - uses: OsomePteLtd/actions/ci/deploy-trigger@master
         with:
           stage: ${{ matrix.stage.name }}
           token: ${{ secrets.OSOME_BOT_TOKEN }}
@@ -243,7 +245,7 @@ jobs:
     timeout-minutes: 2
     permissions: {}
     steps:
-      - uses: OsomePteLtd/actions/ci/status@v1
+      - uses: OsomePteLtd/actions/ci/status@master
         with:
           results: ${{ toJSON(needs) }}
           # gates the rules demanded; skip anywhere else = success

@@ -15,7 +15,7 @@ permissions: {}
 
 jobs:
   ci:
-    uses: OsomePteLtd/actions/.github/workflows/backend.yml@v1
+    uses: OsomePteLtd/actions/.github/workflows/backend.yml@master
     permissions: { contents: read, id-token: write, pull-requests: read }
     with:
       ci_role_arn: ${{ vars.CI_ROLE_ARN }}

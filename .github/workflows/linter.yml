@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with: {"persist-credentials": false}
-      - uses: OsomePteLtd/actions/packages/pr-lint@v1
+      - uses: OsomePteLtd/actions/packages/pr-lint@master
         with:
           mode: ${{ inputs.pr_lint_mode }}
           skip-if-no-template: ${{ inputs.pr_lint_skip_if_no_template }}
@@ -40,7 +40,7 @@ jobs:
     timeout-minutes: 5
     permissions: {"contents": "read"}
     steps:
-      - uses: OsomePteLtd/actions/ci/workflow-lint@v1
+      - uses: OsomePteLtd/actions/ci/workflow-lint@master
 
   terraform-lint:
     name: Terraform lint
@@ -49,6 +49,6 @@ jobs:
     timeout-minutes: 10
     permissions: {"contents": "read"}
     steps:
-      - uses: OsomePteLtd/actions/ci/terraform-lint@v1
+      - uses: OsomePteLtd/actions/ci/terraform-lint@master
         with:
           dirs: ${{ inputs.terraform_dirs }}
