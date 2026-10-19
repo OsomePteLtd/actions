@@ -215,11 +215,13 @@ jobs:
 
   deploy-trigger:
     name: Deploy ${{ matrix.stage.name }}
-    needs: [setup, checks, diff-check, tests, lint]
-    # SV:261 / SC:214: deploy when stages exist and nothing failed; never on cancel or merge queue
+    needs: [changes, setup, checks, diff-check, tests, lint]
+    # SV:261 / SC:214: deploy when stages exist and nothing failed; never on cancel or merge queue.
+    # changes must succeed: if it fails, the gated jobs are skipped (not failed) and would let unchecked code deploy.
     if: >-
-      !cancelled() && github.event_name != 'merge_group' && needs.setup.result == 'success' &&
-      needs.setup.outputs.stages != '[]' && !contains(needs.*.result, 'failure')
+      !cancelled() && github.event_name != 'merge_group' && needs.changes.result == 'success' &&
+      needs.setup.result == 'success' && needs.setup.outputs.stages != '[]' &&
+      !contains(needs.*.result, 'failure')
     runs-on: ${{ inputs.light_runner }}
     timeout-minutes: 5
     permissions: {} # record is created with OSOME_BOT_TOKEN
