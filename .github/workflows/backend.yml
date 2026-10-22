@@ -42,6 +42,8 @@ on:
       registry: {"type": "string", "default": "osomecache.azurecr.io"}
       postgres_image: {"type": "string", "default": "postgres:16.11"}
       redis_image: {"type": "string", "default": "redis:7.0.7"}
+      vault_image: {"type": "string", "default": "", "description": "'' = no Vault. Full image ref (e.g. hashicorp/vault:1.9.4); started in dev mode on :8222, root token 'root'"}
+      vault_setup_script: {"type": "string", "default": "", "description": "Repo path of a POSIX sh script run inside the Vault container once it is up; '' = none. VAULT_ADDR/VAULT_TOKEN are preset"}
       db_name: {"type": "string", "default": "", "description": "default <repo>-test"}
       # coverage
       coverage: {"type": "boolean", "default": true}
@@ -170,6 +172,40 @@ jobs:
           password: ${{ secrets.DOCKER_CACHE_PASSWORD }}
         ports: ['6379:6379']
     steps:
+      # Optional Vault (vault_image != ''). Steps, not a `services:` entry: a service cannot be omitted
+      # conditionally, and an empty image is an error. Every step below is skipped when vault_image is ''.
+      - name: Log in to the image registry
+        if: inputs.vault_image != '' && startsWith(inputs.vault_image, format('{0}/', inputs.registry))
+        shell: bash
+        env: {"R": "${{ inputs.registry }}", "U": "${{ secrets.DOCKER_CACHE_USER }}", "P": "${{ secrets.DOCKER_CACHE_PASSWORD }}"}
+        run: printf '%s' "$P" | docker login "$R" --username "$U" --password-stdin
+      - name: Start Vault
+        if: inputs.vault_image != ''
+        shell: bash
+        env: {"I": "${{ inputs.vault_image }}"}
+        run: |
+          docker run -d --name ci-vault --cap-add IPC_LOCK -p 8222:8222 \
+            -e VAULT_DEV_ROOT_TOKEN_ID=root -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8222 "$I"
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8222/v1/sys/health > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          docker logs ci-vault
+          echo 'Vault did not become ready in time'
+          exit 1
+      # The setup script lives in the caller's repo, and ci/tests checks it out only later, so check out here too.
+      - name: Check out the repo (Vault setup script)
+        if: inputs.vault_image != '' && inputs.vault_setup_script != ''
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with: {"persist-credentials": false}
+      - name: Provision Vault
+        if: inputs.vault_image != '' && inputs.vault_setup_script != ''
+        shell: bash
+        env: {"S": "${{ inputs.vault_setup_script }}"}
+        run: |
+          # runs inside the container: no vault CLI needed on the runner
+          docker exec -i -e VAULT_ADDR=http://127.0.0.1:8222 -e VAULT_TOKEN=root ci-vault sh -s < "$S" \
+            || { docker logs ci-vault; exit 1; }
       - uses: OsomePteLtd/actions/ci/tests@master
         with:
           shard: ${{ matrix.shard }}
@@ -182,6 +218,10 @@ jobs:
           node_version_file: ${{ inputs.node_version_file }}
           github_packages_token: ${{ secrets.OSOME_BOT_TOKEN }}
           npmjs_token: ${{ secrets.NPMJS_KEY_READ_ONLY }}
+      - name: Stop Vault
+        if: always() && inputs.vault_image != ''
+        shell: bash
+        run: docker rm -f ci-vault
 
   coverage:
     name: Report coverage

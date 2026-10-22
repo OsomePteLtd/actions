@@ -29,6 +29,9 @@ Default globs (override via `code_globs`, `infra_globs`, `workflows_globs`, `doc
 - docs: `**/*.md docs/**`
 Unmatched file ⇒ code (fail safe). `src/x.md` matches docs + code ⇒ code.
 
+## Vault (optional)
+`vault_image` (default `''` = off) starts that image in dev mode on `127.0.0.1:8222` (root token `root`) before the tests and removes it afterwards (`if: always()`). `vault_setup_script` (default `''`) is a repo-relative POSIX `sh` script piped into the container with `VAULT_ADDR`/`VAULT_TOKEN` preset, for transit keys, AppRoles, etc. Implemented as steps, not a `services:` entry (a service cannot be omitted conditionally). Callers that leave `vault_image` empty are unaffected. First consumer: plutus.
+
 CD: `deploy-backend.yml`, queued per env (`cancel-in-progress: false`), never cancels.
 Use: copy `examples/shiva.yml`. Required: `ci_role_arn` (variable, no default), `static_scripts`, 4 secrets.
 Caller job grants `contents: read, id-token: write, pull-requests: read`. Required check: `ci / CI status`.
