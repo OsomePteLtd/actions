@@ -109,7 +109,7 @@ function matchesThresholdKey(filename: string, key: string): boolean {
   return filename.startsWith(absoluteKey) || minimatch(filename, absoluteKey, { dot: true });
 }
 
-function getPathCoverageSummary(coverage: CoverageMap, path: string, allPaths: string[] = [path]) {
+function getPathCoverageSummary(coverage: CoverageMap, path: string, allPaths: string[]) {
   if (path === 'global') {
     const pathKeys = allPaths.filter((key) => key !== 'global');
     if (pathKeys.length === 0) {
