@@ -94,4 +94,109 @@ describe('jest-coverage', () => {
 
     expect(mockCoreSetFailed).toBeCalled();
   });
+
+  describe('global threshold with path-keyed thresholds', () => {
+    const cwd = process.cwd();
+    const abs = (file: string) => joinPath(cwd, file);
+    const fileCoverage = (file: string, fnHits: number[]) => ({
+      path: abs(file),
+      statementMap: {},
+      s: {},
+      branchMap: {},
+      b: {},
+      fnMap: Object.fromEntries(
+        fnHits.map((_, i) => [
+          i,
+          {
+            name: `fn${i}`,
+            decl: { start: { line: i + 1, column: 0 }, end: { line: i + 1, column: 1 } },
+            loc: { start: { line: i + 1, column: 0 }, end: { line: i + 1, column: 1 } },
+          },
+        ]),
+      ),
+      f: Object.fromEntries(fnHits.map((hits, i) => [i, hits])),
+    });
+    const toCoverageJson = (files: Record<string, number[]>) =>
+      Object.fromEntries(Object.entries(files).map(([file, hits]) => [abs(file), fileCoverage(file, hits)]));
+
+    const defaultCoverage = {
+      'src/services/a.ts': [1, 1],
+      'src/controllers/b.ts': [0, 0],
+      'src/controllers-extra/example.ts': [1],
+      'src/jobs/c.handler.ts': [0],
+    };
+    const mockWriteFileAsync = fs.writeFile as jest.Mock;
+
+    beforeEach(() => {
+      mockPathResolve.mockImplementation(jest.requireActual('path').resolve);
+    });
+
+    const runWithConfig = async (configName: string, files: Record<string, number[]> = defaultCoverage) => {
+      mockCoreGetInput.mockImplementation((inputName) => {
+        if (inputName === 'coverage-file-pattern') return `\\d+\\.json`;
+        if (inputName === 'coverage-directory') return './coverage-directory/';
+        if (inputName === 'jest-config-path') return joinPath(__dirname, 'fixtures', configName);
+        return inputName;
+      });
+      mockReadFileAsync.mockResolvedValue(JSON.stringify(toCoverageJson(files)));
+      await run();
+      return JSON.parse(mockWriteFileAsync.mock.calls[0][1]);
+    };
+
+    it('excludes files matched by path and glob keys from global, like Jest', async () => {
+      const report = await runWithConfig('path-keys.config.cjs');
+      // a.ts (2/2) + controllers-extra/example.ts (1/1) stay in global
+      expect(report.total.functions).toMatchObject({ total: 3, covered: 3, pct: 100 });
+      expect(report['./src/controllers/'].functions).toMatchObject({ total: 2, covered: 0 });
+      expect(report['src/**/*.handler.ts'].functions).toMatchObject({ total: 1, covered: 0 });
+      expect(mockCoreSetFailed).not.toBeCalled();
+      expect(core.info).toBeCalledWith(expect.stringContaining('global: 2/4 files'));
+    });
+
+    it('keeps the trailing separator of a directory key', async () => {
+      const report = await runWithConfig('path-keys.config.cjs');
+      expect(report['./src/controllers/'].functions.total).toBe(2);
+    });
+
+    it('checks glob keys per matching file', async () => {
+      await runWithConfig('glob-per-file.config.cjs', {
+        'src/jobs/full.handler.ts': [1],
+        'src/jobs/empty.handler.ts': [0],
+      });
+      // aggregate is 50%, but empty.handler.ts is 0% < 50%
+      expect(core.error).toBeCalledWith(expect.stringContaining('empty.handler.ts'));
+      expect(mockCoreSetFailed).toBeCalled();
+    });
+
+    it('matches a key as a literal path before trying it as a glob', async () => {
+      const report = await runWithConfig('bracket-path.config.cjs', {
+        'src/services/a.ts': [1],
+        'src/controllers/[id]/show.ts': [0],
+        'src/controllers/i/show.ts': [1],
+      });
+      // '[id]' is a literal directory, not a character class matching 'i' or 'd'
+      expect(report['./src/controllers/[id]/'].functions).toMatchObject({ total: 1, covered: 0 });
+      expect(report.total.functions).toMatchObject({ total: 2, covered: 2, pct: 100 });
+      expect(mockCoreSetFailed).not.toBeCalled();
+    });
+
+    it('treats a key as a glob when no file matches it as a path', async () => {
+      const report = await runWithConfig('extglob.config.cjs', {
+        'src/services/a.ts': [1],
+        'src/jobs/a.ts': [1],
+        'src/workers/a.ts': [0],
+      });
+      expect(report['src/@(jobs|workers)/a.ts'].functions).toMatchObject({ total: 2, covered: 1 });
+      expect(report.total.functions).toMatchObject({ total: 1, covered: 1, pct: 100 });
+      // checked per file: workers/a.ts is 0% < 50% even though the aggregate is 50%
+      expect(core.error).toBeCalledWith(expect.stringContaining('workers/a.ts'));
+      expect(mockCoreSetFailed).toBeCalled();
+    });
+
+    it('keeps counting all files in global when there are no path keys', async () => {
+      const report = await runWithConfig('global-only.config.cjs');
+      expect(report.total.functions).toMatchObject({ total: 6, covered: 3, pct: 50 });
+      expect(mockCoreSetFailed).not.toBeCalled();
+    });
+  });
 });
