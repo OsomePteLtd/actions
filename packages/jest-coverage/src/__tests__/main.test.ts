@@ -168,6 +168,31 @@ describe('jest-coverage', () => {
       expect(mockCoreSetFailed).toBeCalled();
     });
 
+    it('matches a key as a literal path before trying it as a glob', async () => {
+      const report = await runWithConfig('bracket-path.config.cjs', {
+        'src/services/a.ts': [1],
+        'src/controllers/[id]/show.ts': [0],
+        'src/controllers/i/show.ts': [1],
+      });
+      // '[id]' is a literal directory, not a character class matching 'i' or 'd'
+      expect(report['./src/controllers/[id]/'].functions).toMatchObject({ total: 1, covered: 0 });
+      expect(report.total.functions).toMatchObject({ total: 2, covered: 2, pct: 100 });
+      expect(mockCoreSetFailed).not.toBeCalled();
+    });
+
+    it('treats a key as a glob when no file matches it as a path', async () => {
+      const report = await runWithConfig('extglob.config.cjs', {
+        'src/services/a.ts': [1],
+        'src/jobs/a.ts': [1],
+        'src/workers/a.ts': [0],
+      });
+      expect(report['src/@(jobs|workers)/a.ts'].functions).toMatchObject({ total: 2, covered: 1 });
+      expect(report.total.functions).toMatchObject({ total: 1, covered: 1, pct: 100 });
+      // checked per file: workers/a.ts is 0% < 50% even though the aggregate is 50%
+      expect(core.error).toBeCalledWith(expect.stringContaining('workers/a.ts'));
+      expect(mockCoreSetFailed).toBeCalled();
+    });
+
     it('keeps counting all files in global when there are no path keys', async () => {
       const report = await runWithConfig('global-only.config.cjs');
       expect(report.total.functions).toMatchObject({ total: 6, covered: 3, pct: 50 });
