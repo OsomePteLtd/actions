@@ -4,6 +4,7 @@ import { CoverageMap, CoverageSummary, createCoverageMap } from 'istanbul-lib-co
 import * as istanbulReport from 'istanbul-lib-report';
 import { resolve as pathResolve, join as pathJoin, isAbsolute as isAbsolutePath } from 'path';
 import * as process from 'process';
+import minimatch from 'minimatch';
 
 import JsonReport from 'istanbul-reports/lib/json';
 import TextReport from 'istanbul-reports/lib/text';
@@ -72,7 +73,7 @@ function buildSummaryReport(coverageMap: CoverageMap, thresholds: Record<string,
   const report: { [key: string]: {} } = {};
   const coverageResults: boolean[] = [];
   for (const [path, pathCoverageThreshold] of Object.entries(thresholds)) {
-    const { summaryKey, coverageSummary } = getPathCoverageSummary(coverageMap, path);
+    const { summaryKey, coverageSummary } = getPathCoverageSummary(coverageMap, path, Object.keys(thresholds));
     report[summaryKey] = coverageSummary.toJSON();
     coverageResults.push(assertCoverageThresholdMet(path, coverageSummary, pathCoverageThreshold));
   }
@@ -100,15 +101,27 @@ function assertCoverageThresholdMet(path: string, summary: CoverageSummary, thre
   return failedThresholds.length <= 0;
 }
 
-function getPathCoverageSummary(coverage: CoverageMap, path: string) {
+// Mirrors Jest's coverageThreshold semantics: a key is either a path (file or
+// directory prefix, resolved against cwd) or a glob. Files matched by any
+// non-global key get their own threshold and are excluded from "global".
+function matchesThresholdKey(filename: string, key: string): boolean {
+  const absoluteKey = pathResolve(key);
+  return filename.startsWith(absoluteKey) || minimatch(filename, absoluteKey, { dot: true });
+}
+
+function getPathCoverageSummary(coverage: CoverageMap, path: string, allPaths: string[] = [path]) {
   if (path === 'global') {
-    return { summaryKey: 'total', coverageSummary: coverage.getCoverageSummary() };
+    const pathKeys = allPaths.filter((key) => key !== 'global');
+    if (pathKeys.length === 0) {
+      return { summaryKey: 'total', coverageSummary: coverage.getCoverageSummary() };
+    }
+    const globalCoverage = createCoverageMap(coverage.toJSON());
+    globalCoverage.filter((filename) => !pathKeys.some((key) => matchesThresholdKey(filename, key)));
+    return { summaryKey: 'total', coverageSummary: globalCoverage.getCoverageSummary() };
   }
 
-  const absolutePath = pathResolve(path);
-
   const pathCoverage = createCoverageMap(coverage.toJSON());
-  pathCoverage.filter((filename) => filename.startsWith(absolutePath));
+  pathCoverage.filter((filename) => matchesThresholdKey(filename, path));
   return { summaryKey: path, coverageSummary: pathCoverage.getCoverageSummary() };
 }
 
