@@ -9,6 +9,7 @@ on:
   workflow_call:
     inputs:
       node_version_file: {"type": "string", "default": ".nvmrc"}
+      package_manager: {"type": "string", "default": "npm", "description": "npm | pnpm. Scripts still run via npm run"}
       light_runner: {"type": "string", "default": "arc-runner-light"}
       heavy_runner: {"type": "string", "default": "arc-runner-heavy"}
       test_runner: {"type": "string", "default": "", "description": "Runner for tests; '' = heavy_runner (scrooge SC:123)"}
@@ -121,6 +122,7 @@ jobs:
           role_arn: ${{ inputs.ci_role_arn }}
           aws_region: ${{ inputs.aws_region }}
           node_version_file: ${{ inputs.node_version_file }}
+          package_manager: ${{ inputs.package_manager }}
           github_packages_token: ${{ secrets.OSOME_BOT_TOKEN }}
           npmjs_token: ${{ secrets.NPMJS_KEY_READ_ONLY }}
 
@@ -180,6 +182,7 @@ jobs:
           role_arn: ${{ inputs.ci_role_arn }}
           aws_region: ${{ inputs.aws_region }}
           node_version_file: ${{ inputs.node_version_file }}
+          package_manager: ${{ inputs.package_manager }}
           github_packages_token: ${{ secrets.OSOME_BOT_TOKEN }}
           npmjs_token: ${{ secrets.NPMJS_KEY_READ_ONLY }}
 
@@ -195,6 +198,7 @@ jobs:
       - uses: OsomePteLtd/actions/ci/coverage@master
         with:
           node_version_file: ${{ inputs.node_version_file }}
+          package_manager: ${{ inputs.package_manager }}
           github_packages_token: ${{ secrets.OSOME_BOT_TOKEN }}
           npmjs_token: ${{ secrets.NPMJS_KEY_READ_ONLY }}
 
