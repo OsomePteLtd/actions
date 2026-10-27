@@ -23,6 +23,9 @@ runs:
       run: |
         printf '//npm.pkg.github.com/:_authToken=%s\n' "$GH_PKG_TOKEN" >> ~/.npmrc
         printf '//registry.npmjs.org/:_authToken=%s\n' "$NPMJS_TOKEN" >> ~/.npmrc
+        # user-level scope too: serverless-webpack runs a nested npm install in .webpack/
+        # without the repo .npmrc, so @osomepteltd would hit registry.npmjs.org (jamal)
+        printf '@osomepteltd:registry=https://npm.pkg.github.com\n' >> ~/.npmrc
     - name: Install (${{ inputs.install }})
       if: inputs.install != 'none'
       shell: bash
