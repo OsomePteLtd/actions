@@ -10,6 +10,7 @@ inputs:
   role_arn: {"required": true}
   aws_region: {"default": "us-east-1"}
   node_version_file: {"default": ".nvmrc"}
+  package_manager: {"description": "npm | pnpm", "default": "npm"}
   github_packages_token: {"required": true}
   npmjs_token: {"required": true}
 runs:
@@ -25,6 +26,7 @@ runs:
     - uses: OsomePteLtd/actions/ci/setup-node@master
       with:
         node_version_file: ${{ inputs.node_version_file }}
+        package_manager: ${{ inputs.package_manager }}
         install: ${{ inputs.lockfile_guard == 'true' && 'guard' || 'ci' }}
         github_packages_token: ${{ inputs.github_packages_token }}
         npmjs_token: ${{ inputs.npmjs_token }}
