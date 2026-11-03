@@ -134,7 +134,6 @@ runs:
         branch-suffix: random
         base: main
         delete-branch: true
-        reviewers: ${{ env.reviewer }}
         title: 'Bump packages'
         body: |
           Bump packages to the latest version
@@ -180,5 +179,15 @@ runs:
       run: gh pr merge --auto --squash "$PR_URL"
       env:
         PR_URL: ${{ steps.cpr.outputs.pull-request-url }}
+        GITHUB_TOKEN: ${{ inputs.token }}
+      shell: bash
+
+    # Requested after approval and auto-merge so a rejected reviewer request cannot block them
+    - name: Request reviewer
+      if: ${{ env.reviewer != '' }}
+      run: gh pr edit "$PR_URL" --add-reviewer "$REVIEWER" || echo "::warning::Could not request review from $REVIEWER"
+      env:
+        PR_URL: ${{ steps.cpr.outputs.pull-request-url }}
+        REVIEWER: ${{ env.reviewer }}
         GITHUB_TOKEN: ${{ inputs.token }}
       shell: bash
