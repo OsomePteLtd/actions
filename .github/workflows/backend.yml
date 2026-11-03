@@ -36,6 +36,7 @@ on:
       # diff-check
       diff_max_lines: {"type": "number", "default": 0, "description": "0 = off"}
       diff_skip_label: {"type": "string", "default": "allow-large-diff"}
+      diff_ignore_globs: {"type": "string", "default": "package-lock.json **/__snapshots__/** **/*.snap", "description": "pathspecs not counted"}
       # tests
       shards: {"type": "number", "default": 1}
       migrate_script: {"type": "string", "default": "db:migrate:test"}
@@ -138,6 +139,7 @@ jobs:
         with:
           max_lines: ${{ inputs.diff_max_lines }}
           skip_label: ${{ inputs.diff_skip_label }}
+          ignore_globs: ${{ inputs.diff_ignore_globs }}
 
   tests:
     name: Unit tests ${{ matrix.shard }}/${{ inputs.shards }}
