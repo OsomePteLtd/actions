@@ -22,11 +22,16 @@ jobs:
       - name: Install stub serverless and aws
         run: |
           mkdir -p "$RUNNER_TEMP/bin"
-          printf '%s\n' '#!/usr/bin/env bash' \
-            'echo "sls $* NODE_OPTIONS=${NODE_OPTIONS:-}" >> "$CALLS"' \
-            '[ "${FAIL_CANARY_DEPLOY:-}" = true ] && [ "$1" = deploy ] && [[ "$*" == *try-canary* ]] && exit 1' \
-            'exit 0' > "$RUNNER_TEMP/bin/fake-sls"
-          printf '%s\n' '#!/usr/bin/env bash' 'echo "aws $*" >> "$CALLS"' > "$RUNNER_TEMP/bin/aws"
+          cat > "$RUNNER_TEMP/bin/fake-sls" <<'EOF'
+          #!/usr/bin/env bash
+          echo "sls $* NODE_OPTIONS=${NODE_OPTIONS:-}" >> "$CALLS"
+          [ "${FAIL_CANARY_DEPLOY:-}" = true ] && [ "$1" = deploy ] && [[ "$*" == *try-canary* ]] && exit 1
+          exit 0
+          EOF
+          cat > "$RUNNER_TEMP/bin/aws" <<'EOF'
+          #!/usr/bin/env bash
+          echo "aws $*" >> "$CALLS"
+          EOF
           chmod +x "$RUNNER_TEMP/bin/"*
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
           mkdir -p .serverless && touch .serverless/core.zip

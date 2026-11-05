@@ -10,6 +10,7 @@ deploy() {
       line=$(sed -E 's/^[[:space:]]+|[[:space:]]+$//g' <<< "$line")
       [ -z "$line" ] && continue
       [[ "$line" == *=* ]] || { echo "::error::Invalid env line '${line}' (expected KEY=VALUE)"; exit 1; }
+      # shellcheck disable=SC2163 # exporting the KEY=VALUE line itself is the intent
       export -- "$line"
     done <<< "${FUNCTION_ENV:-}"
     # shellcheck disable=SC2086 # SLS may be a multi-word command such as "npx sls"
