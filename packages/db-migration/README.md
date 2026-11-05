@@ -44,7 +44,7 @@ The deploy job needs `contents: read`; every current deploy job already has it.
 | `try-canary-env` | | `KEY=VALUE` lines exported only while deploying try-canary |
 | `try-canary-s3-fallback` | `false` | On a failed deploy, upload `.serverless/<service-name>.zip` to S3, update the lambda and invoke it |
 | `service-name` | repository name | S3 fallback zip and lambda name |
-| `aws-region` | `us-east-1` | S3 fallback |
+| `aws-region` | `us-east-1` | S3 fallback: bucket, lambda update + wait, invoke |
 | `s3-bucket` | `osome-serverless-<stage>-<aws-region>` | S3 fallback |
 
 Outputs: `migrations-required`, `try-canary-ran`.

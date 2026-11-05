@@ -78,7 +78,7 @@ inputs:
     required: false
     default: ${{ github.event.repository.name }}
   aws-region:
-    description: 'AWS region, used by the S3 fallback'
+    description: 'AWS region of the S3 fallback bucket, lambda update and invoke'
     required: false
     default: 'us-east-1'
   s3-bucket:
@@ -193,7 +193,10 @@ runs:
         set -euo pipefail
         BUCKET=${BUCKET:-osome-serverless-${STAGE}-${REGION}}
         KEY="${STAGE}/${SERVICE}.${SHA}.zip"
-        trap 'aws s3 rm "s3://${BUCKET}/${KEY}" || true' EXIT
-        aws s3 cp ".serverless/${SERVICE}.zip" "s3://${BUCKET}/${KEY}"
-        aws lambda update-function-code --function-name "${SERVICE}-${STAGE}-${FUNCTION}" --s3-bucket "$BUCKET" --s3-key "$KEY"
-        "$GITHUB_ACTION_PATH/run-function.sh"
+        LAMBDA="${SERVICE}-${STAGE}-${FUNCTION}"
+        trap 'aws s3 rm "s3://${BUCKET}/${KEY}" --region "$REGION" || true' EXIT
+        aws s3 cp ".serverless/${SERVICE}.zip" "s3://${BUCKET}/${KEY}" --region "$REGION"
+        aws lambda update-function-code --function-name "$LAMBDA" --s3-bucket "$BUCKET" --s3-key "$KEY" --region "$REGION"
+        # update-function-code returns before the new code is live; invoking now could run the old canary
+        aws lambda wait function-updated --function-name "$LAMBDA" --region "$REGION"
+        INVOKE_REGION=$REGION "$GITHUB_ACTION_PATH/run-function.sh"

@@ -49,7 +49,7 @@ expect 'test-0 is not a conditional stage' required=true "$(check test-0 "$(code
 
 run() { # mode env-lines → prints recorded serverless calls
   : > "$TMP/sls.log"
-  SLS="npx-like $TMP/sls" SLS_LOG="$TMP/sls.log" STAGE=test-4 FUNCTION=try-canary FUNCTION_ENV=$2 MODE=$1 \
+  SLS="npx-like $TMP/sls" SLS_LOG="$TMP/sls.log" STAGE=test-4 FUNCTION=try-canary FUNCTION_ENV=$2 MODE=$1 INVOKE_REGION=${3:-} \
     PATH="$TMP:$PATH" bash -c "npx-like() { \"\$@\"; }; export -f npx-like; bash '$HERE/run-function.sh'" > /dev/null 2>&1
   echo "rc=$? $(tr '\n' '|' < "$TMP/sls.log")"
 }
@@ -59,6 +59,7 @@ expect 'both deploys then invokes, env only on deploy' \
   "$(run both $'  NODE_OPTIONS=--max-old-space-size=4096\n\nNPM_CONFIG_LEGACY_PEER_DEPS=true  ')"
 expect 'deploy mode only deploys' 'rc=0 deploy function --stage test-4 --function try-canary NODE_OPTIONS= LEGACY=|' "$(run deploy '')"
 expect 'invoke mode only invokes' 'rc=0 invoke --stage test-4 --function try-canary NODE_OPTIONS= LEGACY=|' "$(run invoke '')"
+expect 'invoke region is passed only when set' 'rc=0 invoke --stage test-4 --function try-canary --region eu-west-1 NODE_OPTIONS= LEGACY=|' "$(run invoke '' eu-west-1)"
 expect 'invalid env line fails before deploying' 'rc=1 ' "$(run both 'NODE_OPTIONS')"
 
 [ "$FAILURES" -eq 0 ] || { echo "$FAILURES test(s) failed"; exit 1; }

@@ -93,12 +93,15 @@ jobs:
           set -x
           [ "$MIGRATED" = false ] && [ "$CANARY" = false ] && [ ! -s "$CALLS" ]
 
-      - name: 'production with S3 fallback: failed deploy falls back to S3 and invokes'
+      - name: 'production with S3 fallback: failed deploy falls back to S3, waits, then invokes'
         id: fallback
         uses: ./packages/db-migration
         env:
           FAIL_CANARY_DEPLOY: 'true'
+          AWS_REGION: us-east-1 # ambient region differs from aws-region below
+          AWS_DEFAULT_REGION: us-east-1
         with:
+          aws-region: eu-west-1
           stage: production
           serverless-command: fake-sls
           migrate: 'false'
@@ -113,8 +116,9 @@ jobs:
           [ "$MIGRATED" = false ]
           diff <(cat "$CALLS") - <<'EOF'
           sls deploy function --stage production --function try-canary NODE_OPTIONS=
-          aws s3 cp .serverless/core.zip s3://osome-serverless-production-us-east-1/production/core.abc123.zip
-          aws lambda update-function-code --function-name core-production-try-canary --s3-bucket osome-serverless-production-us-east-1 --s3-key production/core.abc123.zip
-          sls invoke --stage production --function try-canary NODE_OPTIONS=
-          aws s3 rm s3://osome-serverless-production-us-east-1/production/core.abc123.zip
+          aws s3 cp .serverless/core.zip s3://osome-serverless-production-eu-west-1/production/core.abc123.zip --region eu-west-1
+          aws lambda update-function-code --function-name core-production-try-canary --s3-bucket osome-serverless-production-eu-west-1 --s3-key production/core.abc123.zip --region eu-west-1
+          aws lambda wait function-updated --function-name core-production-try-canary --region eu-west-1
+          sls invoke --stage production --function try-canary --region eu-west-1 NODE_OPTIONS=
+          aws s3 rm s3://osome-serverless-production-eu-west-1/production/core.abc123.zip --region eu-west-1
           EOF

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Deploys one Serverless function and invokes it. FUNCTION_ENV holds KEY=VALUE lines that are
 # exported for the deploy only (e.g. NODE_OPTIONS, NPM_CONFIG_LEGACY_PEER_DEPS, SLS_DEBUG).
-# MODE=deploy|invoke|both. Env: SLS, STAGE, FUNCTION, FUNCTION_ENV, MODE.
+# MODE=deploy|invoke|both. INVOKE_REGION (optional) pins the invoke's region.
+# Env: SLS, STAGE, FUNCTION, FUNCTION_ENV, MODE, INVOKE_REGION.
 set -euo pipefail
 
 deploy() {
@@ -20,7 +21,7 @@ deploy() {
 
 invoke() {
   # shellcheck disable=SC2086
-  $SLS invoke --stage "$STAGE" --function "$FUNCTION"
+  $SLS invoke --stage "$STAGE" --function "$FUNCTION" ${INVOKE_REGION:+--region "$INVOKE_REGION"}
 }
 
 case "$MODE" in
