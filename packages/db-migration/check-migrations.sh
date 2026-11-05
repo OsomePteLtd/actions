@@ -5,6 +5,7 @@
 #   any other stage → always migrate.
 # Anything that cannot prove "no migration changes" migrates: compare API failure, a missing file
 # list, or a list at the compare API's 300-file cap (first page only, cannot be paginated).
+# A rename counts when either its new or its previous path is under MIGRATIONS_PATH.
 # Env: GITHUB_REPOSITORY, GITHUB_OUTPUT, GH_TOKEN, STAGE, DEPLOY_SHA, BASE_REF, MIGRATIONS_PATH,
 #      CONDITIONAL_STAGES_PATTERN, RETRY_SLEEP_SECONDS (tests).
 set -uo pipefail
@@ -21,7 +22,7 @@ PREFIX=${MIGRATIONS_PATH%/}/
 RESULT=''
 for attempt in 1 2 3; do
   RESULT=$(gh api "/repos/${GITHUB_REPOSITORY}/compare/${BASE_REF}...${DEPLOY_SHA}?per_page=1" \
-    --jq "if .files == null then \"unknown\" else \"\(.files | length) \(any(.files[]; .filename | startswith(\"${PREFIX}\")))\" end") && break
+    --jq "if .files == null then \"unknown\" else \"\(.files | length) \(any(.files[]; [.filename, (.previous_filename // \"\")] | any(startswith(\"${PREFIX}\"))))\" end") && break
   RESULT=''
   echo "Compare attempt ${attempt}/3 failed; retrying..."
   sleep $((attempt * ${RETRY_SLEEP_SECONDS:-3}))
