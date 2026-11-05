@@ -41,7 +41,7 @@ on:
       shards: {"type": "number", "default": 1}
       migrate_script: {"type": "string", "default": "db:migrate:test"}
       test_script: {"type": "string", "default": "test:ci"}
-      registry: {"type": "string", "default": "osomecache.azurecr.io"}
+      registry: {"type": "string", "default": "docker.io"}
       postgres_image: {"type": "string", "default": "postgres:16.11"}
       redis_image: {"type": "string", "default": "redis:7.0.7"}
       db_name: {"type": "string", "default": "", "description": "default <repo>-test"}
@@ -157,9 +157,9 @@ jobs:
     services:
       postgres:
         image: ${{ inputs.registry }}/${{ inputs.postgres_image }}
-        credentials:
-          username: ${{ secrets.DOCKER_CACHE_USER }}
-          password: ${{ secrets.DOCKER_CACHE_PASSWORD }}
+        # ACR needs login; docker.io uses the runner dind dockerhub-auth (empty {} = no login).
+        # toJSON escapes secret chars so format() stays valid JSON.
+        credentials: ${{ inputs.registry == 'osomecache.azurecr.io' && fromJSON(format('{{"username":{0},"password":{1}}}', toJSON(secrets.DOCKER_CACHE_USER), toJSON(secrets.DOCKER_CACHE_PASSWORD))) || fromJSON('{}') }}
         env:
           POSTGRES_USER: user          # local test creds, same as SV:142-144
           POSTGRES_PASSWORD: password
@@ -169,9 +169,7 @@ jobs:
         ports: ['5432:5432']
       redis:
         image: ${{ inputs.registry }}/${{ inputs.redis_image }}
-        credentials:
-          username: ${{ secrets.DOCKER_CACHE_USER }}
-          password: ${{ secrets.DOCKER_CACHE_PASSWORD }}
+        credentials: ${{ inputs.registry == 'osomecache.azurecr.io' && fromJSON(format('{{"username":{0},"password":{1}}}', toJSON(secrets.DOCKER_CACHE_USER), toJSON(secrets.DOCKER_CACHE_PASSWORD))) || fromJSON('{}') }}
         ports: ['6379:6379']
     steps:
       - uses: OsomePteLtd/actions/ci/tests@master
@@ -222,12 +220,13 @@ jobs:
   deploy-trigger:
     name: Deploy ${{ matrix.stage.name }}
     needs: [changes, setup, checks, diff-check, tests, lint]
-    # SV:261 / SC:214: deploy when stages exist and nothing failed; never on cancel or merge queue.
+    # Deploy only from push/tag/dispatch (main or tags → stage; prod via osome-bot dispatch).
+    # Never from pull_request: drops the old shiva/scrooge "deployed to stage|test-N" label path.
     # changes must succeed: if it fails, the gated jobs are skipped (not failed) and would let unchecked code deploy.
     if: >-
-      !cancelled() && github.event_name != 'merge_group' && needs.changes.result == 'success' &&
-      needs.setup.result == 'success' && needs.setup.outputs.stages != '[]' &&
-      !contains(needs.*.result, 'failure')
+      !cancelled() && github.event_name != 'merge_group' && github.event_name != 'pull_request' &&
+      needs.changes.result == 'success' && needs.setup.result == 'success' &&
+      needs.setup.outputs.stages != '[]' && !contains(needs.*.result, 'failure')
     runs-on: ${{ inputs.light_runner }}
     timeout-minutes: 5
     permissions: {} # record is created with OSOME_BOT_TOKEN
