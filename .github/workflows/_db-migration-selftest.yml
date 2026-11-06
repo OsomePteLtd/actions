@@ -1,0 +1,128 @@
+# Unit tests + an end-to-end run of packages/db-migration against stub `serverless` and `aws`
+# binaries (they only record their calls), so no AWS access is needed.
+name: db-migration self-test
+on:
+  pull_request:
+    paths: ['packages/db-migration/**', '.github/workflows/_db-migration-selftest.yml']
+permissions: {}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {"contents": "read"}
+    env:
+      CALLS: ${{ github.workspace }}/calls.log
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with: {"persist-credentials": false}
+
+      - name: Unit tests
+        run: bash packages/db-migration/test.sh
+
+      - name: Install stub serverless and aws
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          cat > "$RUNNER_TEMP/bin/fake-sls" <<'EOF'
+          #!/usr/bin/env bash
+          echo "sls $* NODE_OPTIONS=${NODE_OPTIONS:-}" >> "$CALLS"
+          [ "${FAIL_CANARY_DEPLOY:-}" = true ] && [ "$1" = deploy ] && [[ "$*" == *try-canary* ]] && exit 1
+          exit 0
+          EOF
+          cat > "$RUNNER_TEMP/bin/aws" <<'EOF'
+          #!/usr/bin/env bash
+          echo "aws $*" >> "$CALLS"
+          EOF
+          chmod +x "$RUNNER_TEMP/bin/"*
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          mkdir -p .serverless && touch .serverless/core.zip
+
+      - name: 'production: migrates and runs try-canary'
+        id: production
+        uses: ./packages/db-migration
+        with:
+          stage: production
+          serverless-command: fake-sls
+          try-canary-env: NODE_OPTIONS=--max-old-space-size=4096
+      - name: Assert production
+        env:
+          MIGRATED: ${{ steps.production.outputs.migrations-required }}
+          CANARY: ${{ steps.production.outputs.try-canary-ran }}
+        run: |
+          set -x
+          [ "$MIGRATED" = true ]
+          [ "$CANARY" = true ]
+          diff <(cat "$CALLS") - <<'EOF'
+          sls deploy function --stage production --function migrate NODE_OPTIONS=
+          sls invoke --stage production --function migrate NODE_OPTIONS=
+          sls deploy function --stage production --function try-canary NODE_OPTIONS=--max-old-space-size=4096
+          sls invoke --stage production --function try-canary NODE_OPTIONS=
+          EOF
+          : > "$CALLS"
+
+      - name: 'stage: migrates, skips try-canary'
+        id: stage
+        uses: ./packages/db-migration
+        with:
+          stage: stage
+          serverless-command: fake-sls
+      - name: Assert stage
+        env:
+          MIGRATED: ${{ steps.stage.outputs.migrations-required }}
+          CANARY: ${{ steps.stage.outputs.try-canary-ran }}
+        run: |
+          set -x
+          [ "$MIGRATED" = true ]
+          [ "$CANARY" = false ]
+          diff <(cat "$CALLS") - <<'EOF'
+          sls deploy function --stage stage --function migrate NODE_OPTIONS=
+          sls invoke --stage stage --function migrate NODE_OPTIONS=
+          EOF
+          : > "$CALLS"
+
+      - name: 'test-N: real compare of this PR (no migrations path in this repo) skips everything'
+        id: testn
+        uses: ./packages/db-migration
+        with:
+          stage: test-4
+          serverless-command: fake-sls
+          base-ref: master
+          deploy-sha: ${{ github.event.pull_request.head.sha }}
+      - name: Assert test-N
+        env:
+          MIGRATED: ${{ steps.testn.outputs.migrations-required }}
+          CANARY: ${{ steps.testn.outputs.try-canary-ran }}
+        run: |
+          set -x
+          [ "$MIGRATED" = false ]
+          [ "$CANARY" = false ]
+          [ ! -s "$CALLS" ]
+
+      - name: 'production with S3 fallback: failed deploy falls back to S3, waits, then invokes'
+        id: fallback
+        uses: ./packages/db-migration
+        env:
+          FAIL_CANARY_DEPLOY: 'true'
+          AWS_REGION: us-east-1 # ambient region differs from aws-region below
+          AWS_DEFAULT_REGION: us-east-1
+        with:
+          aws-region: eu-west-1
+          stage: production
+          serverless-command: fake-sls
+          migrate: 'false'
+          try-canary-s3-fallback: 'true'
+          service-name: core
+          deploy-sha: abc123
+      - name: Assert S3 fallback
+        env:
+          MIGRATED: ${{ steps.fallback.outputs.migrations-required }}
+        run: |
+          set -x
+          [ "$MIGRATED" = false ]
+          diff <(cat "$CALLS") - <<'EOF'
+          sls deploy function --stage production --function try-canary NODE_OPTIONS=
+          aws s3 cp .serverless/core.zip s3://osome-serverless-production-eu-west-1/production/core.abc123.zip --region eu-west-1
+          aws lambda update-function-code --function-name core-production-try-canary --s3-bucket osome-serverless-production-eu-west-1 --s3-key production/core.abc123.zip --region eu-west-1
+          aws lambda wait function-updated --function-name core-production-try-canary --region eu-west-1
+          sls invoke --stage production --function try-canary --region eu-west-1 NODE_OPTIONS=
+          aws s3 rm s3://osome-serverless-production-eu-west-1/production/core.abc123.zip --region eu-west-1
+          EOF

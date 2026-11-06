@@ -1,0 +1,202 @@
+name: 'DB migration'
+description: >-
+  Deploys and invokes the Serverless migrate function, then the try-canary function, with the
+  PF-3512 rules: test-N stages migrate only when the deployed commit changes migrations relative
+  to the base branch, and try-canary runs on production only. Every other stage always migrates.
+  Run it inside the deploy job after checkout, AWS credentials, npm ci and the Serverless license.
+
+inputs:
+  stage:
+    description: 'Serverless stage being deployed (e.g. test-4, stage, production)'
+    required: true
+  token:
+    description: 'Token with contents: read, used for the compare API'
+    required: false
+    default: ${{ github.token }}
+  working-directory:
+    description: 'Directory holding serverless config and node_modules'
+    required: false
+    default: '.'
+  serverless-command:
+    description: 'Serverless CLI command (e.g. "npx sls")'
+    required: false
+    default: 'node_modules/.bin/serverless'
+  deploy-sha:
+    description: 'Commit being deployed'
+    required: false
+    default: ${{ github.sha }}
+
+  migrate:
+    description: 'Run the migrate function at all ("false" for repos without migrations)'
+    required: false
+    default: 'true'
+  migrate-function:
+    description: 'Name of the migrate function'
+    required: false
+    default: 'migrate'
+  migrate-env:
+    description: 'KEY=VALUE lines exported only while deploying the migrate function'
+    required: false
+    default: ''
+  migrations-path:
+    description: 'Path whose changes require migrations on conditional stages (e.g. alembic/versions/)'
+    required: false
+    default: 'db/migrations/'
+  base-ref:
+    description: 'Branch conditional stages are compared against'
+    required: false
+    default: 'main'
+  conditional-stages-pattern:
+    description: 'Bash regex of stages that migrate only when migrations changed; "^$" makes every stage always migrate'
+    required: false
+    default: '^test-[1-9][0-9]*$'
+
+  try-canary:
+    description: 'Run the try-canary function at all ("false" for repos without one)'
+    required: false
+    default: 'true'
+  try-canary-function:
+    description: 'Name of the try-canary function'
+    required: false
+    default: 'try-canary'
+  try-canary-stages:
+    description: 'Space-separated stages that run try-canary, or "all"'
+    required: false
+    default: 'production'
+  try-canary-env:
+    description: 'KEY=VALUE lines exported only while deploying try-canary (e.g. NODE_OPTIONS=--max-old-space-size=4096)'
+    required: false
+    default: ''
+  try-canary-s3-fallback:
+    description: >-
+      When "deploy function" fails, upload the packaged .serverless/<service-name>.zip to S3,
+      point the try-canary lambda at it and invoke it (core's fallback)
+    required: false
+    default: 'false'
+  service-name:
+    description: 'Serverless service name, used by the S3 fallback for the zip and lambda name'
+    required: false
+    default: ${{ github.event.repository.name }}
+  aws-region:
+    description: 'AWS region of the S3 fallback bucket, lambda update and invoke'
+    required: false
+    default: 'us-east-1'
+  s3-bucket:
+    description: 'S3 fallback bucket (default: osome-serverless-<stage>-<aws-region>)'
+    required: false
+    default: ''
+
+outputs:
+  migrations-required:
+    description: '"true" when migrations ran'
+    value: ${{ steps.check.outputs.required || 'false' }}
+  try-canary-ran:
+    description: '"true" when try-canary ran on this stage'
+    value: ${{ steps.canary-scope.outputs.applies }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check if migrations are required
+      id: check
+      if: inputs.migrate == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        STAGE: ${{ inputs.stage }}
+        DEPLOY_SHA: ${{ inputs.deploy-sha }}
+        BASE_REF: ${{ inputs.base-ref }}
+        MIGRATIONS_PATH: ${{ inputs.migrations-path }}
+        CONDITIONAL_STAGES_PATTERN: ${{ inputs.conditional-stages-pattern }}
+      run: '"$GITHUB_ACTION_PATH/check-migrations.sh"'
+
+    - name: Deploy and invoke ${{ inputs.migrate-function }} function
+      if: steps.check.outputs.required == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        SLS: ${{ inputs.serverless-command }}
+        STAGE: ${{ inputs.stage }}
+        FUNCTION: ${{ inputs.migrate-function }}
+        FUNCTION_ENV: ${{ inputs.migrate-env }}
+        MODE: both
+      run: '"$GITHUB_ACTION_PATH/run-function.sh"'
+
+    - name: Check if try-canary applies
+      id: canary-scope
+      shell: bash
+      env:
+        ENABLED: ${{ inputs.try-canary }}
+        STAGE: ${{ inputs.stage }}
+        STAGES: ${{ inputs.try-canary-stages }}
+      run: |
+        APPLIES=false
+        if [ "$ENABLED" = true ]; then
+          for s in $STAGES; do
+            if [ "$s" = all ] || [ "$s" = "$STAGE" ]; then APPLIES=true; fi
+          done
+        fi
+        echo "applies=$APPLIES" >> "$GITHUB_OUTPUT"
+        echo "try-canary on ${STAGE}: ${APPLIES}"
+
+    - name: Deploy and invoke ${{ inputs.try-canary-function }} function
+      if: steps.canary-scope.outputs.applies == 'true' && inputs.try-canary-s3-fallback != 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        SLS: ${{ inputs.serverless-command }}
+        STAGE: ${{ inputs.stage }}
+        FUNCTION: ${{ inputs.try-canary-function }}
+        FUNCTION_ENV: ${{ inputs.try-canary-env }}
+        MODE: both
+      run: '"$GITHUB_ACTION_PATH/run-function.sh"'
+
+    - name: Deploy ${{ inputs.try-canary-function }} function
+      id: canary-deploy
+      if: steps.canary-scope.outputs.applies == 'true' && inputs.try-canary-s3-fallback == 'true'
+      continue-on-error: true
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        SLS: ${{ inputs.serverless-command }}
+        STAGE: ${{ inputs.stage }}
+        FUNCTION: ${{ inputs.try-canary-function }}
+        FUNCTION_ENV: ${{ inputs.try-canary-env }}
+        MODE: deploy
+      run: '"$GITHUB_ACTION_PATH/run-function.sh"'
+
+    - name: Invoke ${{ inputs.try-canary-function }} function
+      if: steps.canary-deploy.outcome == 'success'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        SLS: ${{ inputs.serverless-command }}
+        STAGE: ${{ inputs.stage }}
+        FUNCTION: ${{ inputs.try-canary-function }}
+        MODE: invoke
+      run: '"$GITHUB_ACTION_PATH/run-function.sh"'
+
+    - name: Upload ${{ inputs.try-canary-function }} via S3 and invoke (deploy failed)
+      if: steps.canary-deploy.outcome == 'failure'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        SLS: ${{ inputs.serverless-command }}
+        STAGE: ${{ inputs.stage }}
+        FUNCTION: ${{ inputs.try-canary-function }}
+        SERVICE: ${{ inputs.service-name }}
+        REGION: ${{ inputs.aws-region }}
+        BUCKET: ${{ inputs.s3-bucket }}
+        SHA: ${{ inputs.deploy-sha }}
+        MODE: invoke
+      run: |
+        set -euo pipefail
+        BUCKET=${BUCKET:-osome-serverless-${STAGE}-${REGION}}
+        KEY="${STAGE}/${SERVICE}.${SHA}.zip"
+        LAMBDA="${SERVICE}-${STAGE}-${FUNCTION}"
+        trap 'aws s3 rm "s3://${BUCKET}/${KEY}" --region "$REGION" || true' EXIT
+        aws s3 cp ".serverless/${SERVICE}.zip" "s3://${BUCKET}/${KEY}" --region "$REGION"
+        aws lambda update-function-code --function-name "$LAMBDA" --s3-bucket "$BUCKET" --s3-key "$KEY" --region "$REGION"
+        # update-function-code returns before the new code is live; invoking now could run the old canary
+        aws lambda wait function-updated --function-name "$LAMBDA" --region "$REGION"
+        INVOKE_REGION=$REGION "$GITHUB_ACTION_PATH/run-function.sh"
