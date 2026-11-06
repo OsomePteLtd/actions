@@ -49,7 +49,8 @@ jobs:
           CANARY: ${{ steps.production.outputs.try-canary-ran }}
         run: |
           set -x
-          [ "$MIGRATED" = true ] && [ "$CANARY" = true ]
+          [ "$MIGRATED" = true ]
+          [ "$CANARY" = true ]
           diff <(cat "$CALLS") - <<'EOF'
           sls deploy function --stage production --function migrate NODE_OPTIONS=
           sls invoke --stage production --function migrate NODE_OPTIONS=
@@ -70,7 +71,8 @@ jobs:
           CANARY: ${{ steps.stage.outputs.try-canary-ran }}
         run: |
           set -x
-          [ "$MIGRATED" = true ] && [ "$CANARY" = false ]
+          [ "$MIGRATED" = true ]
+          [ "$CANARY" = false ]
           diff <(cat "$CALLS") - <<'EOF'
           sls deploy function --stage stage --function migrate NODE_OPTIONS=
           sls invoke --stage stage --function migrate NODE_OPTIONS=
@@ -91,7 +93,9 @@ jobs:
           CANARY: ${{ steps.testn.outputs.try-canary-ran }}
         run: |
           set -x
-          [ "$MIGRATED" = false ] && [ "$CANARY" = false ] && [ ! -s "$CALLS" ]
+          [ "$MIGRATED" = false ]
+          [ "$CANARY" = false ]
+          [ ! -s "$CALLS" ]
 
       - name: 'production with S3 fallback: failed deploy falls back to S3, waits, then invokes'
         id: fallback

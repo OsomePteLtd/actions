@@ -6,13 +6,17 @@ Replaces the `Deploy/Invoke migrate function` and `Deploy/Invoke try-canary func
 |---|---|---|
 | production | always | yes |
 | stage | always | no |
-| test-N | only if the deployed commit changes `migrations-path` vs `base-ref` | no |
+| test-N | only if the deployed commit changes `migrations-path` vs `base-ref`, or is `base-ref` itself (identical/behind, e.g. weekly scheduled deploys of `main`) | no |
 
 If the check can't prove there are no migration changes, migrations run. That covers a compare API failure, a missing file list, and a list at the API's 300-file cap.
 
+### Known limitation
+
+The test-N check compares the deployed commit against `base-ref`, not against what the env's database already has. A branch with no migration changes of its own will not apply migrations merged to `base-ref` after that env last migrated. Since PR smoke deploys go to whichever test env is least loaded, a PR can land on an env that missed a recent migration. A later deploy of `base-ref` itself, or of any branch that changes migrations, brings the env up to date.
+
 ## Usage
 
-Place it where the old steps were: after checkout, AWS credentials, `npm ci` and the Serverless license, before `Deploy module`.
+Place it where the old steps were: after checkout, AWS credentials, `npm ci` and the Serverless license, before `Deploy module`. Those setup steps are needed by `Deploy module` in the same job anyway, so skipping migrations saves only the migrate deploy and invoke here. Core differs because its migrations run in a separate job.
 
 ```yaml
 - name: DB migration

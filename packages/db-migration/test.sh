@@ -19,7 +19,7 @@ echo "$* NODE_OPTIONS=${NODE_OPTIONS:-} LEGACY=${NPM_CONFIG_LEGACY_PEER_DEPS:-}"
 EOF
 chmod +x "$TMP/gh" "$TMP/sls"
 
-files() { jq -cn --args '{files: [$ARGS.positional[] | {filename: .}]}' "$@"; }
+files() { jq -cn --args '{status: "ahead", files: [$ARGS.positional[] | {filename: .}]}' "$@"; }
 code_files() { local i out=(); for ((i = 0; i < $1; i++)); do out+=("src/f$i.ts"); done; files "${out[@]}"; }
 
 check() { # stage response [migrations-path] → prints required=...
@@ -42,12 +42,15 @@ expect 'test-N without migration changes skips' required=false "$(check test-4 "
 expect 'test-N with a migration change migrates' required=true "$(check test-4 "$(files src/a.ts db/migrations/20261102-x.js)")"
 expect 'migrations-path without trailing slash still matches' required=true "$(check test-4 "$(files alembic/versions/1_x.py)" alembic/versions)"
 expect 'custom migrations-path ignores db/migrations' required=false "$(check test-4 "$(files db/migrations/x.js)" alembic/versions/)"
-RENAMED_OUT='{"files":[{"filename":"archive/x.js","previous_filename":"db/migrations/x.js"}]}'
-RENAMED_IN='{"files":[{"filename":"db/migrations/x.js","previous_filename":"archive/x.js"}]}'
-RENAMED_ELSEWHERE='{"files":[{"filename":"src/b.ts","previous_filename":"src/a.ts"}]}'
+RENAMED_OUT='{"status":"ahead","files":[{"filename":"archive/x.js","previous_filename":"db/migrations/x.js"}]}'
+RENAMED_IN='{"status":"ahead","files":[{"filename":"db/migrations/x.js","previous_filename":"archive/x.js"}]}'
+RENAMED_ELSEWHERE='{"status":"ahead","files":[{"filename":"src/b.ts","previous_filename":"src/a.ts"}]}'
 expect 'migration renamed out of migrations-path migrates' required=true "$(check test-4 "$RENAMED_OUT")"
 expect 'file renamed into migrations-path migrates' required=true "$(check test-4 "$RENAMED_IN")"
 expect 'rename outside migrations-path skips' required=false "$(check test-4 "$RENAMED_ELSEWHERE")"
+expect 'deploying base-ref itself (identical, 0 files) migrates' required=true "$(check test-1 '{"status":"identical","files":[]}')"
+expect 'deploying an older base-ref commit (behind) migrates' required=true "$(check test-1 '{"status":"behind","files":[]}')"
+expect 'diverged branch without migration changes skips' required=false "$(check test-4 '{"status":"diverged","files":[{"filename":"src/a.ts"}]}')"
 expect 'capped 300-file list without migrations migrates' required=true "$(check test-4 "$(code_files 300)")"
 expect 'missing file list migrates' required=true "$(check test-4 '{"status":"ahead"}')"
 expect 'unreadable compare migrates' required=true "$(check test-4 '')"
@@ -67,6 +70,7 @@ expect 'deploy mode only deploys' 'rc=0 deploy function --stage test-4 --functio
 expect 'invoke mode only invokes' 'rc=0 invoke --stage test-4 --function try-canary NODE_OPTIONS= LEGACY=|' "$(run invoke '')"
 expect 'invoke region is passed only when set' 'rc=0 invoke --stage test-4 --function try-canary --region eu-west-1 NODE_OPTIONS= LEGACY=|' "$(run invoke '' eu-west-1)"
 expect 'invalid env line fails before deploying' 'rc=1 ' "$(run both 'NODE_OPTIONS')"
+expect 'invalid env key fails before deploying' 'rc=1 ' "$(run both 'NODE-OPTIONS=x')"
 
 [ "$FAILURES" -eq 0 ] || { echo "$FAILURES test(s) failed"; exit 1; }
 echo 'all tests passed'

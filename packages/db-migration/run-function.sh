@@ -12,7 +12,7 @@ deploy() {
       [ -z "$line" ] && continue
       [[ "$line" == *=* ]] || { echo "::error::Invalid env line '${line}' (expected KEY=VALUE)"; exit 1; }
       # shellcheck disable=SC2163 # exporting the KEY=VALUE line itself is the intent
-      export -- "$line"
+      export -- "$line" || exit 1
     done <<< "${FUNCTION_ENV:-}"
     # shellcheck disable=SC2086 # SLS may be a multi-word command such as "npx sls"
     $SLS deploy function --stage "$STAGE" --function "$FUNCTION"
@@ -27,6 +27,9 @@ invoke() {
 case "$MODE" in
   deploy) deploy ;;
   invoke) invoke ;;
-  both) deploy && invoke ;;
+  both)
+    deploy
+    invoke
+    ;;
   *) echo "::error::Unknown MODE '${MODE}'"; exit 1 ;;
 esac
