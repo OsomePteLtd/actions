@@ -222,11 +222,12 @@ jobs:
   deploy-trigger:
     name: Deploy ${{ matrix.stage.name }}
     needs: [changes, setup, checks, diff-check, tests, lint]
-    # Deploy only from push/tag/dispatch (main or tags → stage; prod via osome-bot dispatch).
-    # Never from pull_request: drops the old shiva/scrooge "deployed to stage|test-N" label path.
+    # SV:261 / SC:214: deploy when stages exist and nothing failed; never on cancel or merge queue.
+    # PR labels "deployed to stage" and "deployed to test-N" still deploy the feature branch to those non-prod environments.
+    # Production cannot come from a pull request (filtered in get-deployment-stages).
     # changes must succeed: if it fails, the gated jobs are skipped (not failed) and would let unchecked code deploy.
     if: >-
-      !cancelled() && github.event_name != 'merge_group' && github.event_name != 'pull_request' &&
+      !cancelled() && github.event_name != 'merge_group' &&
       needs.changes.result == 'success' && needs.setup.result == 'success' &&
       needs.setup.outputs.stages != '[]' && !contains(needs.*.result, 'failure')
     runs-on: ${{ inputs.light_runner }}
