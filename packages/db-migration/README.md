@@ -50,8 +50,36 @@ The deploy job needs `contents: read`; every current deploy job already has it.
 | `service-name` | repository name | S3 fallback zip and lambda name |
 | `aws-region` | `us-east-1` | S3 fallback: bucket, lambda update + wait, invoke |
 | `s3-bucket` | `osome-serverless-<stage>-<aws-region>` | S3 fallback |
+| `mode` | `all` | `all`, `check` (decide only) or `run` (use `migrations-required`) |
+| `migrations-required` | `false` | `mode: run` only: the `check` step's output |
 
-Outputs: `migrations-required`, `try-canary-ran`.
+Outputs: `migrations-required`, `try-canary-ran`, `setup-required`.
+
+### Jobs that only migrate
+
+When migrations live in their own job (core), that job's checkout, `npm ci` and Serverless license exist only for the migrate and try-canary deploys. Call the action twice so the job can skip setup entirely when nothing runs:
+
+```yaml
+- name: Check DB migration
+  id: db-migration
+  uses: osomepteltd/actions/packages/db-migration@master
+  with:
+    mode: check
+    stage: ${{ inputs.env || github.event.deployment.environment }}
+
+# checkout, AWS credentials, setup-node, npm ci, Serverless license:
+#   if: steps.db-migration.outputs.setup-required == 'true'
+
+- name: DB migration
+  if: steps.db-migration.outputs.setup-required == 'true'
+  uses: osomepteltd/actions/packages/db-migration@master
+  with:
+    mode: run
+    migrations-required: ${{ steps.db-migration.outputs.migrations-required }}
+    stage: ${{ inputs.env || github.event.deployment.environment }}
+```
+
+`mode: check` needs only the token; it makes no Serverless or AWS calls.
 
 ## Per-repo inputs
 
@@ -69,7 +97,7 @@ Inputs that reproduce each repo's current steps. Anything not listed uses the de
 | enrique | `needs.setup.outputs.stage` | `try-canary: 'false'` |
 | cheburashka, skyler | `needs.setup.outputs.stage` | `migrate: 'false'` |
 | bouncer | `inputs.env \|\| github.event.deployment.environment` | `migrate: 'false'`, `serverless-command: npx sls` |
-| core | `inputs.env \|\| github.event.deployment.environment` | `try-canary-env: NODE_OPTIONS=--max-old-space-size=8192`, `try-canary-s3-fallback: 'true'` |
+| core | `inputs.env \|\| github.event.deployment.environment` | Two-step (see *Jobs that only migrate*): `mode: check`, then `mode: run` with `try-canary-env: NODE_OPTIONS=--max-old-space-size=8192`, `try-canary-s3-fallback: 'true'`, `service-name: core` |
 
 Multiple env lines use a block scalar:
 

@@ -4,8 +4,20 @@ description: >-
   PF-3512 rules: test-N stages migrate only when the deployed commit changes migrations relative
   to the base branch, and try-canary runs on production only. Every other stage always migrates.
   Run it inside the deploy job after checkout, AWS credentials, npm ci and the Serverless license.
+  Jobs that only exist to migrate can call it twice: mode "check" first (no node_modules needed)
+  to learn whether setup is needed at all, then mode "run" after setup.
 
 inputs:
+  mode:
+    description: >-
+      "all" (default): check, then deploy/invoke. "check": only decide and set outputs; needs no
+      checkout or node_modules. "run": skip the check and use the migrations-required input
+    required: false
+    default: 'all'
+  migrations-required:
+    description: 'mode "run" only: the migrations-required output of an earlier mode "check" step'
+    required: false
+    default: 'false'
   stage:
     description: 'Serverless stage being deployed (e.g. test-4, stage, production)'
     required: true
@@ -88,18 +100,21 @@ inputs:
 
 outputs:
   migrations-required:
-    description: '"true" when migrations ran'
-    value: ${{ steps.check.outputs.required || 'false' }}
+    description: '"true" when migrations are required (and, outside mode "check", ran)'
+    value: ${{ steps.decide.outputs.migrate }}
   try-canary-ran:
-    description: '"true" when try-canary ran on this stage'
+    description: '"true" when try-canary applies to this stage (and, outside mode "check", ran)'
     value: ${{ steps.canary-scope.outputs.applies }}
+  setup-required:
+    description: '"true" when migrate or try-canary will run, i.e. the job needs checkout, npm ci and the Serverless license'
+    value: ${{ steps.decide.outputs.setup }}
 
 runs:
   using: 'composite'
   steps:
     - name: Check if migrations are required
       id: check
-      if: inputs.migrate == 'true'
+      if: inputs.migrate == 'true' && inputs.mode != 'run'
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.token }}
@@ -109,18 +124,6 @@ runs:
         MIGRATIONS_PATH: ${{ inputs.migrations-path }}
         CONDITIONAL_STAGES_PATTERN: ${{ inputs.conditional-stages-pattern }}
       run: '"$GITHUB_ACTION_PATH/check-migrations.sh"'
-
-    - name: Deploy and invoke ${{ inputs.migrate-function }} function
-      if: steps.check.outputs.required == 'true'
-      shell: bash
-      working-directory: ${{ inputs.working-directory }}
-      env:
-        SLS: ${{ inputs.serverless-command }}
-        STAGE: ${{ inputs.stage }}
-        FUNCTION: ${{ inputs.migrate-function }}
-        FUNCTION_ENV: ${{ inputs.migrate-env }}
-        MODE: both
-      run: '"$GITHUB_ACTION_PATH/run-function.sh"'
 
     - name: Check if try-canary applies
       id: canary-scope
@@ -139,8 +142,41 @@ runs:
         echo "applies=$APPLIES" >> "$GITHUB_OUTPUT"
         echo "try-canary on ${STAGE}: ${APPLIES}"
 
+    - name: Decide what runs
+      id: decide
+      shell: bash
+      env:
+        MODE: ${{ inputs.mode }}
+        ENABLED: ${{ inputs.migrate }}
+        CHECKED: ${{ steps.check.outputs.required }}
+        GIVEN: ${{ inputs.migrations-required }}
+        CANARY: ${{ steps.canary-scope.outputs.applies }}
+      run: |
+        case "$MODE" in
+          all | check) MIGRATE=${CHECKED:-false} ;;
+          run) MIGRATE=$GIVEN ;;
+          *) echo "::error::Unknown mode '${MODE}' (expected all, check or run)"; exit 1 ;;
+        esac
+        [ "$ENABLED" = true ] || MIGRATE=false
+        SETUP=false
+        if [ "$MIGRATE" = true ] || [ "$CANARY" = true ]; then SETUP=true; fi
+        { echo "migrate=$MIGRATE"; echo "setup=$SETUP"; } >> "$GITHUB_OUTPUT"
+        echo "mode=${MODE} migrate=${MIGRATE} try-canary=${CANARY} setup=${SETUP}"
+
+    - name: Deploy and invoke ${{ inputs.migrate-function }} function
+      if: inputs.mode != 'check' && steps.decide.outputs.migrate == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        SLS: ${{ inputs.serverless-command }}
+        STAGE: ${{ inputs.stage }}
+        FUNCTION: ${{ inputs.migrate-function }}
+        FUNCTION_ENV: ${{ inputs.migrate-env }}
+        MODE: both
+      run: '"$GITHUB_ACTION_PATH/run-function.sh"'
+
     - name: Deploy and invoke ${{ inputs.try-canary-function }} function
-      if: steps.canary-scope.outputs.applies == 'true' && inputs.try-canary-s3-fallback != 'true'
+      if: inputs.mode != 'check' && steps.canary-scope.outputs.applies == 'true' && inputs.try-canary-s3-fallback != 'true'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
@@ -153,7 +189,7 @@ runs:
 
     - name: Deploy ${{ inputs.try-canary-function }} function
       id: canary-deploy
-      if: steps.canary-scope.outputs.applies == 'true' && inputs.try-canary-s3-fallback == 'true'
+      if: inputs.mode != 'check' && steps.canary-scope.outputs.applies == 'true' && inputs.try-canary-s3-fallback == 'true'
       continue-on-error: true
       shell: bash
       working-directory: ${{ inputs.working-directory }}
