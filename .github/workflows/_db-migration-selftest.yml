@@ -97,6 +97,86 @@ jobs:
           [ "$CANARY" = false ]
           [ ! -s "$CALLS" ]
 
+      - name: 'mode check, test-N: decides skip, runs nothing'
+        id: check-testn
+        uses: ./packages/db-migration
+        with:
+          mode: check
+          stage: test-4
+          serverless-command: fake-sls
+          base-ref: master
+          deploy-sha: ${{ github.event.pull_request.head.sha }}
+      - name: Assert mode check, test-N
+        env:
+          MIGRATED: ${{ steps.check-testn.outputs.migrations-required }}
+          SETUP: ${{ steps.check-testn.outputs.setup-required }}
+        run: |
+          set -x
+          [ "$MIGRATED" = false ]
+          [ "$SETUP" = false ]
+          [ ! -s "$CALLS" ]
+
+      - name: 'mode check, production: requires setup, still runs nothing'
+        id: check-prod
+        uses: ./packages/db-migration
+        with:
+          mode: check
+          stage: production
+          serverless-command: fake-sls
+      - name: Assert mode check, production
+        env:
+          MIGRATED: ${{ steps.check-prod.outputs.migrations-required }}
+          CANARY: ${{ steps.check-prod.outputs.try-canary-ran }}
+          SETUP: ${{ steps.check-prod.outputs.setup-required }}
+        run: |
+          set -x
+          [ "$MIGRATED" = true ]
+          [ "$CANARY" = true ]
+          [ "$SETUP" = true ]
+          [ ! -s "$CALLS" ]
+
+      - name: 'mode run: uses the given decision without re-checking'
+        id: run-given
+        uses: ./packages/db-migration
+        with:
+          mode: run
+          migrations-required: ${{ steps.check-prod.outputs.migrations-required }}
+          stage: production
+          serverless-command: fake-sls
+      - name: Assert mode run
+        env:
+          MIGRATED: ${{ steps.run-given.outputs.migrations-required }}
+        run: |
+          set -x
+          [ "$MIGRATED" = true ]
+          diff <(cat "$CALLS") - <<'EOF'
+          sls deploy function --stage production --function migrate NODE_OPTIONS=
+          sls invoke --stage production --function migrate NODE_OPTIONS=
+          sls deploy function --stage production --function try-canary NODE_OPTIONS=
+          sls invoke --stage production --function try-canary NODE_OPTIONS=
+          EOF
+          : > "$CALLS"
+
+      - name: 'mode run, migrations not required: try-canary only'
+        id: run-skip
+        uses: ./packages/db-migration
+        with:
+          mode: run
+          migrations-required: 'false'
+          stage: production
+          serverless-command: fake-sls
+      - name: Assert mode run without migrations
+        env:
+          MIGRATED: ${{ steps.run-skip.outputs.migrations-required }}
+        run: |
+          set -x
+          [ "$MIGRATED" = false ]
+          diff <(cat "$CALLS") - <<'EOF'
+          sls deploy function --stage production --function try-canary NODE_OPTIONS=
+          sls invoke --stage production --function try-canary NODE_OPTIONS=
+          EOF
+          : > "$CALLS"
+
       - name: 'production with S3 fallback: failed deploy falls back to S3, waits, then invokes'
         id: fallback
         uses: ./packages/db-migration
