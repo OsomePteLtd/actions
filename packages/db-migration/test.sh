@@ -74,14 +74,18 @@ expect 'invalid env key fails before deploying' 'rc=1 ' "$(run both 'NODE-OPTION
 
 cat > "$TMP/env-sls" <<'EOF'
 #!/usr/bin/env bash
-for v in STAGE FUNCTION FUNCTION_ENV MODE SLS INVOKE_REGION; do [ -n "${!v+x}" ] && echo "$v" >> "$SLS_LOG"; done
-exit 0
+LEAKED=''
+for v in STAGE FUNCTION FUNCTION_ENV MODE SLS INVOKE_REGION; do [ -n "${!v+x}" ] && LEAKED+=" $v"; done
+echo "$1 leaked=[${LEAKED# }]" >> "$SLS_LOG"
 EOF
 chmod +x "$TMP/env-sls"
 : > "$TMP/sls.log"
 DBM_SLS="$TMP/env-sls" SLS_LOG="$TMP/sls.log" DBM_STAGE=stage DBM_FUNCTION=migrate DBM_FUNCTION_ENV=NODE_OPTIONS=x \
   DBM_MODE=both DBM_INVOKE_REGION=us-east-1 bash "$HERE/run-function.sh" > /dev/null 2>&1
-expect 'serverless sees no generic STAGE/FUNCTION/MODE/SLS env (billy crash)' '' "$(tr '\n' ' ' < "$TMP/sls.log")"
+LEAK_RC=$?
+# exit status + both calls, so a script that never reaches serverless cannot pass on an empty log
+expect 'serverless runs deploy + invoke with no generic STAGE/FUNCTION/MODE/SLS env (billy crash)' \
+  'rc=0 deploy leaked=[]|invoke leaked=[]|' "rc=${LEAK_RC} $(tr '\n' '|' < "$TMP/sls.log")"
 
 [ "$FAILURES" -eq 0 ] || { echo "$FAILURES test(s) failed"; exit 1; }
 echo 'all tests passed'
