@@ -107,6 +107,10 @@ Multiple env lines use a block scalar:
       NODE_OPTIONS=--max-old-space-size=4096
 ```
 
+## Environment
+
+Every value the action passes to its scripts is `DBM_`-prefixed, and the Serverless process inherits that environment. A generic name like `STAGE` changes how a repo's `serverless.ts` evaluates. In billy, `STAGE=stage|production` enabled Sentry at config load, and `serverless deploy` crashed with `AWS.SequentialExecutor is not a constructor`. Don't add unprefixed env vars to these steps.
+
 ## Tests
 
 `bash packages/db-migration/test.sh` runs the unit tests. `.github/workflows/_db-migration-selftest.yml` also runs the composite end to end against stub `serverless`/`aws` binaries on every PR that touches this package.

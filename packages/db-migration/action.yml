@@ -118,61 +118,61 @@ runs:
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.token }}
-        STAGE: ${{ inputs.stage }}
-        DEPLOY_SHA: ${{ inputs.deploy-sha }}
-        BASE_REF: ${{ inputs.base-ref }}
-        MIGRATIONS_PATH: ${{ inputs.migrations-path }}
-        CONDITIONAL_STAGES_PATTERN: ${{ inputs.conditional-stages-pattern }}
+        DBM_STAGE: ${{ inputs.stage }}
+        DBM_DEPLOY_SHA: ${{ inputs.deploy-sha }}
+        DBM_BASE_REF: ${{ inputs.base-ref }}
+        DBM_MIGRATIONS_PATH: ${{ inputs.migrations-path }}
+        DBM_CONDITIONAL_STAGES_PATTERN: ${{ inputs.conditional-stages-pattern }}
       run: '"$GITHUB_ACTION_PATH/check-migrations.sh"'
 
     - name: Check if try-canary applies
       id: canary-scope
       shell: bash
       env:
-        ENABLED: ${{ inputs.try-canary }}
-        STAGE: ${{ inputs.stage }}
-        STAGES: ${{ inputs.try-canary-stages }}
+        DBM_ENABLED: ${{ inputs.try-canary }}
+        DBM_STAGE: ${{ inputs.stage }}
+        DBM_STAGES: ${{ inputs.try-canary-stages }}
       run: |
-        APPLIES=false
-        if [ "$ENABLED" = true ]; then
-          for s in $STAGES; do
-            if [ "$s" = all ] || [ "$s" = "$STAGE" ]; then APPLIES=true; fi
+        DBM_APPLIES=false
+        if [ "$DBM_ENABLED" = true ]; then
+          for s in $DBM_STAGES; do
+            if [ "$s" = all ] || [ "$s" = "$DBM_STAGE" ]; then DBM_APPLIES=true; fi
           done
         fi
-        echo "applies=$APPLIES" >> "$GITHUB_OUTPUT"
-        echo "try-canary on ${STAGE}: ${APPLIES}"
+        echo "applies=$DBM_APPLIES" >> "$GITHUB_OUTPUT"
+        echo "try-canary on ${DBM_STAGE}: ${DBM_APPLIES}"
 
     - name: Decide what runs
       id: decide
       shell: bash
       env:
-        MODE: ${{ inputs.mode }}
-        ENABLED: ${{ inputs.migrate }}
-        CHECKED: ${{ steps.check.outputs.required }}
-        GIVEN: ${{ inputs.migrations-required }}
-        CANARY: ${{ steps.canary-scope.outputs.applies }}
+        DBM_MODE: ${{ inputs.mode }}
+        DBM_ENABLED: ${{ inputs.migrate }}
+        DBM_CHECKED: ${{ steps.check.outputs.required }}
+        DBM_GIVEN: ${{ inputs.migrations-required }}
+        DBM_CANARY: ${{ steps.canary-scope.outputs.applies }}
       run: |
-        case "$MODE" in
-          all | check) MIGRATE=${CHECKED:-false} ;;
-          run) MIGRATE=$GIVEN ;;
-          *) echo "::error::Unknown mode '${MODE}' (expected all, check or run)"; exit 1 ;;
+        case "$DBM_MODE" in
+          all | check) DBM_MIGRATE=${DBM_CHECKED:-false} ;;
+          run) DBM_MIGRATE=$DBM_GIVEN ;;
+          *) echo "::error::Unknown mode '${DBM_MODE}' (expected all, check or run)"; exit 1 ;;
         esac
-        [ "$ENABLED" = true ] || MIGRATE=false
-        SETUP=false
-        if [ "$MIGRATE" = true ] || [ "$CANARY" = true ]; then SETUP=true; fi
-        { echo "migrate=$MIGRATE"; echo "setup=$SETUP"; } >> "$GITHUB_OUTPUT"
-        echo "mode=${MODE} migrate=${MIGRATE} try-canary=${CANARY} setup=${SETUP}"
+        [ "$DBM_ENABLED" = true ] || DBM_MIGRATE=false
+        DBM_SETUP=false
+        if [ "$DBM_MIGRATE" = true ] || [ "$DBM_CANARY" = true ]; then DBM_SETUP=true; fi
+        { echo "migrate=$DBM_MIGRATE"; echo "setup=$DBM_SETUP"; } >> "$GITHUB_OUTPUT"
+        echo "mode=${DBM_MODE} migrate=${DBM_MIGRATE} try-canary=${DBM_CANARY} setup=${DBM_SETUP}"
 
     - name: Deploy and invoke ${{ inputs.migrate-function }} function
       if: inputs.mode != 'check' && steps.decide.outputs.migrate == 'true'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
-        SLS: ${{ inputs.serverless-command }}
-        STAGE: ${{ inputs.stage }}
-        FUNCTION: ${{ inputs.migrate-function }}
-        FUNCTION_ENV: ${{ inputs.migrate-env }}
-        MODE: both
+        DBM_SLS: ${{ inputs.serverless-command }}
+        DBM_STAGE: ${{ inputs.stage }}
+        DBM_FUNCTION: ${{ inputs.migrate-function }}
+        DBM_FUNCTION_ENV: ${{ inputs.migrate-env }}
+        DBM_MODE: both
       run: '"$GITHUB_ACTION_PATH/run-function.sh"'
 
     - name: Deploy and invoke ${{ inputs.try-canary-function }} function
@@ -180,11 +180,11 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
-        SLS: ${{ inputs.serverless-command }}
-        STAGE: ${{ inputs.stage }}
-        FUNCTION: ${{ inputs.try-canary-function }}
-        FUNCTION_ENV: ${{ inputs.try-canary-env }}
-        MODE: both
+        DBM_SLS: ${{ inputs.serverless-command }}
+        DBM_STAGE: ${{ inputs.stage }}
+        DBM_FUNCTION: ${{ inputs.try-canary-function }}
+        DBM_FUNCTION_ENV: ${{ inputs.try-canary-env }}
+        DBM_MODE: both
       run: '"$GITHUB_ACTION_PATH/run-function.sh"'
 
     - name: Deploy ${{ inputs.try-canary-function }} function
@@ -194,11 +194,11 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
-        SLS: ${{ inputs.serverless-command }}
-        STAGE: ${{ inputs.stage }}
-        FUNCTION: ${{ inputs.try-canary-function }}
-        FUNCTION_ENV: ${{ inputs.try-canary-env }}
-        MODE: deploy
+        DBM_SLS: ${{ inputs.serverless-command }}
+        DBM_STAGE: ${{ inputs.stage }}
+        DBM_FUNCTION: ${{ inputs.try-canary-function }}
+        DBM_FUNCTION_ENV: ${{ inputs.try-canary-env }}
+        DBM_MODE: deploy
       run: '"$GITHUB_ACTION_PATH/run-function.sh"'
 
     - name: Invoke ${{ inputs.try-canary-function }} function
@@ -206,10 +206,10 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
-        SLS: ${{ inputs.serverless-command }}
-        STAGE: ${{ inputs.stage }}
-        FUNCTION: ${{ inputs.try-canary-function }}
-        MODE: invoke
+        DBM_SLS: ${{ inputs.serverless-command }}
+        DBM_STAGE: ${{ inputs.stage }}
+        DBM_FUNCTION: ${{ inputs.try-canary-function }}
+        DBM_MODE: invoke
       run: '"$GITHUB_ACTION_PATH/run-function.sh"'
 
     - name: Upload ${{ inputs.try-canary-function }} via S3 and invoke (deploy failed)
@@ -217,22 +217,22 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
-        SLS: ${{ inputs.serverless-command }}
-        STAGE: ${{ inputs.stage }}
-        FUNCTION: ${{ inputs.try-canary-function }}
-        SERVICE: ${{ inputs.service-name }}
-        REGION: ${{ inputs.aws-region }}
-        BUCKET: ${{ inputs.s3-bucket }}
-        SHA: ${{ inputs.deploy-sha }}
-        MODE: invoke
+        DBM_SLS: ${{ inputs.serverless-command }}
+        DBM_STAGE: ${{ inputs.stage }}
+        DBM_FUNCTION: ${{ inputs.try-canary-function }}
+        DBM_SERVICE: ${{ inputs.service-name }}
+        DBM_REGION: ${{ inputs.aws-region }}
+        DBM_BUCKET: ${{ inputs.s3-bucket }}
+        DBM_SHA: ${{ inputs.deploy-sha }}
+        DBM_MODE: invoke
       run: |
         set -euo pipefail
-        BUCKET=${BUCKET:-osome-serverless-${STAGE}-${REGION}}
-        KEY="${STAGE}/${SERVICE}.${SHA}.zip"
-        LAMBDA="${SERVICE}-${STAGE}-${FUNCTION}"
-        trap 'aws s3 rm "s3://${BUCKET}/${KEY}" --region "$REGION" || true' EXIT
-        aws s3 cp ".serverless/${SERVICE}.zip" "s3://${BUCKET}/${KEY}" --region "$REGION"
-        aws lambda update-function-code --function-name "$LAMBDA" --s3-bucket "$BUCKET" --s3-key "$KEY" --region "$REGION"
+        DBM_BUCKET=${DBM_BUCKET:-osome-serverless-${DBM_STAGE}-${DBM_REGION}}
+        DBM_KEY="${DBM_STAGE}/${DBM_SERVICE}.${DBM_SHA}.zip"
+        DBM_LAMBDA="${DBM_SERVICE}-${DBM_STAGE}-${DBM_FUNCTION}"
+        trap 'aws s3 rm "s3://${DBM_BUCKET}/${DBM_KEY}" --region "$DBM_REGION" || true' EXIT
+        aws s3 cp ".serverless/${DBM_SERVICE}.zip" "s3://${DBM_BUCKET}/${DBM_KEY}" --region "$DBM_REGION"
+        aws lambda update-function-code --function-name "$DBM_LAMBDA" --s3-bucket "$DBM_BUCKET" --s3-key "$DBM_KEY" --region "$DBM_REGION"
         # update-function-code returns before the new code is live; invoking now could run the old canary
-        aws lambda wait function-updated --function-name "$LAMBDA" --region "$REGION"
-        INVOKE_REGION=$REGION "$GITHUB_ACTION_PATH/run-function.sh"
+        aws lambda wait function-updated --function-name "$DBM_LAMBDA" --region "$DBM_REGION"
+        DBM_INVOKE_REGION=$DBM_REGION "$GITHUB_ACTION_PATH/run-function.sh"
