@@ -24,6 +24,9 @@ jobs:
           mkdir -p "$RUNNER_TEMP/bin"
           cat > "$RUNNER_TEMP/bin/fake-sls" <<'EOF'
           #!/usr/bin/env bash
+          for v in STAGE FUNCTION FUNCTION_ENV MODE SLS; do
+            [ -n "${!v+x}" ] && { echo "::error::$v leaked into the serverless env"; exit 1; }
+          done
           echo "sls $* NODE_OPTIONS=${NODE_OPTIONS:-}" >> "$CALLS"
           [ "${FAIL_CANARY_DEPLOY:-}" = true ] && [ "$1" = deploy ] && [[ "$*" == *try-canary* ]] && exit 1
           exit 0

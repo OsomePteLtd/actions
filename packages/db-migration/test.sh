@@ -26,9 +26,9 @@ check() { # stage response [migrations-path] → prints required=...
   printf '%s' "$2" > "$TMP/response.json"
   : > "$TMP/output"
   PATH="$TMP:$PATH" FAKE_RESPONSE="$TMP/response.json" GITHUB_OUTPUT="$TMP/output" \
-    GITHUB_REPOSITORY=OsomePteLtd/repo STAGE=$1 DEPLOY_SHA=abc123 BASE_REF=main \
-    MIGRATIONS_PATH=${3:-db/migrations/} CONDITIONAL_STAGES_PATTERN='^test-[1-9][0-9]*$' \
-    RETRY_SLEEP_SECONDS=0 bash "$HERE/check-migrations.sh" > /dev/null
+    GITHUB_REPOSITORY=OsomePteLtd/repo DBM_STAGE=$1 DBM_DEPLOY_SHA=abc123 DBM_BASE_REF=main \
+    DBM_MIGRATIONS_PATH=${3:-db/migrations/} DBM_CONDITIONAL_STAGES_PATTERN='^test-[1-9][0-9]*$' \
+    DBM_RETRY_SLEEP_SECONDS=0 bash "$HERE/check-migrations.sh" > /dev/null
   cat "$TMP/output"
 }
 
@@ -58,7 +58,7 @@ expect 'test-0 is not a conditional stage' required=true "$(check test-0 "$(code
 
 run() { # mode env-lines → prints recorded serverless calls
   : > "$TMP/sls.log"
-  SLS="npx-like $TMP/sls" SLS_LOG="$TMP/sls.log" STAGE=test-4 FUNCTION=try-canary FUNCTION_ENV=$2 MODE=$1 INVOKE_REGION=${3:-} \
+  DBM_SLS="npx-like $TMP/sls" SLS_LOG="$TMP/sls.log" DBM_STAGE=test-4 DBM_FUNCTION=try-canary DBM_FUNCTION_ENV=$2 DBM_MODE=$1 DBM_INVOKE_REGION=${3:-} \
     PATH="$TMP:$PATH" bash -c "npx-like() { \"\$@\"; }; export -f npx-like; bash '$HERE/run-function.sh'" > /dev/null 2>&1
   echo "rc=$? $(tr '\n' '|' < "$TMP/sls.log")"
 }
@@ -71,6 +71,21 @@ expect 'invoke mode only invokes' 'rc=0 invoke --stage test-4 --function try-can
 expect 'invoke region is passed only when set' 'rc=0 invoke --stage test-4 --function try-canary --region eu-west-1 NODE_OPTIONS= LEGACY=|' "$(run invoke '' eu-west-1)"
 expect 'invalid env line fails before deploying' 'rc=1 ' "$(run both 'NODE_OPTIONS')"
 expect 'invalid env key fails before deploying' 'rc=1 ' "$(run both 'NODE-OPTIONS=x')"
+
+cat > "$TMP/env-sls" <<'EOF'
+#!/usr/bin/env bash
+LEAKED=''
+for v in STAGE FUNCTION FUNCTION_ENV MODE SLS INVOKE_REGION; do [ -n "${!v+x}" ] && LEAKED+=" $v"; done
+echo "$1 leaked=[${LEAKED# }]" >> "$SLS_LOG"
+EOF
+chmod +x "$TMP/env-sls"
+: > "$TMP/sls.log"
+DBM_SLS="$TMP/env-sls" SLS_LOG="$TMP/sls.log" DBM_STAGE=stage DBM_FUNCTION=migrate DBM_FUNCTION_ENV=NODE_OPTIONS=x \
+  DBM_MODE=both DBM_INVOKE_REGION=us-east-1 bash "$HERE/run-function.sh" > /dev/null 2>&1
+LEAK_RC=$?
+# exit status + both calls, so a script that never reaches serverless cannot pass on an empty log
+expect 'serverless runs deploy + invoke with no generic STAGE/FUNCTION/MODE/SLS env (billy crash)' \
+  'rc=0 deploy leaked=[]|invoke leaked=[]|' "rc=${LEAK_RC} $(tr '\n' '|' < "$TMP/sls.log")"
 
 [ "$FAILURES" -eq 0 ] || { echo "$FAILURES test(s) failed"; exit 1; }
 echo 'all tests passed'
