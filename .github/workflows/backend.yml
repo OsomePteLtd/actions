@@ -39,6 +39,7 @@ on:
       diff_ignore_globs: {"type": "string", "default": "package-lock.json **/__snapshots__/** **/*.snap", "description": "pathspecs not counted"}
       # tests
       shards: {"type": "number", "default": 1}
+      pre_test_scripts: {"type": "string", "default": "", "description": "Whitespace-separated npm scripts run before migrate (e.g. start dev Vault)"}
       migrate_script: {"type": "string", "default": "db:migrate:test"}
       test_script: {"type": "string", "default": "test:ci"}
       registry: {"type": "string", "default": "", "description": "'' = vars.CI_SERVICE_REGISTRY || docker.io"}
@@ -178,6 +179,7 @@ jobs:
         with:
           shard: ${{ matrix.shard }}
           shards: ${{ inputs.shards }}
+          pre_test_scripts: ${{ inputs.pre_test_scripts }}
           migrate_script: ${{ inputs.migrate_script }}
           test_script: ${{ inputs.test_script }}
           coverage: ${{ inputs.coverage }}
