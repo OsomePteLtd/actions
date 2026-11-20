@@ -12,6 +12,7 @@ on:
       package_manager: {"type": "string", "default": "npm", "description": "npm | pnpm. Scripts still run via npm run"}
       light_runner: {"type": "string", "default": "arc-runner-light"}
       heavy_runner: {"type": "string", "default": "arc-runner-heavy"}
+      medium_runner: {"type": "string", "default": "arc-runner-medium", "description": "Runner for Report coverage; npm ci can exceed light's 2G (pablo exit 137)"}
       test_runner: {"type": "string", "default": "", "description": "Runner for tests; '' = heavy_runner (scrooge SC:123)"}
       aws_region: {"type": "string", "default": "us-east-1"}
       ci_role_arn: {"type": "string", "required": true, "description": "OIDC role for checks/tests. No default: public repo."}
@@ -195,7 +196,7 @@ jobs:
     needs: [setup, tests]
     # SV:211 skips dependabot; runs only when tests ran and passed
     if: needs.tests.result == 'success' && inputs.coverage && github.actor != 'dependabot[bot]'
-    runs-on: ${{ inputs.light_runner }}
+    runs-on: ${{ inputs.medium_runner }}
     timeout-minutes: 10
     permissions: {"contents": "read"}
     steps:
