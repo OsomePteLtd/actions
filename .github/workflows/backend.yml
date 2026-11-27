@@ -182,7 +182,7 @@ jobs:
         credentials: ${{ (inputs.registry || vars.CI_SERVICE_REGISTRY || 'docker.io') == 'osomecache.azurecr.io' && fromJSON(format('{{"username":{0},"password":{1}}}', toJSON(secrets.DOCKER_CACHE_USER), toJSON(secrets.DOCKER_CACHE_PASSWORD))) || fromJSON('{}') }}
         ports: ['6379:6379']
     steps:
-      - uses: OsomePteLtd/actions/ci/tests@master
+      - uses: OsomePteLtd/actions/ci/tests@ci/extra-checkout-pf-3462
         with:
           shard: ${{ matrix.shard }}
           shards: ${{ inputs.shards }}
