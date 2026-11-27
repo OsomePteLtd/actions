@@ -4,6 +4,11 @@ inputs:
   shard: {"required": true}
   shards: {"required": true}
   pre_test_scripts: {"description": "Whitespace-separated npm scripts run before migrate. '' skips", "default": ""}
+  extra_checkout_repo: {"description": "owner/repo checked out before pre_test_scripts. '' skips", "default": ""}
+  extra_checkout_ref: {"description": "'' = default branch of extra_checkout_repo", "default": ""}
+  extra_checkout_path: {"description": "Workspace-relative directory for extra_checkout_repo", "default": ".extra-checkout"}
+  extra_checkout_token: {"description": "Read token for extra_checkout_repo (pass a secret); '' = github.token", "default": ""}
+  extra_pre_test_scripts: {"description": "npm scripts run in extra_checkout_path after its npm ci. '' skips install and scripts", "default": ""}
   migrate_script: {"description": "'' skips", "default": "db:migrate:test"}
   test_script: {"default": "test:ci"}
   coverage: {"description": "Upload coverage-final.json as coverage-artifacts-<shard>", "default": "true"}
@@ -26,6 +31,32 @@ runs:
         package_manager: ${{ inputs.package_manager }}
         github_packages_token: ${{ inputs.github_packages_token }}
         npmjs_token: ${{ inputs.npmjs_token }}
+    - name: Check extra checkout inputs
+      if: inputs.extra_checkout_repo != ''
+      shell: bash
+      env: {"REPO": "${{ inputs.extra_checkout_repo }}", "DIR": "${{ inputs.extra_checkout_path }}"}
+      run: |
+        [[ "$REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo "::error::extra_checkout_repo must be owner/repo, got '$REPO'"; exit 1; }
+        # a subdirectory of the workspace only: never the caller's own checkout, never outside it
+        [[ "$DIR" =~ ^[A-Za-z0-9_.][A-Za-z0-9_./-]*$ && ! "$DIR" =~ (^|/)\.\.?(/|$) ]] || { echo "::error::extra_checkout_path must be a relative subdirectory, got '$DIR'"; exit 1; }
+    - name: Check out ${{ inputs.extra_checkout_repo }}
+      if: inputs.extra_checkout_repo != ''
+      uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      with:
+        repository: ${{ inputs.extra_checkout_repo }}
+        ref: ${{ inputs.extra_checkout_ref }}
+        path: ${{ inputs.extra_checkout_path }}
+        token: ${{ inputs.extra_checkout_token || github.token }}
+        persist-credentials: false
+    - name: Prepare ${{ inputs.extra_checkout_repo }}
+      if: inputs.extra_checkout_repo != '' && inputs.extra_pre_test_scripts != ''
+      shell: bash
+      working-directory: ${{ inputs.extra_checkout_path }}
+      env: {"S": "${{ inputs.extra_pre_test_scripts }}"}
+      run: |
+        # same node and ~/.npmrc as the caller (setup-node above)
+        npm ci
+        for s in $S; do npm run "$s"; done
     - name: Pre-test scripts
       if: inputs.pre_test_scripts != ''
       shell: bash
