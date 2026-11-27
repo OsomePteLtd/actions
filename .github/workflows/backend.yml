@@ -41,6 +41,11 @@ on:
       # tests
       shards: {"type": "number", "default": 1}
       pre_test_scripts: {"type": "string", "default": "", "description": "Whitespace-separated npm scripts run before migrate (e.g. start dev Vault)"}
+      # extra checkout (off by default): another repo the tests need, e.g. skyler reads pablo's DB schema
+      extra_checkout_repo: {"type": "string", "default": "", "description": "owner/repo checked out into the tests job before pre_test_scripts; '' = off"}
+      extra_checkout_ref: {"type": "string", "default": "", "description": "Ref of extra_checkout_repo; '' = its default branch"}
+      extra_checkout_path: {"type": "string", "default": ".extra-checkout", "description": "Workspace-relative directory for extra_checkout_repo"}
+      extra_pre_test_scripts: {"type": "string", "default": "", "description": "Whitespace-separated npm scripts run inside extra_checkout_path after its npm ci; '' = no install, no scripts"}
       migrate_script: {"type": "string", "default": "db:migrate:test"}
       test_script: {"type": "string", "default": "test:ci"}
       registry: {"type": "string", "default": "", "description": "'' = vars.CI_SERVICE_REGISTRY || docker.io"}
@@ -54,6 +59,7 @@ on:
       NPMJS_KEY_READ_ONLY: {"required": true}
       DOCKER_CACHE_USER: {"required": true}
       DOCKER_CACHE_PASSWORD: {"required": true}
+      EXTRA_CHECKOUT_TOKEN: {"required": false, "description": "Read token for extra_checkout_repo; unset = github.token"}
     outputs:
       stages: {"value": "${{ jobs.setup.outputs.stages }}"}
       run_checks: {"value": "${{ jobs.setup.outputs.run_checks }}"}
@@ -181,6 +187,11 @@ jobs:
           shard: ${{ matrix.shard }}
           shards: ${{ inputs.shards }}
           pre_test_scripts: ${{ inputs.pre_test_scripts }}
+          extra_checkout_repo: ${{ inputs.extra_checkout_repo }}
+          extra_checkout_ref: ${{ inputs.extra_checkout_ref }}
+          extra_checkout_path: ${{ inputs.extra_checkout_path }}
+          extra_checkout_token: ${{ secrets.EXTRA_CHECKOUT_TOKEN }}
+          extra_pre_test_scripts: ${{ inputs.extra_pre_test_scripts }}
           migrate_script: ${{ inputs.migrate_script }}
           test_script: ${{ inputs.test_script }}
           coverage: ${{ inputs.coverage }}

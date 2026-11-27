@@ -31,5 +31,6 @@ Unmatched file ⇒ code (fail safe). `src/x.md` matches docs + code ⇒ code.
 
 CD: `deploy-backend.yml`, queued per env (`cancel-in-progress: false`), never cancels.
 Use: copy `examples/shiva.yml`. Required: `ci_role_arn` (variable, no default), `static_scripts`, 4 secrets.
+Extra checkout (off by default): `extra_checkout_repo: OsomePteLtd/pablo`, `extra_checkout_ref`, `extra_checkout_path` (workspace subdirectory) and secret `EXTRA_CHECKOUT_TOKEN` check out a second repo in each test shard, with `persist-credentials: false`. `extra_pre_test_scripts` then runs `npm ci` and those npm scripts inside it (e.g. its migrations into the shared Postgres), before `pre_test_scripts` and `migrate_script`. That repo's install and scripts run with the job's AWS role and registry tokens, so only point it at a repo of ours.
 Caller job grants `contents: read, id-token: write, pull-requests: read`. Required check: `ci / CI status`.
 Versioning: callers use `@master` (no release tags for now), so every merge to master reaches all callers on their next run. Rollback: revert the change on master, or pin the caller to a known-good commit SHA.
