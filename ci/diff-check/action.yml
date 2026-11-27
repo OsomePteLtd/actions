@@ -22,7 +22,12 @@ runs:
         HEAD: ${{ github.event.pull_request.head.sha }}
         SKIP: ${{ contains(github.event.pull_request.labels.*.name, inputs.skip_label) }}
       run: |
-        excludes=(); for g in $IGNORE; do excludes+=(":(exclude,glob)$g"); done
+        # set -f: word-split $IGNORE only. Without it, bash expands patterns
+        # like *.json against the runner cwd and the pathspec is lost.
+        excludes=()
+        set -f
+        for g in $IGNORE; do excludes+=(":(exclude,glob)$g"); done
+        set +f
         n=$(git diff --numstat "$BASE...$HEAD" -- . "${excludes[@]}" | awk '$1!="-"{s+=$1+$2} END{print s+0}')
         echo "changed_lines=$n" >> "$GITHUB_OUTPUT"
         echo "### diff-check: $n changed lines (max $MAX)" >> "$GITHUB_STEP_SUMMARY"
